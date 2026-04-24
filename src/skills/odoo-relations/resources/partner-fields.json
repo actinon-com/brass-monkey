@@ -1,0 +1,56 @@
+{
+  "res.partner": {
+    "core": {
+      "name": "char",
+      "email": "char",
+      "phone": "char",
+      "mobile": "char",
+      "is_company": "boolean",
+      "parent_id": "many2one(res.partner)",
+      "type": {
+        "type": "selection",
+        "options": ["contact", "invoice", "delivery", "followup", "other"]
+      },
+      "active": "boolean",
+      "function": "char",
+      "lang": "selection",
+      "tz": "selection"
+    },
+    "address": {
+      "street": "char",
+      "street2": "char",
+      "city": "char",
+      "zip": "char",
+      "state_id": "many2one(res.country.state)",
+      "country_id": "many2one(res.country)",
+      "contact_address": "char (computed)"
+    },
+    "financial": {
+      "vat": "char",
+      "company_registry": "char",
+      "property_payment_term_id": "many2one(account.payment.term) [company-dependent]",
+      "property_product_pricelist": "many2one(product.pricelist) [computed]",
+      "property_account_receivable_id": "many2one(account.account) [company-dependent]",
+      "property_account_payable_id": "many2one(account.account) [company-dependent]",
+      "customer_rank": "integer",
+      "supplier_rank": "integer",
+      "credit_limit": "float [company-dependent]",
+      "trust": "selection(good,normal,bad) [company-dependent]"
+    },
+    "crm_and_marketing": {
+      "user_id": "many2one(res.users)",
+      "category_id": "many2many(res.partner.category)",
+      "opportunity_count": "integer [computed]",
+      "meeting_count": "integer [computed]",
+      "is_blacklisted": "boolean [computed]"
+    },
+    "technical": {
+      "commercial_partner_id": "many2one(res.partner) [readonly]",
+      "ref": "char",
+      "barcode": "char [company-dependent]",
+      "company_id": "many2one(res.company)",
+      "email_normalized": "char [computed]",
+      "phone_sanitized": "char [computed]"
+    }
+  }
+}
