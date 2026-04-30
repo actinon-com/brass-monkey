@@ -1,0 +1,38 @@
+{
+  "frontdesk.visitor": {
+    "core": {
+      "name": "char",
+      "company": "char (Visitor Organization)",
+      "state": "selection(planned,checked_in,checked_out,canceled)",
+      "check_in": "datetime",
+      "check_out": "datetime"
+    },
+    "contact": {
+      "email": "char",
+      "phone": "char"
+    },
+    "relationships": {
+      "host_ids": "many2many(hr.employee)",
+      "station_id": "many2one(frontdesk.frontdesk)",
+      "company_id": "many2one(res.company) [Host Company]"
+    }
+  },
+  "frontdesk.frontdesk": {
+    "core": {
+      "name": "char",
+      "active": "boolean"
+    },
+    "config": {
+      "ask_company": "selection(required,optional,none)",
+      "ask_email": "selection",
+      "ask_phone": "selection",
+      "self_check_in": "boolean"
+    },
+    "notifications": {
+      "notify_discuss": "boolean",
+      "notify_email": "boolean",
+      "notify_sms": "boolean",
+      "mail_template_id": "many2one(mail.template)"
+    }
+  }
+}

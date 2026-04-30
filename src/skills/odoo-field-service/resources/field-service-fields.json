@@ -1,0 +1,34 @@
+{
+  "project.task": {
+    "fsm_core": {
+      "fsm_done": "boolean",
+      "planned_date_begin": "datetime",
+      "date_deadline": "datetime",
+      "partner_id": "many2one(res.partner) [Site Address]"
+    },
+    "worksheet_and_reports": {
+      "worksheet_template_id": "many2one(worksheet.template)",
+      "worksheet_signature": "binary",
+      "worksheet_signed_by": "char"
+    },
+    "billing": {
+      "sale_order_id": "many2one(sale.order)",
+      "sale_line_id": "many2one(sale.order.line)",
+      "under_warranty": "boolean"
+    }
+  },
+  "worksheet.template": {
+    "core": {
+      "name": "char",
+      "res_model": "char [Technical Host Model]",
+      "model_id": "many2one(ir.model) [Dynamic Answer Model]"
+    }
+  },
+  "project.project": {
+    "fsm_config": {
+      "is_fsm": "boolean",
+      "allow_worksheets": "boolean",
+      "allow_material": "boolean"
+    }
+  }
+}

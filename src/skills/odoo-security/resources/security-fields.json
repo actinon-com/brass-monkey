@@ -1,0 +1,46 @@
+{
+  "res.groups": {
+    "core": {
+      "name": "char",
+      "category_id": "many2one(ir.module.category)",
+      "comment": "text"
+    },
+    "relationships": {
+      "users": "many2many(res.users)",
+      "implied_ids": "many2many(res.groups)",
+      "rule_groups": "many2many(ir.rule)",
+      "menu_access": "many2many(ir.ui.menu)"
+    }
+  },
+  "ir.model.access": {
+    "core": {
+      "name": "char",
+      "model_id": "many2one(ir.model)",
+      "group_id": "many2one(res.groups)",
+      "active": "boolean"
+    },
+    "permissions": {
+      "perm_read": "boolean",
+      "perm_write": "boolean",
+      "perm_create": "boolean",
+      "perm_unlink": "boolean"
+    }
+  },
+  "ir.rule": {
+    "core": {
+      "name": "char",
+      "model_id": "many2one(ir.model)",
+      "domain_force": "text",
+      "global": "boolean"
+    },
+    "permissions": {
+      "perm_read": "boolean",
+      "perm_write": "boolean",
+      "perm_create": "boolean",
+      "perm_unlink": "boolean"
+    },
+    "relationships": {
+      "groups": "many2many(res.groups)"
+    }
+  }
+}

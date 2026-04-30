@@ -1,0 +1,39 @@
+{
+  "ir.actions.server": {
+    "core": {
+      "name": "char",
+      "state": "selection(object_write,object_create,code,webhook,multi)",
+      "model_id": "many2one(ir.model)",
+      "code": "text (Python)"
+    },
+    "technical": {
+      "sequence": "integer",
+      "usage": "selection(ir_actions_server,ir_cron,base_automation)"
+    }
+  },
+  "base.automation": {
+    "core": {
+      "name": "char",
+      "trigger": "selection(on_create,on_write,on_time,on_unlink)",
+      "model_id": "many2one(ir.model)",
+      "action_server_id": "many2one(ir.actions.server)"
+    },
+    "filtering": {
+      "filter_pre_domain": "char",
+      "filter_domain": "char"
+    }
+  },
+  "ir.logging": {
+    "core": {
+      "name": "char",
+      "type": "char",
+      "level": "char",
+      "message": "text"
+    },
+    "metadata": {
+      "path": "char",
+      "func": "char",
+      "line": "char"
+    }
+  }
+}

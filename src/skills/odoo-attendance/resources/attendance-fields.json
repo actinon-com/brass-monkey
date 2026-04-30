@@ -1,0 +1,31 @@
+{
+  "hr.attendance": {
+    "core": {
+      "check_in": "datetime",
+      "check_out": "datetime",
+      "worked_hours": "float [computed]",
+      "employee_id": "many2one(hr.employee)"
+    },
+    "overtime": {
+      "expected_hours": "float",
+      "overtime_hours": "float",
+      "overtime_status": "selection(to_approve,approved,refused)"
+    },
+    "metadata": {
+      "in_ip_address": "char",
+      "in_mode": "selection(kiosk,systray,manual,technical)",
+      "out_mode": "selection"
+    }
+  },
+  "hr.employee": {
+    "attendance_status": {
+      "attendance_state": "selection(checked_in,checked_out)",
+      "last_attendance_id": "many2one(hr.attendance)",
+      "total_overtime": "float [computed]"
+    },
+    "kiosk_auth": {
+      "pin": "char",
+      "barcode": "char"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "worksheet.template": {
+    "core": {
+      "name": "char",
+      "res_model": "char (Host Model: project.task or quality.check)",
+      "model_id": "many2one(ir.model) [Dynamic Answer Model]"
+    },
+    "technical": {
+      "worksheet_count": "integer",
+      "action_id": "many2one(ir.actions.act_window)"
+    }
+  },
+  "example_x_worksheet_template": {
+    "standard_links": {
+      "x_project_task_id": "many2one(project.task)",
+      "x_quality_check_id": "many2one(quality.check)"
+    }
+  }
+}

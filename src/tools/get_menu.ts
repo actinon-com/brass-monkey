@@ -3,9 +3,15 @@ import { InstanceManager } from '../services/instance-manager.js';
 
 /**
  * Zod schema for get_menu tool input.
+ * Includes pre-processing to handle single-item arrays.
  */
 export const GetMenuSchema = z.object({
-  search_term: z.string().optional().describe('Optional filter for menu name (e.g., "Sales")'),
+  search_term: z.preprocess((val) => {
+    if (Array.isArray(val) && val.length === 1 && typeof val[0] === 'string') {
+      return val[0];
+    }
+    return val;
+  }, z.string().optional()).describe('Optional filter for menu name (e.g., "Sales")'),
   instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 
@@ -28,10 +34,9 @@ export async function getMenu(manager: InstanceManager, input: GetMenuInput = {}
 
   const menus = await client.executeKw('ir.ui.menu', 'search_read', [domain], {
     fields: ['id', 'complete_name', 'action', 'parent_id'],
-    order: 'complete_name asc',
   });
 
-  return menus.map((m: any) => ({
+  const result = menus.map((m: any) => ({
     id: m.id,
     name: m.complete_name,
     action: m.action ? {
@@ -40,4 +45,7 @@ export async function getMenu(manager: InstanceManager, input: GetMenuInput = {}
     } : null,
     parent_id: m.parent_id ? m.parent_id[0] : null,
   }));
+
+  // Sort by complete name in memory
+  return result.sort((a: any, b: any) => a.name.localeCompare(b.name));
 }

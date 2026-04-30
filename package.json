@@ -19,7 +19,7 @@
     "crm"
   ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "description": "Secure, intelligent bridge between AI agents and Odoo instances.",
   "dependencies": {
     "keytar": "^7.9.0",

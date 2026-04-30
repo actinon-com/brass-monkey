@@ -3,10 +3,11 @@ import { InstanceManager } from '../services/instance-manager.js';
 
 /**
  * Zod schema for unlink_record tool input.
+ * Includes pre-processing to handle numeric strings.
  */
 export const UnlinkRecordSchema = z.object({
   model: z.string().describe('Technical model name (e.g., "res.partner")'),
-  id: z.number().describe('Database ID of the record to delete.'),
+  id: z.coerce.number().describe('Database ID of the record to delete.'),
   justification: z.string().min(1).describe('Business justification for deleting this record.'),
   instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });

@@ -1,0 +1,20 @@
+{
+  "documents.document": {
+    "spreadsheet_core": {
+      "spreadsheet_data": "text (JSON State)",
+      "handler": "selection(spreadsheet,frozen_folder,frozen_spreadsheet)",
+      "thumbnail": "binary"
+    },
+    "spreadsheet_sync": {
+      "current_revision_uuid": "char",
+      "spreadsheet_binary_data": "binary"
+    }
+  },
+  "spreadsheet.template": {
+    "core": {
+      "name": "char",
+      "spreadsheet_data": "text",
+      "thumbnail": "binary"
+    }
+  }
+}

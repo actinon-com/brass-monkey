@@ -3,10 +3,16 @@ import { InstanceManager } from '../services/instance-manager.js';
 
 /**
  * Zod schema for create_record tool input.
+ * Includes pre-processing to handle JSON-serialized values.
  */
 export const CreateRecordSchema = z.object({
   model: z.string().describe('Technical model name (e.g., "res.partner")'),
-  values: z.record(z.any()).describe('A dictionary of field values.'),
+  values: z.preprocess((val) => {
+    if (typeof val === 'string') {
+      try { return JSON.parse(val); } catch { return val; }
+    }
+    return val;
+  }, z.record(z.string(), z.any())).describe('A dictionary of field values.'),
   justification: z.string().min(1).describe('Business justification for creating this record.'),
   instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });

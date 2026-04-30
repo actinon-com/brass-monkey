@@ -1,0 +1,86 @@
+{
+  "stock.picking": {
+    "core": {
+      "name": "char",
+      "origin": "char",
+      "state": "selection(draft,waiting,confirmed,assigned,done,cancel)",
+      "picking_type_id": "many2one(stock.picking.type)",
+      "partner_id": "many2one(res.partner)"
+    },
+    "logistics": {
+      "location_id": "many2one(stock.location)",
+      "location_dest_id": "many2one(stock.location)",
+      "scheduled_date": "datetime",
+      "date_done": "datetime"
+    },
+    "relationships": {
+      "move_ids_without_package": "one2many(stock.move)",
+      "backorder_id": "many2one(stock.picking)"
+    }
+  },
+  "stock.move": {
+    "core": {
+      "name": "char",
+      "product_id": "many2one(product.product)",
+      "product_uom_qty": "float (Demand)",
+      "quantity_done": "float (Done)",
+      "state": "selection(draft,waiting,confirmed,partially_available,assigned,done,cancel)"
+    },
+    "routing": {
+      "location_id": "many2one(stock.location)",
+      "location_dest_id": "many2one(stock.location)",
+      "picking_id": "many2one(stock.picking)"
+    }
+  },
+  "stock.location": {
+    "core": {
+      "name": "char",
+      "complete_name": "char",
+      "usage": "selection(supplier,view,internal,customer,inventory,production,transit)",
+      "barcode": "char",
+      "storage_category_id": "many2one(stock.storage.category)"
+    },
+    "hierarchy": {
+      "location_id": "many2one(stock.location) [Parent]",
+      "warehouse_id": "many2one(stock.warehouse)"
+    }
+  },
+  "routing_and_rules": {
+    "stock.route": {
+      "name": "char",
+      "product_selectable": "boolean",
+      "warehouse_selectable": "boolean",
+      "rule_ids": "one2many(stock.rule)"
+    },
+    "stock.rule": {
+      "name": "char",
+      "action": "selection(pull,push,pull_push,buy,manufacture)",
+      "procure_method": "selection(make_to_stock,make_to_order,mts_else_mto)",
+      "location_src_id": "many2one(stock.location)",
+      "location_dest_id": "many2one(stock.location)",
+      "route_id": "many2one(stock.route)"
+    },
+    "stock.putaway.rule": {
+      "product_id": "many2one(product.product)",
+      "category_id": "many2one(product.category)",
+      "location_in_id": "many2one(stock.location)",
+      "location_out_id": "many2one(stock.location)",
+      "storage_category_id": "many2one(stock.storage.category)",
+      "sequence": "integer"
+    }
+  },
+  "uom_and_packaging": {
+    "uom.uom": {
+      "name": "char",
+      "category_id": "many2one(uom.category)",
+      "uom_type": "selection(bigger,reference,smaller)",
+      "factor": "float (Ratio)"
+    },
+    "product.packaging": {
+      "name": "char",
+      "product_id": "many2one(product.product)",
+      "qty": "float (Contained Quantity)",
+      "barcode": "char"
+    }
+  }
+}

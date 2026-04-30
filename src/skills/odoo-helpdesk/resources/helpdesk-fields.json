@@ -1,0 +1,54 @@
+{
+  "helpdesk.ticket": {
+    "core": {
+      "name": "char (Subject)",
+      "ticket_ref": "char",
+      "stage_id": "many2one(helpdesk.stage)",
+      "team_id": "many2one(helpdesk.team)",
+      "user_id": "many2one(res.users) [Assigned to]"
+    },
+    "customer": {
+      "partner_id": "many2one(res.partner)",
+      "partner_email": "char",
+      "partner_name": "char"
+    },
+    "sla_and_performance": {
+      "sla_deadline": "datetime",
+      "sla_reached": "boolean",
+      "priority": "selection(0,1,2,3)",
+      "rating_last_value": "float"
+    },
+    "integrations": {
+      "sale_order_id": "many2one(sale.order)",
+      "sale_line_id": "many2one(sale.order.line)",
+      "picking_ids": "many2many(stock.picking)",
+      "project_id": "many2one(project.project)"
+    }
+  },
+  "helpdesk.team": {
+    "core": {
+      "name": "char",
+      "alias_id": "many2one(mail.alias)",
+      "assign_method": "selection(randomly,balanced,manual)"
+    },
+    "config": {
+      "use_sla": "boolean",
+      "use_rating": "boolean",
+      "allow_portal_ticket_closing": "boolean"
+    }
+  },
+  "helpdesk.stage": {
+    "core": {
+      "name": "char",
+      "sequence": "integer",
+      "fold": "boolean"
+    }
+  },
+  "helpdesk.sla": {
+    "core": {
+      "name": "char",
+      "time": "float (Hours)",
+      "stage_id": "many2one(helpdesk.stage) [Target]"
+    }
+  }
+}

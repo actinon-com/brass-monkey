@@ -3,9 +3,10 @@ import { InstanceManager } from '../services/instance-manager.js';
 
 /**
  * Zod schema for get_action tool input.
+ * Includes pre-processing to handle numeric strings.
  */
 export const GetActionSchema = z.object({
-  action_id: z.number().describe('Database ID of the action (e.g., 123)'),
+  action_id: z.coerce.number().describe('Database ID of the action (e.g., 123)'),
   action_type: z.string().default('ir.actions.act_window').describe('The technical type of the action.'),
   instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });

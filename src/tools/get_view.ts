@@ -3,11 +3,12 @@ import { InstanceManager } from '../services/instance-manager.js';
 
 /**
  * Zod schema for get_view tool input.
+ * Includes pre-processing to handle numeric strings.
  */
 export const GetViewSchema = z.object({
   model: z.string().describe('Technical model name (e.g., "res.partner")'),
   view_type: z.enum(['form', 'tree', 'kanban', 'search', 'calendar', 'pivot', 'graph']).describe('Type of the view to retrieve.'),
-  view_id: z.number().optional().describe('Optional specific view ID.'),
+  view_id: z.coerce.number().optional().describe('Optional specific view ID.'),
   instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 

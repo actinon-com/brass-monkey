@@ -1,0 +1,52 @@
+{
+  "sale.order": {
+    "core": {
+      "name": "char (Order Reference)",
+      "state": "selection(draft,sent,sale,cancel)",
+      "date_order": "datetime",
+      "partner_id": "many2one(res.partner)",
+      "user_id": "many2one(res.users) [Salesperson]",
+      "team_id": "many2one(crm.team)"
+    },
+    "financials": {
+      "amount_total": "monetary",
+      "amount_untaxed": "monetary",
+      "currency_id": "many2one(res.currency)",
+      "pricelist_id": "many2one(product.pricelist)",
+      "invoice_status": "selection(upselling,invoiced,to invoice,no)"
+    },
+    "relationships": {
+      "order_line": "one2many(sale.order.line)",
+      "partner_invoice_id": "many2one(res.partner)",
+      "partner_shipping_id": "many2one(res.partner)",
+      "payment_term_id": "many2one(account.payment.term)"
+    }
+  },
+  "sale.order.line": {
+    "core": {
+      "product_id": "many2one(product.product)",
+      "product_uom_qty": "float (Ordered)",
+      "qty_delivered": "float",
+      "qty_invoiced": "float",
+      "price_unit": "float",
+      "tax_id": "many2many(account.tax)",
+      "invoice_status": "selection(upselling,invoiced,to invoice,no)"
+    },
+    "fulfillment": {
+      "qty_delivered_method": "selection(manual,analytic,stock_move,milestones,timesheet)",
+      "is_service": "boolean",
+      "task_id": "many2one(project.task)",
+      "project_id": "many2one(project.project)"
+    }
+  },
+  "configuration": {
+    "product.pricelist": {
+      "name": "char",
+      "currency_id": "many2one(res.currency)"
+    },
+    "account.payment.term": {
+      "name": "char",
+      "note": "html"
+    }
+  }
+}

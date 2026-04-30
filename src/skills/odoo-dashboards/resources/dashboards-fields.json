@@ -1,0 +1,24 @@
+{
+  "spreadsheet.dashboard": {
+    "core": {
+      "name": "char",
+      "dashboard_group_id": "many2one(spreadsheet.dashboard.group)",
+      "sequence": "integer",
+      "is_published": "boolean"
+    },
+    "data": {
+      "spreadsheet_data": "text (JSON State)",
+      "spreadsheet_binary_data": "binary",
+      "spreadsheet_snapshot": "binary"
+    },
+    "permissions": {
+      "group_ids": "many2many(res.groups)"
+    }
+  },
+  "spreadsheet.dashboard.group": {
+    "core": {
+      "name": "char",
+      "sequence": "integer"
+    }
+  }
+}

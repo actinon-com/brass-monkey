@@ -1,0 +1,50 @@
+{
+  "crm.lead": {
+    "core": {
+      "name": "char (Opportunity)",
+      "type": "selection(lead,opportunity)",
+      "partner_id": "many2one(res.partner)",
+      "user_id": "many2one(res.users)",
+      "team_id": "many2one(crm.team)"
+    },
+    "pipeline": {
+      "stage_id": "many2one(crm.stage)",
+      "probability": "float",
+      "expected_revenue": "monetary",
+      "priority": "selection(0,1,2,3)",
+      "tag_ids": "many2many(crm.tag)"
+    },
+    "contact_info": {
+      "email_from": "char",
+      "phone": "char",
+      "mobile": "char",
+      "contact_name": "char",
+      "partner_name": "char (Company Name)"
+    }
+  },
+  "crm.stage": {
+    "core": {
+      "name": "char",
+      "sequence": "integer",
+      "is_won": "boolean",
+      "fold": "boolean"
+    }
+  },
+  "crm.team": {
+    "core": {
+      "name": "char",
+      "user_id": "many2one(res.users) [Leader]",
+      "invoiced_target": "float"
+    }
+  },
+  "mail.activity": {
+    "core": {
+      "res_model": "char",
+      "res_id": "integer",
+      "activity_type_id": "many2one(mail.activity.type)",
+      "summary": "char",
+      "date_deadline": "date",
+      "user_id": "many2one(res.users)"
+    }
+  }
+}

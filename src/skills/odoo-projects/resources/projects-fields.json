@@ -1,0 +1,67 @@
+{
+  "project.project": {
+    "core": {
+      "name": "char",
+      "user_id": "many2one(res.users) [Project Manager]",
+      "partner_id": "many2one(res.partner) [Customer]",
+      "active": "boolean"
+    },
+    "configuration": {
+      "allow_timesheets": "boolean",
+      "allow_milestones": "boolean",
+      "allow_billable": "boolean"
+    },
+    "accounting": {
+      "account_id": "many2one(account.analytic.account)",
+      "currency_id": "many2one(res.currency)"
+    },
+    "metrics": {
+      "effective_hours": "float [computed]",
+      "allocated_hours": "float",
+      "milestone_progress": "integer [computed]"
+    }
+  },
+  "project.task": {
+    "core": {
+      "name": "char (Title)",
+      "project_id": "many2one(project.project)",
+      "stage_id": "many2one(project.task.type)",
+      "user_ids": "many2many(res.users) [Assignees]",
+      "state": "selection"
+    },
+    "billing": {
+      "sale_line_id": "many2one(sale.order.line)",
+      "sale_order_id": "many2one(sale.order)",
+      "milestone_id": "many2one(project.milestone)"
+    },
+    "planning": {
+      "allocated_hours": "float",
+      "total_hours_spent": "float [computed]",
+      "date_deadline": "datetime"
+    }
+  },
+  "project.milestone": {
+    "core": {
+      "name": "char",
+      "project_id": "many2one(project.project)",
+      "is_reached": "boolean",
+      "reached_date": "date",
+      "sale_line_id": "many2one(sale.order.line) [Invoicing Trigger]"
+    }
+  },
+  "account.analytic.line": {
+    "core": {
+      "name": "char (Description)",
+      "date": "date",
+      "unit_amount": "float (Hours Worked)",
+      "employee_id": "many2one(hr.employee)",
+      "task_id": "many2one(project.task)",
+      "project_id": "many2one(project.project)"
+    },
+    "billing": {
+      "so_line": "many2one(sale.order.line)",
+      "timesheet_invoice_type": "selection",
+      "amount": "monetary (Cost)"
+    }
+  }
+}

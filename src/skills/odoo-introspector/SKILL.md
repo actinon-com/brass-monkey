@@ -4,7 +4,11 @@ This skill provides the Gemini agent with the necessary expertise to examine, un
 
 ## Core Mandates
 
-### 1. Baseline Field Assumptions
+### 1. Static Resources vs. Live Truth
+- **Mandate:** All static resources (e.g., `core-models.md`, `*-fields.json`) provided in skills are **convenience snapshots** of standard Odoo models. They are NOT exhaustive and do NOT include custom fields added via Odoo Studio or third-party modules.
+- **Verification:** If a user mentions a field that is not in your resources, or if a task requires absolute technical precision, you **MUST** call `inspect_model` to retrieve the "Live Truth" from the target Odoo instance. NEVER argue with a user about a field's existence based on a static resource.
+
+### 2. Baseline Field Assumptions
 When inspecting an Odoo model (via `inspect_model`), you must assume the following baseline for every field unless a property flag explicitly overrides it:
 - **Storage:** The field is stored in the database (`store: true`).
 - **Mutability:** The field is both readable and writable (`readonly: false`).

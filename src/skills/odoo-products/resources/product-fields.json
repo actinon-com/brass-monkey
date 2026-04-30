@@ -1,0 +1,46 @@
+{
+  "product.template": {
+    "core": {
+      "name": "char",
+      "type": "selection(consu,service,combo)",
+      "is_storable": "boolean",
+      "categ_id": "many2one(product.category)",
+      "default_code": "char",
+      "barcode": "char",
+      "active": "boolean"
+    },
+    "sales_and_purchase": {
+      "list_price": "float",
+      "standard_price": "float",
+      "sale_ok": "boolean",
+      "purchase_ok": "boolean",
+      "invoice_policy": "selection(order,delivery)",
+      "purchase_method": "selection(purchase,receive)"
+    },
+    "stock_computed": {
+      "qty_available": "float [computed]",
+      "virtual_available": "float [computed]",
+      "incoming_qty": "float [computed]",
+      "outgoing_qty": "float [computed]"
+    },
+    "relationships": {
+      "product_variant_ids": "one2many(product.product)",
+      "product_variant_id": "many2one(product.product) [readonly]",
+      "uom_id": "many2one(uom.uom)",
+      "uom_po_id": "many2one(uom.uom)"
+    }
+  },
+  "product.product": {
+    "variant_specifics": {
+      "product_tmpl_id": "many2one(product.template)",
+      "default_code": "char",
+      "barcode": "char",
+      "price_extra": "float",
+      "standard_price": "float [company-dependent]"
+    },
+    "variant_values": {
+      "product_template_attribute_value_ids": "many2many(product.template.attribute.value)",
+      "combination_indices": "char"
+    }
+  }
+}

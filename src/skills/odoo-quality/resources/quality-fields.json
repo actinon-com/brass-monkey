@@ -1,0 +1,62 @@
+{
+  "quality.point": {
+    "core": {
+      "title": "char",
+      "name": "char (Reference)",
+      "active": "boolean",
+      "test_type_id": "many2one(quality.point.test_type)"
+    },
+    "configuration": {
+      "measure_on": "selection(operation,product,move_line)",
+      "measure_frequency_type": "selection(all,random,periodical,on_demand)",
+      "norm": "float",
+      "tolerance_min": "float",
+      "tolerance_max": "float"
+    },
+    "relationships": {
+      "product_ids": "many2many(product.product)",
+      "product_category_ids": "many2many(product.category)",
+      "picking_type_ids": "many2many(stock.picking.type)",
+      "worksheet_template_id": "many2one(worksheet.template)"
+    }
+  },
+  "quality.check": {
+    "core": {
+      "name": "char",
+      "quality_state": "selection(none,pass,fail)",
+      "control_date": "datetime"
+    },
+    "measurements": {
+      "measure": "float",
+      "measure_success": "selection(none,pass,fail)"
+    },
+    "relationships": {
+      "point_id": "many2one(quality.point)",
+      "product_id": "many2one(product.product)",
+      "picking_id": "many2one(stock.picking)",
+      "production_id": "many2one(mrp.production)",
+      "workorder_id": "many2one(mrp.workorder)",
+      "worksheet_template_id": "many2one(worksheet.template)"
+    }
+  },
+  "quality.alert": {
+    "core": {
+      "name": "char",
+      "title": "char",
+      "priority": "selection(0,1,2,3)",
+      "stage_id": "many2one(quality.alert.stage)"
+    },
+    "capa": {
+      "action_corrective": "html",
+      "action_preventive": "html",
+      "reason_id": "many2one(quality.reason)"
+    },
+    "relationships": {
+      "team_id": "many2one(quality.alert.team)",
+      "user_id": "many2one(res.users)",
+      "product_id": "many2one(product.product)",
+      "picking_id": "many2one(stock.picking)",
+      "production_id": "many2one(mrp.production)"
+    }
+  }
+}

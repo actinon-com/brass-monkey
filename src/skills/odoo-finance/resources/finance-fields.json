@@ -1,0 +1,71 @@
+{
+  "account.move": {
+    "core": {
+      "name": "char",
+      "move_type": "selection(entry,out_invoice,in_invoice,out_refund,in_refund)",
+      "state": "selection(draft,posted,cancel)",
+      "payment_state": "selection(not_paid,in_payment,paid,partial,reversed)",
+      "date": "date",
+      "invoice_date": "date",
+      "ref": "char"
+    },
+    "financials": {
+      "amount_total": "monetary",
+      "amount_residual": "monetary",
+      "currency_id": "many2one(res.currency)",
+      "journal_id": "many2one(account.journal)"
+    },
+    "relationships": {
+      "line_ids": "one2many(account.move.line)",
+      "invoice_line_ids": "one2many(account.move.line)",
+      "partner_id": "many2one(res.partner)",
+      "fiscal_position_id": "many2one(account.fiscal.position)"
+    }
+  },
+  "account.move.line": {
+    "ledger": {
+      "account_id": "many2one(account.account)",
+      "debit": "monetary",
+      "credit": "monetary",
+      "balance": "monetary",
+      "name": "char (Label)"
+    },
+    "tax_and_analytics": {
+      "tax_ids": "many2many(account.tax)",
+      "analytic_distribution": "json",
+      "tax_tag_ids": "many2many(account.account.tag)"
+    }
+  },
+  "account.payment": {
+    "core": {
+      "amount": "monetary",
+      "payment_type": "selection(outbound,inbound)",
+      "state": "selection(draft,posted,cancel)",
+      "date": "date"
+    },
+    "relationships": {
+      "journal_id": "many2one(account.journal)",
+      "partner_id": "many2one(res.partner)",
+      "reconciled_invoice_ids": "many2many(account.move)"
+    }
+  },
+  "configuration": {
+    "account.account": {
+      "code": "char",
+      "name": "char",
+      "account_type": "selection",
+      "reconcile": "boolean"
+    },
+    "account.journal": {
+      "name": "char",
+      "code": "char",
+      "type": "selection(sale,purchase,cash,bank,general)"
+    },
+    "account.tax": {
+      "name": "char",
+      "amount": "float",
+      "amount_type": "selection",
+      "type_tax_use": "selection(sale,purchase,none)"
+    }
+  }
+}

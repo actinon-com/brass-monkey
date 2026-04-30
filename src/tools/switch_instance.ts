@@ -3,9 +3,15 @@ import { InstanceManager } from '../services/instance-manager.js';
 
 /**
  * Zod schema for switch_instance tool input.
+ * Includes pre-processing to handle single-item arrays.
  */
 export const SwitchInstanceSchema = z.object({
-  alias: z.string().describe('The name of the Odoo instance to make active for the rest of the session.'),
+  alias: z.preprocess((val) => {
+    if (Array.isArray(val) && val.length === 1 && typeof val[0] === 'string') {
+      return val[0];
+    }
+    return val;
+  }, z.string()).describe('The name of the Odoo instance to make active for the rest of the session.'),
 });
 
 export type SwitchInstanceInput = z.infer<typeof SwitchInstanceSchema>;

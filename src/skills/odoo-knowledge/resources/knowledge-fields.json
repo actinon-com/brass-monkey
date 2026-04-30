@@ -1,0 +1,30 @@
+{
+  "knowledge.article": {
+    "core": {
+      "name": "char (Title)",
+      "body": "html",
+      "category": "selection(workspace,private,shared)",
+      "parent_id": "many2one(knowledge.article)",
+      "active": "boolean"
+    },
+    "permissions": {
+      "internal_permission": "selection(write,read,none)",
+      "inherited_permission": "selection",
+      "is_desynchronized": "boolean",
+      "article_member_ids": "one2many(knowledge.article.member)"
+    },
+    "metadata": {
+      "icon": "char (Emoji)",
+      "cover_image_id": "many2one(knowledge.cover)",
+      "last_edition_uid": "many2one(res.users)",
+      "last_edition_date": "datetime"
+    }
+  },
+  "knowledge.article.member": {
+    "core": {
+      "article_id": "many2one(knowledge.article)",
+      "partner_id": "many2one(res.partner)",
+      "permission": "selection(write,read,none)"
+    }
+  }
+}

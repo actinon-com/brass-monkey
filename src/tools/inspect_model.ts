@@ -3,9 +3,15 @@ import { InstanceManager } from '../services/instance-manager.js';
 
 /**
  * Zod schema for inspect_model tool input.
+ * Includes pre-processing to handle single-item arrays.
  */
 export const InspectModelSchema = z.object({
-  model: z.string().describe('Technical model name (e.g., "res.partner")'),
+  model: z.preprocess((val) => {
+    if (Array.isArray(val) && val.length === 1 && typeof val[0] === 'string') {
+      return val[0];
+    }
+    return val;
+  }, z.string()).describe('Technical model name (e.g., "res.partner")'),
   instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 

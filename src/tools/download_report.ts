@@ -5,10 +5,19 @@ import { InstanceManager } from '../services/instance-manager.js';
 
 /**
  * Zod schema for download_report tool input.
+ * Includes pre-processing to handle numeric strings and single-item arrays.
  */
 export const DownloadReportSchema = z.object({
-  report_id: z.number().describe('ID of the ir.actions.report record.'),
-  record_ids: z.array(z.number()).describe('IDs of the business records to include in the report (e.g., [101]).'),
+  report_id: z.coerce.number().describe('ID of the ir.actions.report record.'),
+  record_ids: z.preprocess((val) => {
+    if (typeof val === 'number' || typeof val === 'string') {
+      if (typeof val === 'string' && val.startsWith('[')) {
+        try { return JSON.parse(val); } catch { return [val]; }
+      }
+      return [Number(val)];
+    }
+    return val;
+  }, z.array(z.number())).describe('IDs of the business records to include in the report (e.g., [101]).'),
   destination_path: z.string().describe('Absolute local file path where the report should be saved (e.g., "C:/Users/me/Downloads/invoice.pdf").'),
   justification: z.string().min(1).describe('Business justification for downloading this report.'),
   instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),

@@ -4,7 +4,11 @@ This skill provides the Gemini agent with the expertise required to manage the `
 
 ## Core Mandates
 
-### 1. Hierarchy & "is_company"
+### 1. Snapshot Awareness (Dynamic Discovery)
+- **Mandate:** The `partner-fields.json` resource is a **snapshot** of common Odoo fields. It is NOT exhaustive.
+- **Verification:** If you need to interact with custom fields (e.g., `x_studio_...`) or if the user references fields not in your resource, you **MUST** call `inspect_model(model: 'res.partner')` to retrieve the current, live schema.
+
+### 2. Hierarchy & "is_company"
 The most critical field in this domain is `is_company`. 
 - **Companies:** Set `is_company: true`. These act as "Parent" records.
 - **Individuals:** Set `is_company: false`. These should typically have a `parent_id` linking them to a Company.

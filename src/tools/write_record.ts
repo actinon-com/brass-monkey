@@ -3,11 +3,17 @@ import { InstanceManager } from '../services/instance-manager.js';
 
 /**
  * Zod schema for write_record tool input.
+ * Includes pre-processing to handle numeric strings and JSON-serialized values.
  */
 export const WriteRecordSchema = z.object({
   model: z.string().describe('Technical model name (e.g., "res.partner")'),
-  id: z.number().describe('Database ID of the record to update.'),
-  values: z.record(z.any()).describe('A dictionary of fields to update.'),
+  id: z.coerce.number().describe('Database ID of the record to update.'),
+  values: z.preprocess((val) => {
+    if (typeof val === 'string') {
+      try { return JSON.parse(val); } catch { return val; }
+    }
+    return val;
+  }, z.record(z.string(), z.any())).describe('A dictionary of fields to update.'),
   justification: z.string().min(1).describe('Business justification for the change.'),
   instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });

@@ -1,0 +1,45 @@
+{
+  "purchase.order": {
+    "core": {
+      "name": "char (Order Reference)",
+      "state": "selection(draft,sent,to approve,purchase,done,cancel)",
+      "date_order": "datetime",
+      "partner_id": "many2one(res.partner) [Vendor]",
+      "user_id": "many2one(res.users) [Buyer]"
+    },
+    "financials": {
+      "amount_total": "monetary",
+      "currency_id": "many2one(res.currency)",
+      "invoice_status": "selection(no,to invoice,invoiced)"
+    },
+    "logistics": {
+      "picking_type_id": "many2one(stock.picking.type)",
+      "dest_address_id": "many2one(res.partner)",
+      "incoterm_id": "many2one(account.incoterms)"
+    },
+    "relationships": {
+      "order_line": "one2many(purchase.order.line)",
+      "picking_ids": "many2many(stock.picking)",
+      "invoice_ids": "many2many(account.move) [Bills]"
+    }
+  },
+  "purchase.order.line": {
+    "core": {
+      "product_id": "many2one(product.product)",
+      "product_qty": "float (Ordered)",
+      "qty_received": "float",
+      "qty_invoiced": "float",
+      "price_unit": "float",
+      "taxes_id": "many2many(account.tax)"
+    }
+  },
+  "product.supplierinfo": {
+    "core": {
+      "partner_id": "many2one(res.partner)",
+      "product_tmpl_id": "many2one(product.template)",
+      "price": "float",
+      "min_qty": "float",
+      "delay": "integer (Days)"
+    }
+  }
+}

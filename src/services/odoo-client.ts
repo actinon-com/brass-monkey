@@ -41,7 +41,7 @@ export class OdooClient {
         [],
         (error: any, version: any) => {
           if (error) {
-            return reject(new Error(`Failed to connect to Odoo: ${error.message}`));
+            return reject(this.formatError(error, 'Connection'));
           }
           this.versionInfo = version;
 
@@ -50,7 +50,7 @@ export class OdooClient {
             [db, username, api_key, {}],
             (authError: any, uid: any) => {
               if (authError) {
-                return reject(new Error(`Odoo authentication error: ${authError.message}`));
+                return reject(this.formatError(authError, 'Authentication'));
               }
               if (!uid) {
                 return reject(new Error('Odoo authentication failed: Invalid credentials'));
@@ -90,7 +90,7 @@ export class OdooClient {
 
     const result = await response.json();
     if (result.error) {
-      throw new Error(`Odoo JSON-RPC error: ${result.error.message || result.error.data.message}`);
+      throw this.formatError(result.error, 'JSON-RPC');
     }
     return result.result;
   }
@@ -121,11 +121,40 @@ export class OdooClient {
         [db, this.uid, api_key, model, method, args, kwargs],
         (error: any, result: any) => {
           if (error) {
-            return reject(new Error(`Odoo execution error [${model}.${method}]: ${error.message}`));
+            return reject(this.formatError(error, `${model}.${method}`));
           }
           resolve(result);
         }
       );
     });
+  }
+
+  /**
+   * Cleans up raw Odoo tracebacks to return user-friendly business errors.
+   */
+  private formatError(error: any, context: string): Error {
+    const rawMessage = error.faultString || error.message || String(error);
+    
+    // 1. Check for standard Odoo Business Exceptions
+    const businessErrors = [
+      /odoo\.exceptions\.UserError: (.*)/,
+      /odoo\.exceptions\.ValidationError: (.*)/,
+      /odoo\.exceptions\.AccessError: (.*)/,
+      /odoo\.exceptions\.MissingError: (.*)/
+    ];
+
+    for (const pattern of businessErrors) {
+      const match = rawMessage.match(pattern);
+      if (match && match[1]) {
+        return new Error(match[1].trim());
+      }
+    }
+
+    // 2. Check for common environment issues
+    if (rawMessage.includes('ECONNREFUSED')) return new Error(`Connection refused: Verify the Odoo URL and Port.`);
+    if (rawMessage.includes('ENOTFOUND')) return new Error(`Domain not found: Verify the Odoo URL.`);
+    
+    // 3. Fallback to a cleaner technical message
+    return new Error(`Odoo Error [${context}]: ${rawMessage.split('\n').pop()}`);
   }
 }

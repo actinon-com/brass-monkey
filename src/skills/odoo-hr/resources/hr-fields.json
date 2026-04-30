@@ -1,0 +1,56 @@
+{
+  "hr.employee": {
+    "core": {
+      "name": "char",
+      "work_email": "char",
+      "work_phone": "char",
+      "job_title": "char",
+      "employee_type": "selection(employee,worker,student,trainee,contractor,freelance)",
+      "active": "boolean"
+    },
+    "organizational": {
+      "parent_id": "many2one(hr.employee) [Manager]",
+      "coach_id": "many2one(hr.employee)",
+      "department_id": "many2one(hr.department)",
+      "job_id": "many2one(hr.job)"
+    },
+    "identity": {
+      "user_id": "many2one(res.users)",
+      "work_contact_id": "many2one(res.partner) [Internal Contact]"
+    },
+    "contractual": {
+      "contract_id": "many2one(hr.contract)",
+      "first_contract_date": "date",
+      "hourly_cost": "monetary"
+    }
+  },
+  "hr.department": {
+    "core": {
+      "name": "char",
+      "complete_name": "char",
+      "manager_id": "many2one(hr.employee)",
+      "parent_id": "many2one(hr.department)"
+    }
+  },
+  "hr.job": {
+    "core": {
+      "name": "char (Job Position)",
+      "department_id": "many2one(hr.department)",
+      "no_of_employee": "integer [Current]",
+      "expected_employees": "integer [Target]"
+    }
+  },
+  "hr.contract": {
+    "core": {
+      "name": "char (Reference)",
+      "state": "selection(draft,open,close,cancel)",
+      "date_start": "date",
+      "date_end": "date",
+      "wage": "monetary"
+    },
+    "schedule": {
+      "resource_calendar_id": "many2one(resource.calendar)",
+      "work_entry_source": "selection(calendar,attendance)"
+    }
+  }
+}

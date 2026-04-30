@@ -1,0 +1,50 @@
+{
+  "mrp.production": {
+    "core": {
+      "name": "char (Reference)",
+      "state": "selection(draft,confirmed,progress,to_close,done,cancel)",
+      "bom_id": "many2one(mrp.bom)",
+      "product_id": "many2one(product.product)",
+      "product_qty": "float"
+    },
+    "planning": {
+      "date_start": "datetime",
+      "date_finished": "datetime",
+      "user_id": "many2one(res.users) [Responsible]"
+    },
+    "relationships": {
+      "move_raw_ids": "one2many(stock.move) [Components]",
+      "finished_move_line_ids": "one2many(stock.move.line) [Finished Goods]",
+      "workorder_ids": "one2many(mrp.workorder)"
+    }
+  },
+  "mrp.bom": {
+    "core": {
+      "product_tmpl_id": "many2one(product.template)",
+      "product_id": "many2one(product.product) [Optional Variant]",
+      "type": "selection(normal,phantom,subcontract)",
+      "version": "integer"
+    },
+    "lines": {
+      "bom_line_ids": "one2many(mrp.bom.line)"
+    }
+  },
+  "mrp.workorder": {
+    "core": {
+      "name": "char",
+      "state": "selection(pending,waiting,ready,progress,done,cancel)",
+      "workcenter_id": "many2one(mrp.workcenter)",
+      "duration": "float (Minutes)",
+      "qty_produced": "float"
+    }
+  },
+  "mrp.eco": {
+    "core": {
+      "name": "char",
+      "state": "selection(confirmed,progress,rebase,conflict,done)",
+      "type": "selection",
+      "bom_id": "many2one(mrp.bom) [Current]",
+      "new_bom_id": "many2one(mrp.bom) [Proposed]"
+    }
+  }
+}

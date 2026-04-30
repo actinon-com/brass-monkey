@@ -6,9 +6,21 @@ import { OdooConfigSchema } from '../schemas/odoo-config.schema.js';
 
 /**
  * Zod schema for setup_instance tool input.
+ * Includes pre-processing to handle single-item arrays from agent formatting errors.
  */
-export const SetupInstanceSchema = OdooConfigSchema.extend({
-  alias: z.string().min(1).describe('A unique name for this instance (e.g., "prod", "staging")'),
+const StringOrArray = z.preprocess((val) => {
+  if (Array.isArray(val) && val.length === 1 && typeof val[0] === 'string') {
+    return val[0];
+  }
+  return val;
+}, z.string());
+
+export const SetupInstanceSchema = z.object({
+  alias: StringOrArray.describe('A unique name for this instance (e.g., "prod", "staging")'),
+  url: StringOrArray.describe('Odoo instance URL (e.g., https://my-odoo.odoo.com)'),
+  db: StringOrArray.describe('Database name'),
+  username: StringOrArray.describe('Username/Email'),
+  api_key: StringOrArray.describe('Odoo External API Key (recommended) or user password'),
 });
 
 export type SetupInstanceInput = z.infer<typeof SetupInstanceSchema>;

@@ -1,0 +1,44 @@
+{
+  "mrp.eco": {
+    "core": {
+      "name": "char (Reference)",
+      "state": "selection(confirmed,progress,rebase,conflict,done)",
+      "type_id": "many2one(mrp.eco.type)",
+      "stage_id": "many2one(mrp.eco.stage)",
+      "bom_id": "many2one(mrp.bom) [Current]",
+      "new_bom_id": "many2one(mrp.bom) [Proposed]"
+    },
+    "effectivity": {
+      "effectivity": "selection(asap,date)",
+      "effectivity_date": "datetime"
+    }
+  },
+  "mrp.eco.type": {
+    "core": {
+      "name": "char"
+    }
+  },
+  "mrp.eco.stage": {
+    "core": {
+      "name": "char",
+      "sequence": "integer",
+      "allow_apply_change": "boolean",
+      "final_stage": "boolean"
+    }
+  },
+  "mrp.eco.bom.change": {
+    "core": {
+      "change_type": "selection(add,remove,update)",
+      "product_id": "many2one(product.product)",
+      "upd_product_qty": "float",
+      "conflict": "boolean"
+    }
+  },
+  "mrp.eco.routing.change": {
+    "core": {
+      "change_type": "selection(add,remove,update)",
+      "workcenter_id": "many2one(mrp.workcenter)",
+      "upd_time_cycle_manual": "float"
+    }
+  }
+}

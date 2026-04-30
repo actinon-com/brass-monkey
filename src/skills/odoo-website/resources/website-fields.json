@@ -1,0 +1,39 @@
+{
+  "website": {
+    "core": {
+      "name": "char",
+      "domain": "char (e.g., https://www.mysite.com)",
+      "company_id": "many2one(res.company)",
+      "default_lang_id": "many2one(res.lang)"
+    },
+    "configuration": {
+      "social_facebook": "char",
+      "social_twitter": "char",
+      "google_analytics_key": "char"
+    }
+  },
+  "website.page": {
+    "core": {
+      "name": "char",
+      "url": "char",
+      "is_published": "boolean",
+      "view_id": "many2one(ir.ui.view)",
+      "website_id": "many2one(website)"
+    },
+    "seo": {
+      "website_meta_title": "char",
+      "website_meta_description": "text",
+      "website_meta_og_img": "char (URL)"
+    }
+  },
+  "website.menu": {
+    "core": {
+      "name": "char",
+      "url": "char",
+      "page_id": "many2one(website.page)",
+      "parent_id": "many2one(website.menu)",
+      "sequence": "integer",
+      "website_id": "many2one(website)"
+    }
+  }
+}

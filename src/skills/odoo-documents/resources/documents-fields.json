@@ -1,0 +1,56 @@
+{
+  "documents.document": {
+    "core": {
+      "name": "char",
+      "type": "selection(binary,url,folder)",
+      "folder_id": "many2one(documents.document) [Parent Folder]",
+      "active": "boolean"
+    },
+    "storage": {
+      "attachment_id": "many2one(ir.attachment)",
+      "file_extension": "char",
+      "file_size": "integer",
+      "url": "char (for Link type)"
+    },
+    "permissions_and_sharing": {
+      "access_internal": "selection(view,edit,none)",
+      "access_via_link": "selection(view,edit,none)",
+      "document_token": "char",
+      "is_access_via_link_hidden": "boolean"
+    },
+    "workflow": {
+      "request_activity_id": "many2one(mail.activity)",
+      "tag_ids": "many2many(documents.tag)",
+      "res_model": "char",
+      "res_id": "many2one_reference"
+    }
+  },
+  "ir.attachment": {
+    "core": {
+      "name": "char",
+      "mimetype": "char",
+      "datas": "binary (base64)",
+      "file_size": "integer"
+    },
+    "linking": {
+      "res_model": "char",
+      "res_id": "many2one_reference",
+      "public": "boolean"
+    }
+  },
+  "documents.access": {
+    "core": {
+      "document_id": "many2one(documents.document)",
+      "partner_id": "many2one(res.partner)",
+      "role": "selection(view,edit)",
+      "expiration_date": "datetime"
+    }
+  },
+  "documents.tag": {
+    "core": {
+      "name": "char",
+      "sequence": "integer",
+      "color": "integer"
+    }
+  }
+}
