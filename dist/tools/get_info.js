@@ -1,0 +1,56 @@
+import { z } from 'zod';
+import os from 'os';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+/**
+ * Zod schema for get_info tool input.
+ */
+export const GetInfoSchema = z.object({}); // No parameters needed
+/**
+ * Tool to get version and environment information for the Brass-Monkey extension.
+ * @param manager The InstanceManager instance.
+ * @returns An object containing version, instance, and system metadata.
+ */
+export async function getInfo(manager) {
+    // Try to read version from package.json
+    let version = 'unknown';
+    try {
+        const pkgPath = path.resolve(__dirname, '../../package.json');
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+        version = pkg.version;
+    }
+    catch (e) {
+        // Fallback if path resolution fails in some environments
+    }
+    const instances = await manager.list();
+    const activeAlias = manager.defaultAlias || (instances.length > 0 ? instances[0].alias : 'none');
+    let odooVersion = 'unknown';
+    try {
+        const client = await manager.getClient(activeAlias === 'none' ? undefined : activeAlias);
+        odooVersion = `v${client.majorVersion}`;
+    }
+    catch (e) {
+        odooVersion = 'Not authenticated / No active instance';
+    }
+    return {
+        extension: {
+            name: "brass-monkey",
+            version: version,
+            status: "BETA"
+        },
+        context: {
+            active_instance: activeAlias,
+            odoo_version: odooVersion,
+            configured_instances: instances.length
+        },
+        environment: {
+            platform: process.platform,
+            arch: process.arch,
+            node_version: process.version,
+            os_release: os.release()
+        }
+    };
+}
+//# sourceMappingURL=get_info.js.map
