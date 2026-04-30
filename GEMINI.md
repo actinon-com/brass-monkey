@@ -5,12 +5,9 @@ Brass-Monkey replaces **Brass-Compass**, a prototype Python MCP server, with a m
 
 > **Source Reference:** Original Python implementation: [brass-compass](https://github.com/actinon-com/brass-compass.git)
 
-### Core Objectives:
-- **Platform Port:** Transition from Python/MCP to Node.js/JavaScript (TypeScript).
-- **Structure:** Align with the [gemini-cli-extensions/workspace](https://github.com/gemini-cli-extensions/workspace) pattern.
-- **Enhanced Auth:** Support native Odoo login and Google OAuth2.
-- **Smarter Output:** Optimize data density for LLM context efficiency.
-- **Skill-Centric:** Leverage Gemini CLI skills to provide domain-specific expertise and procedural guidance.
+### Communication & Workflow
+- **Explanations First:** ALWAYS provide a technical explanation of proposed changes and seek user understanding/approval BEFORE modifying files or executing state-changing commands.
+- **Contextual Precedence:** Instructions found in `GEMINI.md` files are foundational mandates. They take absolute precedence over general workflows.
 
 ## Technical Mandate
 - **Language:** TypeScript (Strict Mode).
