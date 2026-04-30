@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { listReports } from '../src/tools/list_reports.js';
 import { downloadReport } from '../src/tools/download_report.js';
 import * as fs from 'fs/promises';
+import path from 'path';
 
 vi.mock('fs/promises', () => ({
   writeFile: vi.fn().mockResolvedValue(undefined),
@@ -38,14 +39,17 @@ describe('Report Tools', () => {
 
   describe('downloadReport', () => {
     it('should call Odoo to render PDF and save locally', async () => {
+      // Mock Odoo response (base64 for "test")
       mockClient.executeKw.mockResolvedValue(['dGVzdA==', 'pdf']);
-      const destination = 'C:/Users/me/Downloads/test.pdf';
+      
+      const destination = path.resolve('/tmp/test.pdf');
       await downloadReport(mockManager, {
         report_id: 1,
         record_ids: [101],
         destination_path: destination,
         justification: 'Exporting for audit',
       });
+
       expect(fs.writeFile).toHaveBeenCalledWith(destination, expect.any(Buffer));
     });
 
