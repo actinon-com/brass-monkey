@@ -7,6 +7,7 @@
 
 ## 🌟 Key Features
 
+- **Stateful MCP Architecture:** Uses a persistent Model Context Protocol (MCP) server to maintain active Odoo sessions and connections.
 - **Multi-Instance Manager:** Manage Production, Staging, and Dev environments in one session.
 - **OS-Level Security:** API Keys are stored in your operating system's secure keychain (Windows Credential Vault, macOS Keychain).
 - **Audit & Reversibility:** Every write operation captures a "Before Snapshot" and logs a mandatory justification to the Odoo record's Chatter.
