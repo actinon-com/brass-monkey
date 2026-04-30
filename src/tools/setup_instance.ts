@@ -17,16 +17,16 @@ const StringOrArray = z.preprocess((val) => {
 
 export const SetupInstanceSchema = z.object({
   alias: StringOrArray.describe('A unique name for this instance (e.g., "prod", "staging")'),
-  url: StringOrArray.describe('Odoo instance URL (e.g., https://my-odoo.odoo.com)'),
-  db: StringOrArray.describe('Database name'),
-  username: StringOrArray.describe('Username/Email'),
-  api_key: StringOrArray.describe('Odoo External API Key (recommended) or user password'),
+  url: StringOrArray.optional().describe('Odoo instance URL'),
+  db: StringOrArray.optional().describe('Database name'),
+  username: StringOrArray.optional().describe('Username/Email'),
+  api_key: StringOrArray.optional().describe('Odoo External API Key or user password'),
 });
 
 export type SetupInstanceInput = z.infer<typeof SetupInstanceSchema>;
 
 /**
- * Tool to configure and validate a new Odoo instance.
+ * Tool to configure, validate, or surgically update an Odoo instance.
  * @param configStore The ConfigStore instance.
  * @param credentialStore The CredentialStore instance.
  * @param input The SetupInstanceInput parameters.
@@ -37,20 +37,53 @@ export async function setupInstance(
   credentialStore: CredentialStore,
   input: SetupInstanceInput
 ) {
-  const { alias, url, db, username, api_key } = input;
+  const { alias } = input;
   
-  const client = new OdooClient({ url, db, username, api_key });
+  // 1. Load existing state for surgical updates
+  const existingMetadata = await configStore.getByAlias(alias);
+  const existingApiKey = await credentialStore.getApiKey(alias);
+
+  // 2. Merge inputs with existing data
+  const finalConfig = {
+    url: input.url || existingMetadata?.url,
+    db: input.db || existingMetadata?.db,
+    username: input.username || existingMetadata?.username,
+    api_key: input.api_key || existingApiKey,
+  };
+
+  // 3. Validation: Ensure we have a complete set of credentials
+  if (!finalConfig.url || !finalConfig.db || !finalConfig.username || !finalConfig.api_key) {
+    throw new Error(
+      `Incomplete configuration for alias '${alias}'. ` +
+      `Please provide the missing fields: ${Object.entries(finalConfig).filter(([_, v]) => !v).map(([k]) => k).join(', ')}`
+    );
+  }
+
+  const client = new OdooClient({ 
+    url: finalConfig.url, 
+    db: finalConfig.db, 
+    username: finalConfig.username, 
+    api_key: finalConfig.api_key 
+  });
   
-  // Validate credentials immediately
+  // 4. Validate credentials immediately
   await client.authenticate();
   
   const version = client.majorVersion;
 
-  // 1. Save the secret to the OS keychain
-  await credentialStore.saveApiKey(alias, api_key);
+  // 5. Save the secret to the OS keychain (only if provided or if it's a new instance)
+  if (input.api_key) {
+    await credentialStore.saveApiKey(alias, input.api_key);
+  }
 
-  // 2. Save non-sensitive metadata to config.json
-  await configStore.save(input);
+  // 6. Save metadata to config.json
+  await configStore.save({
+    alias,
+    url: finalConfig.url,
+    db: finalConfig.db,
+    username: finalConfig.username,
+    api_key: finalConfig.api_key
+  });
 
-  return `Successfully configured Odoo instance '${alias}' (Odoo v${version}). The API key has been stored securely in your OS keychain.`;
+  return `Successfully updated Odoo instance '${alias}' (Odoo v${version}).`;
 }

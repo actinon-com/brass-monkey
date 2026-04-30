@@ -31,6 +31,14 @@ export class ConfigStore {
   }
 
   /**
+   * Retrieves a specific Odoo instance configuration by its alias.
+   */
+  async getByAlias(alias: string): Promise<InstanceConfig | null> {
+    const instances = await this.load();
+    return instances.find(i => i.alias === alias) || null;
+  }
+
+  /**
    * Saves non-sensitive Odoo instance metadata to config.json.
    * Sensitive credentials must be handled by the CredentialStore.
    */
