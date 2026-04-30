@@ -123,6 +123,12 @@ const toolRegistry: Record<string, { handler: Function; schema: any; description
     description: "Generate and retrieve report data (e.g., PDFs).",
     deps: 'manager'
   },
+  get_info: {
+    handler: tools.getInfo,
+    schema: tools.GetInfoSchema,
+    description: "Get version and environment information for the Brass-Monkey extension.",
+    deps: 'manager'
+  },
 };
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {

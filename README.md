@@ -49,7 +49,7 @@ gemini extensions config brass-monkey
 | **UX & Navigation** | `get_menu`, `get_action`, `get_view` |
 | **Safe CRUD** | `search_read`, `create_record`, `write_record`, `unlink_record` |
 | **Reports** | `list_reports`, `download_report` |
-| **Workspace** | `setup_instance`, `list_instances`, `switch_instance` |
+| **Workspace** | `setup_instance`, `list_instances`, `switch_instance`, `get_info` |
 
 ## 💼 Domain Skills Catalog
 
