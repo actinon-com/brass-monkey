@@ -1,6 +1,6 @@
 {
   "name": "brass-monkey",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Secure, intelligent bridge between AI agents and Odoo instances.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -12,15 +12,16 @@
   },
   "settings": [
     {
-      "name": "API Key / Password",
-      "description": "Odoo External API Key (recommended) or user password",
-      "envVar": "ODOO_API_KEY",
-      "sensitive": true
+      "name": "Instance Name",
+      "description": "A unique alias for this Odoo instance (e.g., 'prod', 'staging')",
+      "envVar": "ODOO_ALIAS",
+      "default": "default",
+      "sensitive": false
     },
     {
-      "name": "Username / Email",
-      "description": "Your Odoo login username or email",
-      "envVar": "ODOO_USERNAME",
+      "name": "Odoo Instance URL",
+      "description": "The base URL of your Odoo instance (e.g., https://my-company.odoo.com)",
+      "envVar": "ODOO_URL",
       "sensitive": false
     },
     {
@@ -30,10 +31,16 @@
       "sensitive": false
     },
     {
-      "name": "Odoo Instance URL",
-      "description": "The base URL of your Odoo instance (e.g., https://my-company.odoo.com)",
-      "envVar": "ODOO_URL",
+      "name": "Username / Email",
+      "description": "Your Odoo login username or email",
+      "envVar": "ODOO_USERNAME",
       "sensitive": false
+    },
+    {
+      "name": "API Key / Password",
+      "description": "Odoo External API Key (recommended) or user password",
+      "envVar": "ODOO_API_KEY",
+      "sensitive": true
     }
   ],
   "mcpServers": {

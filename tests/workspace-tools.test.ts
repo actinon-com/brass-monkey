@@ -3,6 +3,7 @@ import { setupInstance } from '../src/tools/setup_instance.js';
 import { listInstances } from '../src/tools/list_instances.js';
 import { switchInstance } from '../src/tools/switch_instance.js';
 import { removeInstance } from '../src/tools/remove_instance.js';
+import { getInfo } from '../src/tools/get_info.js';
 import { OdooClient } from '../src/services/odoo-client.js';
 
 vi.mock('../src/services/odoo-client.js', () => {
@@ -108,6 +109,19 @@ describe('Workspace Tools', () => {
         await expect(removeInstance(mockConfigStore, mockCredentialStore, { alias: 'default' }))
           .rejects.toThrow(/cannot be removed/);
         delete process.env.ODOO_URL;
+    });
+  });
+
+  describe('getInfo', () => {
+    it('should return metadata about the extension and environment', async () => {
+      mockManager.list = vi.fn().mockResolvedValue([{ alias: 'prod', url: 'https://prod.com' }]);
+      mockManager.getClient = vi.fn().mockResolvedValue({ majorVersion: 18 });
+
+      const result = await getInfo(mockManager);
+      
+      expect(result.extension.name).toBe('brass-monkey');
+      expect(result.context.odoo_version).toBe('v18');
+      expect(result.environment.platform).toBe(process.platform);
     });
   });
 });
