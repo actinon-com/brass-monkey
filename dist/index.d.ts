@@ -18,3 +18,4 @@ export * from './tools/write_record.js';
 export * from './tools/unlink_record.js';
 export * from './tools/list_reports.js';
 export * from './tools/download_report.js';
+export * from './tools/get_info.js';

@@ -6,9 +6,23 @@ import { InstanceManager } from "./services/instance-manager.js";
 import { ConfigStore } from "./services/config-store.js";
 import { CredentialStore } from "./services/credential-store.js";
 import * as tools from "./index.js";
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Read package.json for metadata
+let version = "1.2.2";
+try {
+    const pkgPath = path.resolve(__dirname, "../package.json");
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+    version = pkg.version;
+}
+catch (e) {
+    console.error("Warning: Could not read package.json version", e);
+}
 const server = new Server({
     name: "brass-monkey",
-    version: "1.0.4",
+    version: version,
 }, {
     capabilities: {
         tools: {},
@@ -109,6 +123,12 @@ const toolRegistry = {
         handler: tools.downloadReport,
         schema: tools.DownloadReportSchema,
         description: "Generate and retrieve report data (e.g., PDFs).",
+        deps: 'manager'
+    },
+    get_info: {
+        handler: tools.getInfo,
+        schema: tools.GetInfoSchema,
+        description: "Get version and environment information for the Brass-Monkey extension.",
         deps: 'manager'
     },
 };
