@@ -1,3 +1,7 @@
+---
+name: odoo-frontdesk
+description: Functional expertise in Odoo's Frontdesk application, covering visitor management, reception check-ins, and host notifications.
+---
 # Skill: Odoo Frontdesk
 
 This skill provides the Gemini agent with functional expertise in Odoo's Frontdesk application, covering visitor management, reception check-ins, and host notifications.

@@ -1,3 +1,7 @@
+---
+name: odoo-crm
+description: High-level functional expertise in Odoo's CRM engine, covering Lead qualification, Opportunity management, and Activity tracking.
+---
 # Skill: Odoo CRM & Pipeline Management
 
 This skill provides the Gemini agent with high-level functional expertise in Odoo's CRM engine, covering Lead qualification, Opportunity management, and Activity tracking.

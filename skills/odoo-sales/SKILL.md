@@ -1,3 +1,7 @@
+---
+name: odoo-sales
+description: Functional expertise in Odoo's Sales engine, covering the entire lifecycle from Quotation to Order Fulfillment.
+---
 # Skill: Odoo Sales & Order Fulfillment
 
 This skill provides the Gemini agent with high-level functional expertise in Odoo's Sales engine, covering the entire lifecycle from Quotation to Order Fulfillment (Shipping, Manufacturing, Services).

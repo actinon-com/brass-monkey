@@ -1,3 +1,7 @@
+---
+name: odoo-products
+description: Expertise required to manage Odoo's product catalog, covering both general templates and specific product variants.
+---
 # Skill: Odoo Product Management
 
 This skill provides the Gemini agent with the expertise required to manage Odoo's product catalog, covering both the general templates and specific product variants.

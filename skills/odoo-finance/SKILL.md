@@ -1,3 +1,7 @@
+---
+name: odoo-finance
+description: High-level business expertise in Odoo's unified accounting engine, covering Invoicing, Billing, Banking, Consolidation, and Analytics.
+---
 # Skill: Odoo Finance & Accounting
 
 This skill provides the Gemini agent with high-level business expertise in Odoo's unified accounting engine, covering Invoicing, Billing, Banking, Consolidation, and Analytics.

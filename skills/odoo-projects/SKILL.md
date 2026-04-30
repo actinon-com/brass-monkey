@@ -1,3 +1,7 @@
+---
+name: odoo-projects
+description: High-level functional expertise in Odoo's Project Management engine, covering Tasks, Milestones, and integration with Sales and Accounting.
+---
 # Skill: Odoo Projects, Milestones & Timesheets
 
 This skill provides the Gemini agent with high-level functional expertise in Odoo's Project Management engine, covering Tasks, Milestones, and the critical integration with Sales (Invoicing) and Accounting (Analytic Ledger).

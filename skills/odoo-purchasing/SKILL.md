@@ -1,3 +1,7 @@
+---
+name: odoo-purchasing
+description: High-level functional expertise in Odoo's Purchasing engine, covering RFQs, Purchase Orders, and Vendor Price management.
+---
 # Skill: Odoo Purchasing & Procurement
 
 This skill provides the Gemini agent with high-level functional expertise in Odoo's Purchasing engine, covering Requests for Quotation (RFQs), Purchase Orders (POs), and Vendor Price management.

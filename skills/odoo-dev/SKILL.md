@@ -1,3 +1,7 @@
+---
+name: odoo-dev
+description: High-level technical expertise in Odoo's customization engine, covering Server Actions, Automated Rules, and Odoo Studio modifications.
+---
 # Skill: Odoo Development & Customization
 
 This skill provides the Gemini agent with high-level technical expertise in Odoo's customization engine, covering Server Actions, Automated Rules, and Odoo Studio modifications.

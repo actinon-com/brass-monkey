@@ -1,3 +1,7 @@
+---
+name: odoo-field-service
+description: Functional expertise in Odoo's Field Service module, extending Project management for on-site interventions.
+---
 # Skill: Odoo Field Service Management (FSM)
 
 This skill provides the Gemini agent with functional expertise in Odoo's Field Service module, which extends Project management for on-site interventions.

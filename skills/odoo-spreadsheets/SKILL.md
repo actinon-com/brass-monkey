@@ -1,3 +1,7 @@
+---
+name: odoo-spreadsheets
+description: Functional expertise in Odoo's Spreadsheet application for advanced business intelligence, pivot tables, and live data analysis.
+---
 # Skill: Odoo Spreadsheets (BI)
 
 This skill provides the Gemini agent with functional expertise in Odoo's Spreadsheet application, which is used for advanced business intelligence, pivot tables, and live data analysis.

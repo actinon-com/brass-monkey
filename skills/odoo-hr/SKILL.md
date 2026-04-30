@@ -1,3 +1,7 @@
+---
+name: odoo-hr
+description: Functional expertise in Odoo's HR module, covering Employee management, Departmental structures, and Employment contracts.
+---
 # Skill: Odoo Human Resources (HR)
 
 This skill provides the Gemini agent with functional expertise in Odoo's HR module, covering Employee management, Departmental structures, and Employment contracts.

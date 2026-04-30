@@ -1,3 +1,7 @@
+---
+name: odoo-inventory
+description: Expertise required to manage Odoo's inventory operations, covering transfers, stock moves, and physical warehouse structure.
+---
 # Skill: Odoo Inventory & Logistics
 
 This skill provides the Gemini agent with the expertise required to manage Odoo's inventory operations, covering transfers (pickings), stock moves, and the physical warehouse structure.

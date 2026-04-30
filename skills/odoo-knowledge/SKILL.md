@@ -1,3 +1,7 @@
+---
+name: odoo-knowledge
+description: Functional expertise in Odoo's Knowledge application, covering article creation, hierarchical organization, and collaborative sharing.
+---
 # Skill: Odoo Knowledge Management
 
 This skill provides the Gemini agent with functional expertise in Odoo's Knowledge application, covering article creation, hierarchical organization, and collaborative sharing.

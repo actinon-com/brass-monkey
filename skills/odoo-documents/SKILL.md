@@ -1,3 +1,7 @@
+---
+name: odoo-documents
+description: Functional expertise in Odoo's file management ecosystem, covering the foundational attachment layer and the advanced Document Management System.
+---
 # Skill: Odoo Documents & Attachments
 
 This skill provides the Gemini agent with functional expertise in Odoo's file management ecosystem, covering the foundational attachment layer and the advanced Document Management System (DMS).

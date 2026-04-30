@@ -1,3 +1,7 @@
+---
+name: odoo-reports
+description: Expertise required to discover, generate, and analyze Odoo business reports like Invoices, Quotations, and Packing Slips.
+---
 # Skill: Odoo Reports
 
 This skill provides the Gemini agent with the expertise required to discover, generate, and analyze Odoo business reports (e.g., Invoices, Quotations, and Packing Slips).

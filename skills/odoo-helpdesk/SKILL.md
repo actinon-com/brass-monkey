@@ -1,3 +1,7 @@
+---
+name: odoo-helpdesk
+description: High-level functional expertise in Odoo's Customer Support engine, covering Ticket management, SLA compliance, and multi-channel integration.
+---
 # Skill: Odoo Helpdesk & Customer Support
 
 This skill provides the Gemini agent with high-level functional expertise in Odoo's Customer Support engine, covering Ticket management, SLA compliance, and multi-channel integration.
