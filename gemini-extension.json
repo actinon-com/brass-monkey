@@ -1,6 +1,6 @@
 {
   "name": "brass-monkey",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Secure, intelligent bridge between AI agents and Odoo instances.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -36,9 +36,12 @@
       "sensitive": false
     }
   ],
-  "mcpServer": {
-    "command": "node",
-    "args": ["dist/mcp-server.js"]
+  "mcpServers": {
+    "brass-monkey-odoo": {
+      "command": "node",
+      "args": ["dist${/}mcp-server.js"],
+      "cwd": "${extensionPath}"
+    }
   },
   "skills": "src/skills"
 }
