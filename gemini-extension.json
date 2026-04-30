@@ -1,0 +1,30 @@
+{
+  "name": "brass-monkey",
+  "version": "1.0.1",
+  "description": "Secure, intelligent bridge between AI agents and Odoo instances.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "author": "Matthew Martella",
+  "license": "MIT",
+  "capabilities": {
+    "tools": true,
+    "skills": true
+  },
+  "tools": [
+    "dist/tools/setup_instance.js",
+    "dist/tools/list_instances.js",
+    "dist/tools/switch_instance.js",
+    "dist/tools/list_models.js",
+    "dist/tools/inspect_model.js",
+    "dist/tools/get_menu.js",
+    "dist/tools/get_action.js",
+    "dist/tools/get_view.js",
+    "dist/tools/search_read.js",
+    "dist/tools/create_record.js",
+    "dist/tools/write_record.js",
+    "dist/tools/unlink_record.js",
+    "dist/tools/list_reports.js",
+    "dist/tools/download_report.js"
+  ],
+  "skills": "src/skills"
+}
