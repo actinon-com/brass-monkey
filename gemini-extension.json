@@ -1,6 +1,6 @@
 {
   "name": "brass-monkey",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Secure, intelligent bridge between AI agents and Odoo instances.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,10 +10,37 @@
     "tools": true,
     "skills": true
   },
+  "settings": [
+    {
+      "name": "Odoo Instance URL",
+      "description": "The base URL of your Odoo instance (e.g., https://my-company.odoo.com)",
+      "envVar": "ODOO_URL",
+      "sensitive": false
+    },
+    {
+      "name": "Database Name",
+      "description": "The name of the Odoo database",
+      "envVar": "ODOO_DB",
+      "sensitive": false
+    },
+    {
+      "name": "Username / Email",
+      "description": "Your Odoo login username or email",
+      "envVar": "ODOO_USERNAME",
+      "sensitive": false
+    },
+    {
+      "name": "API Key / Password",
+      "description": "Odoo External API Key (recommended) or user password",
+      "envVar": "ODOO_API_KEY",
+      "sensitive": true
+    }
+  ],
   "tools": [
     "dist/tools/setup_instance.js",
     "dist/tools/list_instances.js",
     "dist/tools/switch_instance.js",
+    "dist/tools/remove_instance.js",
     "dist/tools/list_models.js",
     "dist/tools/inspect_model.js",
     "dist/tools/get_menu.js",

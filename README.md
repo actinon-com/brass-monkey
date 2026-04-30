@@ -17,27 +17,27 @@
 ## 🚀 Quick Start
 
 ### 1. Installation
-```bash
-# Clone the repository
-git clone https://github.com/your-org/brass-monkey.git
-cd brass-monkey
+The recommended way to install **Brass-Monkey** is using the official Gemini CLI extension command. This will guide you through the interactive setup of your first Odoo instance.
 
-# Install dependencies and build
-npm install
-npm run build
+```bash
+gemini extensions install https://github.com/your-org/brass-monkey.git
 ```
 
 ### 2. Configuration
-Use the built-in setup tool to register your Odoo instances. We recommend using **Odoo External API Keys** for maximum security.
+During installation, you will be prompted for:
+- **Odoo Instance URL:** e.g., `https://my-company.odoo.com`
+- **Database Name:** The name of your Odoo database.
+- **Username / Email:** Your login credentials.
+- **API Key / Password:** Your Odoo External API Key (recommended).
 
-```json
-setup_instance({
-  "alias": "prod",
-  "url": "https://my-company.anergy.com",
-  "db": "my-database",
-  "username": "admin@company.com",
-  "api_key": "your-odoo-api-key"
-})
+You can update these settings later or add additional instances using:
+
+```bash
+# Update existing default instance
+gemini extensions config brass-monkey
+
+# Add a new named instance via the agent
+# "Setup a new Odoo instance called 'staging'"
 ```
 
 ## 🛠️ Available Tools

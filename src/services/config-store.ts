@@ -19,15 +19,34 @@ export class ConfigStore {
 
   /**
    * Loads all configured Odoo instances.
+   * Merges persistent config with environment variables from the official setup mechanism.
    */
   async load(): Promise<InstanceConfig[]> {
+    let instances: InstanceConfig[] = [];
     try {
       const data = await readFile(this.configPath, 'utf-8');
       const parsed = JSON.parse(data);
-      return parsed.instances || [];
+      instances = parsed.instances || [];
     } catch (error) {
-      return [];
+      // ignore
     }
+
+    // Check for environment variables (Official Gemini CLI setup mechanism)
+    if (process.env.ODOO_URL && process.env.ODOO_DB && process.env.ODOO_USERNAME) {
+      const envAlias = 'default';
+      const existingEnv = instances.find(i => i.alias === envAlias);
+      
+      if (!existingEnv) {
+        instances.unshift({
+          alias: envAlias,
+          url: process.env.ODOO_URL,
+          db: process.env.ODOO_DB,
+          username: process.env.ODOO_USERNAME,
+        });
+      }
+    }
+
+    return instances;
   }
 
   /**
