@@ -10,6 +10,7 @@ export declare class ConfigStore {
     constructor();
     /**
      * Loads all configured Odoo instances.
+     * Merges persistent config with environment variables from the official setup mechanism.
      */
     load(): Promise<InstanceConfig[]>;
     /**

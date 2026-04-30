@@ -11,6 +11,7 @@ export declare class CredentialStore {
     saveApiKey(alias: string, apiKey: string): Promise<void>;
     /**
      * Retrieves the API key for a specific Odoo instance.
+     * Checks the OS keychain first, then falls back to ODOO_API_KEY env var for the 'default' alias.
      * @param alias The unique alias of the instance.
      */
     getApiKey(alias: string): Promise<string | null>;

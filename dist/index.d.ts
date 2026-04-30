@@ -6,6 +6,7 @@ export * from './services/audit-service.js';
 export * from './tools/setup_instance.js';
 export * from './tools/list_instances.js';
 export * from './tools/switch_instance.js';
+export * from './tools/remove_instance.js';
 export * from './tools/list_models.js';
 export * from './tools/inspect_model.js';
 export * from './tools/get_menu.js';

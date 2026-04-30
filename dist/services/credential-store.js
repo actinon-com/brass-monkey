@@ -14,10 +14,15 @@ export class CredentialStore {
     }
     /**
      * Retrieves the API key for a specific Odoo instance.
+     * Checks the OS keychain first, then falls back to ODOO_API_KEY env var for the 'default' alias.
      * @param alias The unique alias of the instance.
      */
     async getApiKey(alias) {
-        return await keytar.getPassword(this.serviceName, alias);
+        const key = await keytar.getPassword(this.serviceName, alias);
+        if (!key && alias === 'default' && process.env.ODOO_API_KEY) {
+            return process.env.ODOO_API_KEY;
+        }
+        return key;
     }
     /**
      * Deletes the API key for a specific Odoo instance.
