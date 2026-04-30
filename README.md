@@ -1,5 +1,8 @@
 # Brass-Monkey 🐒
 
+**Status: ⚠️ BETA RELEASE**  
+*Verified Compatibility: Odoo v15 and v18. Other versions may work but have not been fully end-to-end tested.*
+
 **Brass-Monkey** is a high-fidelity Gemini CLI extension that provides a secure, intelligent, and business-aware bridge to Odoo. It enables AI agents to navigate Odoo's complex ERP/CRM architecture, manage multiple instances, and perform safe, audited record operations.
 
 ## 🌟 Key Features
