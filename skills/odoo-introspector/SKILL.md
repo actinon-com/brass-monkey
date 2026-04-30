@@ -1,3 +1,7 @@
+---
+name: odoo-introspector
+description: Expertise to examine, understand, and interpret Odoo's internal ORM structures and metadata.
+---
 # Skill: Odoo Introspector
 
 This skill provides the Gemini agent with the necessary expertise to examine, understand, and interpret Odoo's internal ORM (Object-Relational Mapping) structures and metadata.

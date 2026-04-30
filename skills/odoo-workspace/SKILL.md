@@ -1,3 +1,7 @@
+---
+name: odoo-workspace
+description: Manage multiple Odoo environments, handle authentication, and switch between instances.
+---
 # Skill: Odoo Workspace Management
 
 This skill provides the Gemini agent with the expertise required to manage multiple Odoo environments, handle authentication, and switch between instances.

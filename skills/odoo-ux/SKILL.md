@@ -1,3 +1,7 @@
+---
+name: odoo-ux
+description: Expertise to navigate Odoo's user interface architecture and interpret frontend metadata.
+---
 # Skill: Odoo UX & Navigation
 
 This skill provides the Gemini agent with the necessary expertise to navigate Odoo's user interface architecture and interpret frontend metadata.

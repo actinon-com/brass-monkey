@@ -1,3 +1,7 @@
+---
+name: odoo-mrp
+description: High-level functional expertise in Odoo's Manufacturing and Product Lifecycle Management engines, covering production planning, execution, and engineering changes.
+---
 # Skill: Odoo MRP (Manufacturing) & PLM
 
 This skill provides the Gemini agent with high-level functional expertise in Odoo's Manufacturing and Product Lifecycle Management (PLM) engines, covering production planning, execution, and engineering changes.

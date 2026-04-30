@@ -1,3 +1,7 @@
+---
+name: odoo-relations
+description: Expertise required to manage the res.partner ecosystem, the foundational directory for all people and organizations in Odoo.
+---
 # Skill: Odoo Relations (Partners & Contacts)
 
 This skill provides the Gemini agent with the expertise required to manage the `res.partner` ecosystem, which is the foundational directory for all people and organizations in Odoo.
