@@ -13841,7 +13841,7 @@ class ZodType {
     _refinement(refinement) {
         return new ZodEffects({
             schema: this,
-            typeName: ZodFirstPartyTypeKind.ZodEffects,
+            typeName: types_ZodFirstPartyTypeKind.ZodEffects,
             effect: { type: "refinement", refinement },
         });
     }
@@ -13907,7 +13907,7 @@ class ZodType {
         return new ZodEffects({
             ...processCreateParams(this._def),
             schema: this,
-            typeName: ZodFirstPartyTypeKind.ZodEffects,
+            typeName: types_ZodFirstPartyTypeKind.ZodEffects,
             effect: { type: "transform", transform },
         });
     }
@@ -13917,12 +13917,12 @@ class ZodType {
             ...processCreateParams(this._def),
             innerType: this,
             defaultValue: defaultValueFunc,
-            typeName: ZodFirstPartyTypeKind.ZodDefault,
+            typeName: types_ZodFirstPartyTypeKind.ZodDefault,
         });
     }
     brand() {
         return new ZodBranded({
-            typeName: ZodFirstPartyTypeKind.ZodBranded,
+            typeName: types_ZodFirstPartyTypeKind.ZodBranded,
             type: this,
             ...processCreateParams(this._def),
         });
@@ -13933,7 +13933,7 @@ class ZodType {
             ...processCreateParams(this._def),
             innerType: this,
             catchValue: catchValueFunc,
-            typeName: ZodFirstPartyTypeKind.ZodCatch,
+            typeName: types_ZodFirstPartyTypeKind.ZodCatch,
         });
     }
     describe(description) {
@@ -14644,7 +14644,7 @@ class ZodString extends ZodType {
 ZodString.create = (params) => {
     return new ZodString({
         checks: [],
-        typeName: ZodFirstPartyTypeKind.ZodString,
+        typeName: types_ZodFirstPartyTypeKind.ZodString,
         coerce: params?.coerce ?? false,
         ...processCreateParams(params),
     });
@@ -14892,7 +14892,7 @@ class ZodNumber extends ZodType {
 ZodNumber.create = (params) => {
     return new ZodNumber({
         checks: [],
-        typeName: ZodFirstPartyTypeKind.ZodNumber,
+        typeName: types_ZodFirstPartyTypeKind.ZodNumber,
         coerce: params?.coerce || false,
         ...processCreateParams(params),
     });
@@ -15068,7 +15068,7 @@ class ZodBigInt extends ZodType {
 ZodBigInt.create = (params) => {
     return new ZodBigInt({
         checks: [],
-        typeName: ZodFirstPartyTypeKind.ZodBigInt,
+        typeName: types_ZodFirstPartyTypeKind.ZodBigInt,
         coerce: params?.coerce ?? false,
         ...processCreateParams(params),
     });
@@ -15093,7 +15093,7 @@ class ZodBoolean extends ZodType {
 }
 ZodBoolean.create = (params) => {
     return new ZodBoolean({
-        typeName: ZodFirstPartyTypeKind.ZodBoolean,
+        typeName: types_ZodFirstPartyTypeKind.ZodBoolean,
         coerce: params?.coerce || false,
         ...processCreateParams(params),
     });
@@ -15205,7 +15205,7 @@ ZodDate.create = (params) => {
     return new ZodDate({
         checks: [],
         coerce: params?.coerce || false,
-        typeName: ZodFirstPartyTypeKind.ZodDate,
+        typeName: types_ZodFirstPartyTypeKind.ZodDate,
         ...processCreateParams(params),
     });
 };
@@ -15226,7 +15226,7 @@ class ZodSymbol extends ZodType {
 }
 ZodSymbol.create = (params) => {
     return new ZodSymbol({
-        typeName: ZodFirstPartyTypeKind.ZodSymbol,
+        typeName: types_ZodFirstPartyTypeKind.ZodSymbol,
         ...processCreateParams(params),
     });
 };
@@ -15247,7 +15247,7 @@ class ZodUndefined extends ZodType {
 }
 ZodUndefined.create = (params) => {
     return new ZodUndefined({
-        typeName: ZodFirstPartyTypeKind.ZodUndefined,
+        typeName: types_ZodFirstPartyTypeKind.ZodUndefined,
         ...processCreateParams(params),
     });
 };
@@ -15268,7 +15268,7 @@ class ZodNull extends ZodType {
 }
 ZodNull.create = (params) => {
     return new ZodNull({
-        typeName: ZodFirstPartyTypeKind.ZodNull,
+        typeName: types_ZodFirstPartyTypeKind.ZodNull,
         ...processCreateParams(params),
     });
 };
@@ -15284,7 +15284,7 @@ class ZodAny extends ZodType {
 }
 ZodAny.create = (params) => {
     return new ZodAny({
-        typeName: ZodFirstPartyTypeKind.ZodAny,
+        typeName: types_ZodFirstPartyTypeKind.ZodAny,
         ...processCreateParams(params),
     });
 };
@@ -15300,7 +15300,7 @@ class ZodUnknown extends ZodType {
 }
 ZodUnknown.create = (params) => {
     return new ZodUnknown({
-        typeName: ZodFirstPartyTypeKind.ZodUnknown,
+        typeName: types_ZodFirstPartyTypeKind.ZodUnknown,
         ...processCreateParams(params),
     });
 };
@@ -15317,7 +15317,7 @@ class ZodNever extends ZodType {
 }
 ZodNever.create = (params) => {
     return new ZodNever({
-        typeName: ZodFirstPartyTypeKind.ZodNever,
+        typeName: types_ZodFirstPartyTypeKind.ZodNever,
         ...processCreateParams(params),
     });
 };
@@ -15338,7 +15338,7 @@ class ZodVoid extends ZodType {
 }
 ZodVoid.create = (params) => {
     return new ZodVoid({
-        typeName: ZodFirstPartyTypeKind.ZodVoid,
+        typeName: types_ZodFirstPartyTypeKind.ZodVoid,
         ...processCreateParams(params),
     });
 };
@@ -15439,7 +15439,7 @@ ZodArray.create = (schema, params) => {
         minLength: null,
         maxLength: null,
         exactLength: null,
-        typeName: ZodFirstPartyTypeKind.ZodArray,
+        typeName: types_ZodFirstPartyTypeKind.ZodArray,
         ...processCreateParams(params),
     });
 };
@@ -15696,7 +15696,7 @@ class ZodObject extends ZodType {
                 ...this._def.shape(),
                 ...merging._def.shape(),
             }),
-            typeName: ZodFirstPartyTypeKind.ZodObject,
+            typeName: types_ZodFirstPartyTypeKind.ZodObject,
         });
         return merged;
     }
@@ -15840,7 +15840,7 @@ ZodObject.create = (shape, params) => {
         shape: () => shape,
         unknownKeys: "strip",
         catchall: ZodNever.create(),
-        typeName: ZodFirstPartyTypeKind.ZodObject,
+        typeName: types_ZodFirstPartyTypeKind.ZodObject,
         ...processCreateParams(params),
     });
 };
@@ -15849,7 +15849,7 @@ ZodObject.strictCreate = (shape, params) => {
         shape: () => shape,
         unknownKeys: "strict",
         catchall: ZodNever.create(),
-        typeName: ZodFirstPartyTypeKind.ZodObject,
+        typeName: types_ZodFirstPartyTypeKind.ZodObject,
         ...processCreateParams(params),
     });
 };
@@ -15858,7 +15858,7 @@ ZodObject.lazycreate = (shape, params) => {
         shape,
         unknownKeys: "strip",
         catchall: ZodNever.create(),
-        typeName: ZodFirstPartyTypeKind.ZodObject,
+        typeName: types_ZodFirstPartyTypeKind.ZodObject,
         ...processCreateParams(params),
     });
 };
@@ -15954,7 +15954,7 @@ class ZodUnion extends ZodType {
 ZodUnion.create = (types, params) => {
     return new ZodUnion({
         options: types,
-        typeName: ZodFirstPartyTypeKind.ZodUnion,
+        typeName: types_ZodFirstPartyTypeKind.ZodUnion,
         ...processCreateParams(params),
     });
 };
@@ -16081,7 +16081,7 @@ class ZodDiscriminatedUnion extends ZodType {
             }
         }
         return new ZodDiscriminatedUnion({
-            typeName: ZodFirstPartyTypeKind.ZodDiscriminatedUnion,
+            typeName: types_ZodFirstPartyTypeKind.ZodDiscriminatedUnion,
             discriminator,
             options,
             optionsMap,
@@ -16181,7 +16181,7 @@ ZodIntersection.create = (left, right, params) => {
     return new ZodIntersection({
         left: left,
         right: right,
-        typeName: ZodFirstPartyTypeKind.ZodIntersection,
+        typeName: types_ZodFirstPartyTypeKind.ZodIntersection,
         ...processCreateParams(params),
     });
 };
@@ -16251,7 +16251,7 @@ ZodTuple.create = (schemas, params) => {
     }
     return new ZodTuple({
         items: schemas,
-        typeName: ZodFirstPartyTypeKind.ZodTuple,
+        typeName: types_ZodFirstPartyTypeKind.ZodTuple,
         rest: null,
         ...processCreateParams(params),
     });
@@ -16298,14 +16298,14 @@ class ZodRecord extends ZodType {
             return new ZodRecord({
                 keyType: first,
                 valueType: second,
-                typeName: ZodFirstPartyTypeKind.ZodRecord,
+                typeName: types_ZodFirstPartyTypeKind.ZodRecord,
                 ...processCreateParams(third),
             });
         }
         return new ZodRecord({
             keyType: ZodString.create(),
             valueType: first,
-            typeName: ZodFirstPartyTypeKind.ZodRecord,
+            typeName: types_ZodFirstPartyTypeKind.ZodRecord,
             ...processCreateParams(second),
         });
     }
@@ -16373,7 +16373,7 @@ ZodMap.create = (keyType, valueType, params) => {
     return new ZodMap({
         valueType,
         keyType,
-        typeName: ZodFirstPartyTypeKind.ZodMap,
+        typeName: types_ZodFirstPartyTypeKind.ZodMap,
         ...processCreateParams(params),
     });
 };
@@ -16459,7 +16459,7 @@ ZodSet.create = (valueType, params) => {
         valueType,
         minSize: null,
         maxSize: null,
-        typeName: ZodFirstPartyTypeKind.ZodSet,
+        typeName: types_ZodFirstPartyTypeKind.ZodSet,
         ...processCreateParams(params),
     });
 };
@@ -16572,7 +16572,7 @@ class ZodFunction extends ZodType {
         return new ZodFunction({
             args: (args ? args : ZodTuple.create([]).rest(ZodUnknown.create())),
             returns: returns || ZodUnknown.create(),
-            typeName: ZodFirstPartyTypeKind.ZodFunction,
+            typeName: types_ZodFirstPartyTypeKind.ZodFunction,
             ...processCreateParams(params),
         });
     }
@@ -16590,7 +16590,7 @@ class ZodLazy extends ZodType {
 ZodLazy.create = (getter, params) => {
     return new ZodLazy({
         getter: getter,
-        typeName: ZodFirstPartyTypeKind.ZodLazy,
+        typeName: types_ZodFirstPartyTypeKind.ZodLazy,
         ...processCreateParams(params),
     });
 };
@@ -16614,14 +16614,14 @@ class ZodLiteral extends ZodType {
 ZodLiteral.create = (value, params) => {
     return new ZodLiteral({
         value: value,
-        typeName: ZodFirstPartyTypeKind.ZodLiteral,
+        typeName: types_ZodFirstPartyTypeKind.ZodLiteral,
         ...processCreateParams(params),
     });
 };
 function createZodEnum(values, params) {
     return new ZodEnum({
         values,
-        typeName: ZodFirstPartyTypeKind.ZodEnum,
+        typeName: types_ZodFirstPartyTypeKind.ZodEnum,
         ...processCreateParams(params),
     });
 }
@@ -16724,7 +16724,7 @@ class ZodNativeEnum extends ZodType {
 ZodNativeEnum.create = (values, params) => {
     return new ZodNativeEnum({
         values: values,
-        typeName: ZodFirstPartyTypeKind.ZodNativeEnum,
+        typeName: types_ZodFirstPartyTypeKind.ZodNativeEnum,
         ...processCreateParams(params),
     });
 };
@@ -16754,7 +16754,7 @@ class ZodPromise extends ZodType {
 ZodPromise.create = (schema, params) => {
     return new ZodPromise({
         type: schema,
-        typeName: ZodFirstPartyTypeKind.ZodPromise,
+        typeName: types_ZodFirstPartyTypeKind.ZodPromise,
         ...processCreateParams(params),
     });
 };
@@ -16763,7 +16763,7 @@ class ZodEffects extends ZodType {
         return this._def.schema;
     }
     sourceType() {
-        return this._def.schema._def.typeName === ZodFirstPartyTypeKind.ZodEffects
+        return this._def.schema._def.typeName === types_ZodFirstPartyTypeKind.ZodEffects
             ? this._def.schema.sourceType()
             : this._def.schema;
     }
@@ -16891,7 +16891,7 @@ class ZodEffects extends ZodType {
 ZodEffects.create = (schema, effect, params) => {
     return new ZodEffects({
         schema,
-        typeName: ZodFirstPartyTypeKind.ZodEffects,
+        typeName: types_ZodFirstPartyTypeKind.ZodEffects,
         effect,
         ...processCreateParams(params),
     });
@@ -16900,7 +16900,7 @@ ZodEffects.createWithPreprocess = (preprocess, schema, params) => {
     return new ZodEffects({
         schema,
         effect: { type: "preprocess", transform: preprocess },
-        typeName: ZodFirstPartyTypeKind.ZodEffects,
+        typeName: types_ZodFirstPartyTypeKind.ZodEffects,
         ...processCreateParams(params),
     });
 };
@@ -16920,7 +16920,7 @@ class ZodOptional extends ZodType {
 ZodOptional.create = (type, params) => {
     return new ZodOptional({
         innerType: type,
-        typeName: ZodFirstPartyTypeKind.ZodOptional,
+        typeName: types_ZodFirstPartyTypeKind.ZodOptional,
         ...processCreateParams(params),
     });
 };
@@ -16939,7 +16939,7 @@ class ZodNullable extends ZodType {
 ZodNullable.create = (type, params) => {
     return new ZodNullable({
         innerType: type,
-        typeName: ZodFirstPartyTypeKind.ZodNullable,
+        typeName: types_ZodFirstPartyTypeKind.ZodNullable,
         ...processCreateParams(params),
     });
 };
@@ -16963,7 +16963,7 @@ class ZodDefault extends ZodType {
 ZodDefault.create = (type, params) => {
     return new ZodDefault({
         innerType: type,
-        typeName: ZodFirstPartyTypeKind.ZodDefault,
+        typeName: types_ZodFirstPartyTypeKind.ZodDefault,
         defaultValue: typeof params.default === "function" ? params.default : () => params.default,
         ...processCreateParams(params),
     });
@@ -17022,7 +17022,7 @@ class ZodCatch extends ZodType {
 ZodCatch.create = (type, params) => {
     return new ZodCatch({
         innerType: type,
-        typeName: ZodFirstPartyTypeKind.ZodCatch,
+        typeName: types_ZodFirstPartyTypeKind.ZodCatch,
         catchValue: typeof params.catch === "function" ? params.catch : () => params.catch,
         ...processCreateParams(params),
     });
@@ -17044,7 +17044,7 @@ class ZodNaN extends ZodType {
 }
 ZodNaN.create = (params) => {
     return new ZodNaN({
-        typeName: ZodFirstPartyTypeKind.ZodNaN,
+        typeName: types_ZodFirstPartyTypeKind.ZodNaN,
         ...processCreateParams(params),
     });
 };
@@ -17117,7 +17117,7 @@ class ZodPipeline extends ZodType {
         return new ZodPipeline({
             in: a,
             out: b,
-            typeName: ZodFirstPartyTypeKind.ZodPipeline,
+            typeName: types_ZodFirstPartyTypeKind.ZodPipeline,
         });
     }
 }
@@ -17139,7 +17139,7 @@ class ZodReadonly extends ZodType {
 ZodReadonly.create = (type, params) => {
     return new ZodReadonly({
         innerType: type,
-        typeName: ZodFirstPartyTypeKind.ZodReadonly,
+        typeName: types_ZodFirstPartyTypeKind.ZodReadonly,
         ...processCreateParams(params),
     });
 };
@@ -17192,7 +17192,7 @@ fatal) {
 const late = {
     object: ZodObject.lazycreate,
 };
-var ZodFirstPartyTypeKind;
+var types_ZodFirstPartyTypeKind;
 (function (ZodFirstPartyTypeKind) {
     ZodFirstPartyTypeKind["ZodString"] = "ZodString";
     ZodFirstPartyTypeKind["ZodNumber"] = "ZodNumber";
@@ -17230,7 +17230,7 @@ var ZodFirstPartyTypeKind;
     ZodFirstPartyTypeKind["ZodBranded"] = "ZodBranded";
     ZodFirstPartyTypeKind["ZodPipeline"] = "ZodPipeline";
     ZodFirstPartyTypeKind["ZodReadonly"] = "ZodReadonly";
-})(ZodFirstPartyTypeKind || (ZodFirstPartyTypeKind = {}));
+})(types_ZodFirstPartyTypeKind || (types_ZodFirstPartyTypeKind = {}));
 // requires TS 4.4+
 class Class {
     constructor(..._) { }
@@ -34327,7 +34327,7 @@ function isTerminal(status) {
 }
 //# sourceMappingURL=interfaces.js.map
 ;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/Options.js
-const ignoreOverride = Symbol("Let zodToJsonSchema decide on which parser to use");
+const Options_ignoreOverride = Symbol("Let zodToJsonSchema decide on which parser to use");
 const jsonDescription = (jsonSchema, def) => {
     if (def.description) {
         try {
@@ -34364,7 +34364,7 @@ const defaultOptions = {
     nameStrategy: "ref",
     openAiAnyTypeName: "OpenAiAnyType"
 };
-const getDefaultOptions = (options) => (typeof options === "string"
+const Options_getDefaultOptions = (options) => (typeof options === "string"
     ? {
         ...defaultOptions,
         name: options,
@@ -34376,7 +34376,7 @@ const getDefaultOptions = (options) => (typeof options === "string"
 
 ;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/Refs.js
 
-const getRefs = (options) => {
+const Refs_getRefs = (options) => {
     const _options = getDefaultOptions(options);
     const currentPath = _options.name !== undefined
         ? [..._options.basePath, _options.definitionPath, _options.name]
@@ -34398,56 +34398,11 @@ const getRefs = (options) => {
     };
 };
 
-;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/getRelativePath.js
-const getRelativePath = (pathA, pathB) => {
-    let i = 0;
-    for (; i < pathA.length && i < pathB.length; i++) {
-        if (pathA[i] !== pathB[i])
-            break;
-    }
-    return [(pathA.length - i).toString(), ...pathB.slice(i)].join("/");
-};
-
-;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/any.js
-
-function parseAnyDef(refs) {
-    if (refs.target !== "openAi") {
-        return {};
-    }
-    const anyDefinitionPath = [
-        ...refs.basePath,
-        refs.definitionPath,
-        refs.openAiAnyTypeName,
-    ];
-    refs.flags.hasReferencedOpenAiAnyType = true;
-    return {
-        $ref: refs.$refStrategy === "relative"
-            ? getRelativePath(anyDefinitionPath, refs.currentPath)
-            : anyDefinitionPath.join("/"),
-    };
-}
-
-;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/errorMessages.js
-function addErrorMessage(res, key, errorMessage, refs) {
-    if (!refs?.errorMessages)
-        return;
-    if (errorMessage) {
-        res.errorMessage = {
-            ...res.errorMessage,
-            [key]: errorMessage,
-        };
-    }
-}
-function setResponseValueAndErrors(res, key, value, errorMessage, refs) {
-    res[key] = value;
-    addErrorMessage(res, key, errorMessage, refs);
-}
-
 ;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/array.js
 
 
 
-function parseArrayDef(def, refs) {
+function array_parseArrayDef(def, refs) {
     const res = {
         type: "array",
     };
@@ -34471,127 +34426,21 @@ function parseArrayDef(def, refs) {
     return res;
 }
 
-;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/bigint.js
-
-function parseBigintDef(def, refs) {
-    const res = {
-        type: "integer",
-        format: "int64",
-    };
-    if (!def.checks)
-        return res;
-    for (const check of def.checks) {
-        switch (check.kind) {
-            case "min":
-                if (refs.target === "jsonSchema7") {
-                    if (check.inclusive) {
-                        setResponseValueAndErrors(res, "minimum", check.value, check.message, refs);
-                    }
-                    else {
-                        setResponseValueAndErrors(res, "exclusiveMinimum", check.value, check.message, refs);
-                    }
-                }
-                else {
-                    if (!check.inclusive) {
-                        res.exclusiveMinimum = true;
-                    }
-                    setResponseValueAndErrors(res, "minimum", check.value, check.message, refs);
-                }
-                break;
-            case "max":
-                if (refs.target === "jsonSchema7") {
-                    if (check.inclusive) {
-                        setResponseValueAndErrors(res, "maximum", check.value, check.message, refs);
-                    }
-                    else {
-                        setResponseValueAndErrors(res, "exclusiveMaximum", check.value, check.message, refs);
-                    }
-                }
-                else {
-                    if (!check.inclusive) {
-                        res.exclusiveMaximum = true;
-                    }
-                    setResponseValueAndErrors(res, "maximum", check.value, check.message, refs);
-                }
-                break;
-            case "multipleOf":
-                setResponseValueAndErrors(res, "multipleOf", check.value, check.message, refs);
-                break;
-        }
-    }
-    return res;
-}
-
-;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/boolean.js
-function parseBooleanDef() {
-    return {
-        type: "boolean",
-    };
-}
-
 ;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/branded.js
 
-function parseBrandedDef(_def, refs) {
+function branded_parseBrandedDef(_def, refs) {
     return parseDef(_def.type._def, refs);
 }
 
 ;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/catch.js
 
-const parseCatchDef = (def, refs) => {
+const catch_parseCatchDef = (def, refs) => {
     return parseDef(def.innerType._def, refs);
-};
-
-;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/date.js
-
-function parseDateDef(def, refs, overrideDateStrategy) {
-    const strategy = overrideDateStrategy ?? refs.dateStrategy;
-    if (Array.isArray(strategy)) {
-        return {
-            anyOf: strategy.map((item, i) => parseDateDef(def, refs, item)),
-        };
-    }
-    switch (strategy) {
-        case "string":
-        case "format:date-time":
-            return {
-                type: "string",
-                format: "date-time",
-            };
-        case "format:date":
-            return {
-                type: "string",
-                format: "date",
-            };
-        case "integer":
-            return integerDateParser(def, refs);
-    }
-}
-const integerDateParser = (def, refs) => {
-    const res = {
-        type: "integer",
-        format: "unix-time",
-    };
-    if (refs.target === "openApi3") {
-        return res;
-    }
-    for (const check of def.checks) {
-        switch (check.kind) {
-            case "min":
-                setResponseValueAndErrors(res, "minimum", check.value, // This is in milliseconds
-                check.message, refs);
-                break;
-            case "max":
-                setResponseValueAndErrors(res, "maximum", check.value, // This is in milliseconds
-                check.message, refs);
-                break;
-        }
-    }
-    return res;
 };
 
 ;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/default.js
 
-function parseDefaultDef(_def, refs) {
+function default_parseDefaultDef(_def, refs) {
     return {
         ...parseDef(_def.innerType._def, refs),
         default: _def.defaultValue(),
@@ -34601,18 +34450,10 @@ function parseDefaultDef(_def, refs) {
 ;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/effects.js
 
 
-function parseEffectsDef(_def, refs) {
+function effects_parseEffectsDef(_def, refs) {
     return refs.effectStrategy === "input"
         ? parseDef(_def.schema._def, refs)
         : parseAnyDef(refs);
-}
-
-;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/enum.js
-function parseEnumDef(def) {
-    return {
-        type: "string",
-        enum: Array.from(def.values),
-    };
 }
 
 ;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/intersection.js
@@ -34622,7 +34463,7 @@ const isJsonSchema7AllOfType = (type) => {
         return false;
     return "allOf" in type;
 };
-function parseIntersectionDef(def, refs) {
+function intersection_parseIntersectionDef(def, refs) {
     const allOf = [
         parseDef(def.left._def, {
             ...refs,
@@ -34667,29 +34508,6 @@ function parseIntersectionDef(def, refs) {
             ...unevaluatedProperties,
         }
         : undefined;
-}
-
-;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/literal.js
-function parseLiteralDef(def, refs) {
-    const parsedType = typeof def.value;
-    if (parsedType !== "bigint" &&
-        parsedType !== "number" &&
-        parsedType !== "boolean" &&
-        parsedType !== "string") {
-        return {
-            type: Array.isArray(def.value) ? "array" : "object",
-        };
-    }
-    if (refs.target === "openApi3") {
-        return {
-            type: parsedType === "bigint" ? "integer" : parsedType,
-            enum: [def.value],
-        };
-    }
-    return {
-        type: parsedType === "bigint" ? "integer" : parsedType,
-        const: def.value,
-    };
 }
 
 ;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/string.js
@@ -34748,7 +34566,7 @@ const zodPatterns = {
     nanoid: /^[a-zA-Z0-9_-]{21}$/,
     jwt: /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]*$/,
 };
-function parseStringDef(def, refs) {
+function string_parseStringDef(def, refs) {
     const res = {
         type: "string",
     };
@@ -35052,7 +34870,7 @@ function stringifyRegExpWithFlags(regex, refs) {
 
 
 
-function parseRecordDef(def, refs) {
+function record_parseRecordDef(def, refs) {
     if (refs.target === "openAi") {
         console.warn("Warning: OpenAI may not support records in schemas! Try an array of key-value pairs instead.");
     }
@@ -35113,7 +34931,7 @@ function parseRecordDef(def, refs) {
 
 
 
-function parseMapDef(def, refs) {
+function map_parseMapDef(def, refs) {
     if (refs.mapStrategy === "record") {
         return parseRecordDef(def, refs);
     }
@@ -35137,68 +34955,25 @@ function parseMapDef(def, refs) {
     };
 }
 
-;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/nativeEnum.js
-function parseNativeEnumDef(def) {
-    const object = def.values;
-    const actualKeys = Object.keys(def.values).filter((key) => {
-        return typeof object[object[key]] !== "number";
-    });
-    const actualValues = actualKeys.map((key) => object[key]);
-    const parsedTypes = Array.from(new Set(actualValues.map((values) => typeof values)));
-    return {
-        type: parsedTypes.length === 1
-            ? parsedTypes[0] === "string"
-                ? "string"
-                : "number"
-            : ["string", "number"],
-        enum: actualValues,
-    };
-}
-
-;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/never.js
-
-function parseNeverDef(refs) {
-    return refs.target === "openAi"
-        ? undefined
-        : {
-            not: parseAnyDef({
-                ...refs,
-                currentPath: [...refs.currentPath, "not"],
-            }),
-        };
-}
-
-;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/null.js
-function parseNullDef(refs) {
-    return refs.target === "openApi3"
-        ? {
-            enum: ["null"],
-            nullable: true,
-        }
-        : {
-            type: "null",
-        };
-}
-
 ;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/union.js
 
-const primitiveMappings = {
+const union_primitiveMappings = {
     ZodString: "string",
     ZodNumber: "number",
     ZodBigInt: "integer",
     ZodBoolean: "boolean",
     ZodNull: "null",
 };
-function parseUnionDef(def, refs) {
+function union_parseUnionDef(def, refs) {
     if (refs.target === "openApi3")
         return asAnyOf(def, refs);
     const options = def.options instanceof Map ? Array.from(def.options.values()) : def.options;
     // This blocks tries to look ahead a bit to produce nicer looking schemas with type array instead of anyOf.
-    if (options.every((x) => x._def.typeName in primitiveMappings &&
+    if (options.every((x) => x._def.typeName in union_primitiveMappings &&
         (!x._def.checks || !x._def.checks.length))) {
         // all types in union are primitive and lack checks, so might as well squash into {type: [...]}
         const types = options.reduce((types, x) => {
-            const type = primitiveMappings[x._def.typeName]; //Can be safely casted due to row 43
+            const type = union_primitiveMappings[x._def.typeName]; //Can be safely casted due to row 43
             return type && !types.includes(type) ? [...types, type] : types;
         }, []);
         return {
@@ -35265,7 +35040,7 @@ const asAnyOf = (def, refs) => {
 ;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/nullable.js
 
 
-function parseNullableDef(def, refs) {
+function nullable_parseNullableDef(def, refs) {
     if (["ZodString", "ZodNumber", "ZodBigInt", "ZodBoolean", "ZodNull"].includes(def.innerType._def.typeName) &&
         (!def.innerType._def.checks || !def.innerType._def.checks.length)) {
         if (refs.target === "openApi3") {
@@ -35297,63 +35072,9 @@ function parseNullableDef(def, refs) {
     return base && { anyOf: [base, { type: "null" }] };
 }
 
-;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/number.js
-
-function parseNumberDef(def, refs) {
-    const res = {
-        type: "number",
-    };
-    if (!def.checks)
-        return res;
-    for (const check of def.checks) {
-        switch (check.kind) {
-            case "int":
-                res.type = "integer";
-                addErrorMessage(res, "type", check.message, refs);
-                break;
-            case "min":
-                if (refs.target === "jsonSchema7") {
-                    if (check.inclusive) {
-                        setResponseValueAndErrors(res, "minimum", check.value, check.message, refs);
-                    }
-                    else {
-                        setResponseValueAndErrors(res, "exclusiveMinimum", check.value, check.message, refs);
-                    }
-                }
-                else {
-                    if (!check.inclusive) {
-                        res.exclusiveMinimum = true;
-                    }
-                    setResponseValueAndErrors(res, "minimum", check.value, check.message, refs);
-                }
-                break;
-            case "max":
-                if (refs.target === "jsonSchema7") {
-                    if (check.inclusive) {
-                        setResponseValueAndErrors(res, "maximum", check.value, check.message, refs);
-                    }
-                    else {
-                        setResponseValueAndErrors(res, "exclusiveMaximum", check.value, check.message, refs);
-                    }
-                }
-                else {
-                    if (!check.inclusive) {
-                        res.exclusiveMaximum = true;
-                    }
-                    setResponseValueAndErrors(res, "maximum", check.value, check.message, refs);
-                }
-                break;
-            case "multipleOf":
-                setResponseValueAndErrors(res, "multipleOf", check.value, check.message, refs);
-                break;
-        }
-    }
-    return res;
-}
-
 ;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/object.js
 
-function parseObjectDef(def, refs) {
+function object_parseObjectDef(def, refs) {
     const forceOptionalIntoNullable = refs.target === "openAi";
     const result = {
         type: "object",
@@ -35428,7 +35149,7 @@ function safeIsOptional(schema) {
 ;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/optional.js
 
 
-const parseOptionalDef = (def, refs) => {
+const optional_parseOptionalDef = (def, refs) => {
     if (refs.currentPath.toString() === refs.propertyPath?.toString()) {
         return parseDef(def.innerType._def, refs);
     }
@@ -35450,7 +35171,7 @@ const parseOptionalDef = (def, refs) => {
 
 ;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/pipeline.js
 
-const parsePipelineDef = (def, refs) => {
+const pipeline_parsePipelineDef = (def, refs) => {
     if (refs.pipeStrategy === "input") {
         return parseDef(def.in._def, refs);
     }
@@ -35472,14 +35193,14 @@ const parsePipelineDef = (def, refs) => {
 
 ;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/promise.js
 
-function parsePromiseDef(def, refs) {
+function promise_parsePromiseDef(def, refs) {
     return parseDef(def.type._def, refs);
 }
 
 ;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/set.js
 
 
-function parseSetDef(def, refs) {
+function set_parseSetDef(def, refs) {
     const items = parseDef(def.valueType._def, {
         ...refs,
         currentPath: [...refs.currentPath, "items"],
@@ -35500,7 +35221,7 @@ function parseSetDef(def, refs) {
 
 ;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/tuple.js
 
-function parseTupleDef(def, refs) {
+function tuple_parseTupleDef(def, refs) {
     if (def.rest) {
         return {
             type: "array",
@@ -35532,23 +35253,9 @@ function parseTupleDef(def, refs) {
     }
 }
 
-;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/undefined.js
-
-function parseUndefinedDef(refs) {
-    return {
-        not: parseAnyDef(refs),
-    };
-}
-
-;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/unknown.js
-
-function parseUnknownDef(refs) {
-    return parseAnyDef(refs);
-}
-
 ;// CONCATENATED MODULE: ./node_modules/zod-to-json-schema/dist/esm/parsers/readonly.js
 
-const parseReadonlyDef = (def, refs) => {
+const readonly_parseReadonlyDef = (def, refs) => {
     return parseDef(def.innerType._def, refs);
 };
 
@@ -35584,7 +35291,7 @@ const parseReadonlyDef = (def, refs) => {
 
 
 
-const selectParser = (def, typeName, refs) => {
+const selectParser_selectParser = (def, typeName, refs) => {
     switch (typeName) {
         case ZodFirstPartyTypeKind.ZodString:
             return parseStringDef(def, refs);
@@ -35664,7 +35371,7 @@ const selectParser = (def, typeName, refs) => {
 
 
 
-function parseDef(def, refs, forceResolution = false) {
+function parseDef_parseDef(def, refs, forceResolution = false) {
     const seenItem = refs.seen.get(def);
     if (refs.override) {
         const overrideResult = refs.override?.(def, refs, seenItem, forceResolution);
@@ -35683,7 +35390,7 @@ function parseDef(def, refs, forceResolution = false) {
     const jsonSchemaOrGetter = selectParser(def, def.typeName, refs);
     // If the return was a function, then the inner definition needs to be extracted before a call to parseDef (recursive)
     const jsonSchema = typeof jsonSchemaOrGetter === "function"
-        ? parseDef(jsonSchemaOrGetter(), refs)
+        ? parseDef_parseDef(jsonSchemaOrGetter(), refs)
         : jsonSchemaOrGetter;
     if (jsonSchema) {
         addMeta(def, refs, jsonSchema);
@@ -38328,6 +38035,146 @@ class ConfigStore {
 
 // EXTERNAL MODULE: ./src/services/credential-store.ts
 var credential_store = __nccwpck_require__(7639);
+;// CONCATENATED MODULE: ./src/tools/schemas.ts
+/**
+ * Static JSON schemas for MCP tool discovery.
+ * These are used instead of dynamic Zod conversion to avoid bundling issues.
+ */
+const SETUP_INSTANCE_SCHEMA = {
+    type: "object",
+    properties: {
+        alias: { type: "string", description: 'A unique name for this instance (e.g., "prod", "staging")' },
+        url: { type: "string", description: "Odoo instance URL" },
+        db: { type: "string", description: "Database name" },
+        username: { type: "string", description: "Username/Email" },
+        api_key: { type: "string", description: "Odoo External API Key or user password" },
+    },
+    required: ["alias"],
+};
+const LIST_INSTANCES_SCHEMA = {
+    type: "object",
+    properties: {},
+};
+const SWITCH_INSTANCE_SCHEMA = {
+    type: "object",
+    properties: {
+        alias: { type: "string", description: "The alias of the Odoo instance to switch to." },
+    },
+    required: ["alias"],
+};
+const REMOVE_INSTANCE_SCHEMA = {
+    type: "object",
+    properties: {
+        alias: { type: "string", description: "The alias of the Odoo instance to remove." },
+    },
+    required: ["alias"],
+};
+const LIST_MODELS_SCHEMA = {
+    type: "object",
+    properties: {
+        search_term: { type: "string", description: 'Optional filter for model name or description (e.g., "sale")' },
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
+};
+const INSPECT_MODEL_SCHEMA = {
+    type: "object",
+    properties: {
+        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
+    required: ["model"],
+};
+const GET_MENU_SCHEMA = {
+    type: "object",
+    properties: {
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
+};
+const GET_ACTION_SCHEMA = {
+    type: "object",
+    properties: {
+        action_id: { type: "number", description: "The technical ID of the window action." },
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
+    required: ["action_id"],
+};
+const GET_VIEW_SCHEMA = {
+    type: "object",
+    properties: {
+        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
+        view_type: { type: "string", description: 'Type of view: "form", "list", "kanban", etc.' },
+        view_id: { type: "number", description: "Optional specific view ID." },
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
+    required: ["model"],
+};
+const SEARCH_READ_SCHEMA = {
+    type: "object",
+    properties: {
+        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
+        domain: { type: "array", items: { type: "any" }, description: 'Odoo domain filter (e.g., [["is_company", "=", true]])' },
+        fields: { type: "array", items: { type: "string" }, description: "List of fields to read." },
+        limit: { type: "number", description: "Maximum number of records to return." },
+        order: { type: "string", description: 'Order by clause (e.g., "name asc").' },
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
+    required: ["model"],
+};
+const CREATE_RECORD_SCHEMA = {
+    type: "object",
+    properties: {
+        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
+        values: { type: "object", description: "Field values for the new record." },
+        justification: { type: "string", description: "Mandatory justification for audit logs." },
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
+    required: ["model", "values", "justification"],
+};
+const WRITE_RECORD_SCHEMA = {
+    type: "object",
+    properties: {
+        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
+        id: { type: "number", description: "ID of the record to update." },
+        values: { type: "object", description: "New field values." },
+        justification: { type: "string", description: "Mandatory justification for audit logs." },
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
+    required: ["model", "id", "values", "justification"],
+};
+const UNLINK_RECORD_SCHEMA = {
+    type: "object",
+    properties: {
+        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
+        id: { type: "number", description: "ID of the record to delete." },
+        justification: { type: "string", description: "Mandatory justification for audit logs." },
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
+    required: ["model", "id", "justification"],
+};
+const LIST_REPORTS_SCHEMA = {
+    type: "object",
+    properties: {
+        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
+    required: ["model"],
+};
+const DOWNLOAD_REPORT_SCHEMA = {
+    type: "object",
+    properties: {
+        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
+        id: { type: "number", description: "Record ID to run report for." },
+        report_name: { type: "string", description: 'Internal name of report (e.g. "sale.report_saleorder")' },
+        output_path: { type: "string", description: "Optional local path to save the PDF." },
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
+    required: ["model", "id", "report_name"],
+};
+const GET_INFO_SCHEMA = {
+    type: "object",
+    properties: {},
+};
+
 ;// CONCATENATED MODULE: ./src/tools/setup_instance.ts
 
 
@@ -39098,97 +38945,97 @@ const instanceManager = new InstanceManager(configStore, credentialStore);
 const toolRegistry = {
     setup_instance: {
         handler: setupInstance,
-        schema: SetupInstanceSchema,
+        schema: SETUP_INSTANCE_SCHEMA,
         description: "Configure and authenticate a new Odoo environment.",
         deps: 'both'
     },
     list_instances: {
         handler: listInstances,
-        schema: ListInstancesSchema,
+        schema: LIST_INSTANCES_SCHEMA,
         description: "Show all configured Odoo environments.",
         deps: 'config'
     },
     switch_instance: {
         handler: switchInstance,
-        schema: SwitchInstanceSchema,
+        schema: SWITCH_INSTANCE_SCHEMA,
         description: "Change the active Odoo instance for subsequent operations.",
         deps: 'manager'
     },
     remove_instance: {
         handler: removeInstance,
-        schema: RemoveInstanceSchema,
+        schema: REMOVE_INSTANCE_SCHEMA,
         description: "Delete an instance configuration and its credentials.",
         deps: 'both'
     },
     list_models: {
         handler: listModels,
-        schema: ListModelsSchema,
+        schema: LIST_MODELS_SCHEMA,
         description: "List all available Odoo models in the current instance.",
         deps: 'manager'
     },
     inspect_model: {
         handler: inspectModel,
-        schema: InspectModelSchema,
+        schema: INSPECT_MODEL_SCHEMA,
         description: "Get detailed metadata about a model's fields, relationships, and constraints.",
         deps: 'manager'
     },
     get_menu: {
         handler: getMenu,
-        schema: GetMenuSchema,
+        schema: GET_MENU_SCHEMA,
         description: "Retrieve the Odoo menu structure to understand navigation paths.",
         deps: 'manager'
     },
     get_action: {
         handler: getAction,
-        schema: GetActionSchema,
+        schema: GET_ACTION_SCHEMA,
         description: "Retrieve window actions that define how views are opened.",
         deps: 'manager'
     },
     get_view: {
         handler: getView,
-        schema: GetViewSchema,
+        schema: GET_VIEW_SCHEMA,
         description: "Fetch specific view definitions (form, tree, kanban) for a model.",
         deps: 'manager'
     },
     search_read: {
         handler: searchRead,
-        schema: SearchReadSchema,
+        schema: SEARCH_READ_SCHEMA,
         description: "Search for records using Odoo domains and read specific fields.",
         deps: 'manager'
     },
     create_record: {
         handler: createRecord,
-        schema: CreateRecordSchema,
+        schema: CREATE_RECORD_SCHEMA,
         description: "Create new records in a specified model with audit logging.",
         deps: 'manager'
     },
     write_record: {
         handler: writeRecord,
-        schema: WriteRecordSchema,
+        schema: WRITE_RECORD_SCHEMA,
         description: "Update existing records with field-level tracking.",
         deps: 'manager'
     },
     unlink_record: {
         handler: unlinkRecord,
-        schema: UnlinkRecordSchema,
+        schema: UNLINK_RECORD_SCHEMA,
         description: "Delete records from the system.",
         deps: 'manager'
     },
     list_reports: {
         handler: listReports,
-        schema: ListReportsSchema,
+        schema: LIST_REPORTS_SCHEMA,
         description: "List all available reports for a specific model.",
         deps: 'manager'
     },
     download_report: {
         handler: downloadReport,
-        schema: DownloadReportSchema,
+        schema: DOWNLOAD_REPORT_SCHEMA,
         description: "Generate and retrieve report data (e.g., PDFs).",
         deps: 'manager'
     },
     get_info: {
         handler: getInfo,
-        schema: GetInfoSchema,
+        schema: GET_INFO_SCHEMA,
         description: "Get version and environment information for the Brass-Monkey extension.",
         deps: 'manager'
     },
@@ -39198,7 +39045,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         tools: Object.entries(toolRegistry).map(([name, { description, schema }]) => ({
             name,
             description,
-            inputSchema: zodToJsonSchema_zodToJsonSchema(schema),
+            inputSchema: schema,
         })),
     };
 });
