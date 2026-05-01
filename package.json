@@ -4,7 +4,7 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run bundle",
     "bundle": "ncc build src/mcp-server.ts -o dist/bundle -e keytar",
     "test": "vitest run",
     "test:watch": "vitest",
