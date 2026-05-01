@@ -3,6 +3,8 @@
  */
 export declare class CredentialStore {
     private serviceName;
+    private initialized;
+    private ensureInitialized;
     /**
      * Securely stores an API key for a specific Odoo instance.
      * @param alias The unique alias of the instance.
