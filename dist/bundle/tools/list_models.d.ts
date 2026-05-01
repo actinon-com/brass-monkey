@@ -1,0 +1,18 @@
+import { z } from 'zod';
+import { InstanceManager } from '../services/instance-manager.js';
+/**
+ * Zod schema for list_models tool input.
+ * Includes pre-processing to handle single-item arrays.
+ */
+export declare const ListModelsSchema: z.ZodObject<{
+    search_term: z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodOptional<z.ZodString>>;
+    instance_alias: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>;
+export type ListModelsInput = z.infer<typeof ListModelsSchema>;
+/**
+ * Tool to list Odoo technical models.
+ * @param manager The InstanceManager instance.
+ * @param input The ListModelsInput parameters.
+ * @returns A map of model technical names to human-readable descriptions.
+ */
+export declare function listModels(manager: InstanceManager, input?: ListModelsInput): Promise<Record<string, string>>;

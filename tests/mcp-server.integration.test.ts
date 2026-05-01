@@ -4,8 +4,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SERVER_PATH = path.resolve(__dirname, '../dist/mcp-server.js');
+const SERVER_PATH = path.resolve(__dirname, '../dist/bundle/index.js');
 
+// MCP Integration Test - Verifies the server lifecycle and protocol compliance.
+// Increased timeout to 15s for CI stability.
 describe('MCP Server Integration', () => {
   it('should start and respond to list_tools request without polluting stdout', async () => {
     const server = spawn('node', [SERVER_PATH]);
