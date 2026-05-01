@@ -38112,7 +38112,7 @@ const SEARCH_READ_SCHEMA = {
     type: "object",
     properties: {
         model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
-        domain: { type: "array", items: { type: "any" }, description: 'Odoo domain filter (e.g., [["is_company", "=", true]])' },
+        domain: { type: "array", items: {}, description: 'Odoo domain filter (e.g., [["is_company", "=", true]])' },
         fields: { type: "array", items: { type: "string" }, description: "List of fields to read." },
         limit: { type: "number", description: "Maximum number of records to return." },
         order: { type: "string", description: 'Order by clause (e.g., "name asc").' },

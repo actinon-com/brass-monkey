@@ -67,6 +67,27 @@ describe('MCP Server Integration', () => {
     expect(jsonResponse.id).toBe(1);
     expect(jsonResponse.result.tools).toBeDefined();
 
+    // Enhanced Validation: Ensure schemas are valid and don't contain "any" type
+    const tools = jsonResponse.result.tools;
+    expect(tools.length).toBeGreaterThan(0);
+    
+    tools.forEach((tool: any) => {
+      if (!tool.inputSchema || tool.inputSchema.type !== 'object') {
+        console.log(`DEBUG: Tool "${tool.name}" has invalid schema:`, JSON.stringify(tool.inputSchema, null, 2));
+      }
+      expect(tool.inputSchema).toBeDefined();
+      expect(tool.inputSchema.type).toBe('object');
+      
+      // Check for the "any" type bug that regression 1.2.7 introduced
+      const schemaString = JSON.stringify(tool.inputSchema);
+      expect(schemaString).not.toContain('"type":"any"');
+    });
+
+    // Specifically check setup_instance (which we reverted to Zod)
+    const setupTool = tools.find((t: any) => t.name === 'setup_instance');
+    expect(setupTool).toBeDefined();
+    expect(setupTool.inputSchema.properties.alias.type).toBe('string');
+
     // 4. Ensure NO pollution on stdout
     expect(stdoutData.trim().startsWith('{')).toBe(true);
     

@@ -133,9 +133,7 @@ export declare const SEARCH_READ_SCHEMA: {
         };
         domain: {
             type: string;
-            items: {
-                type: string;
-            };
+            items: {};
             description: string;
         };
         fields: {
