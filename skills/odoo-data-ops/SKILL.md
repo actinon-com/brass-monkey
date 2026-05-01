@@ -25,7 +25,11 @@ Every CRUD tool supports an `instance_alias` parameter.
 - **Default:** If omitted, the tool uses the current session's default instance.
 - **Cross-Instance:** You can read from one environment and write to another by explicitly specifying different aliases in separate tool calls.
 
-### 3. Agent-Driven Undo Workflow
+### 4. Efficient Data Retrieval
+- **Field Categorization:** By default, `search_read` only returns "Base" fields to save context. If you need more, use `include_extended: true` (for extra modules) or `include_computed: true` (for calculated fields).
+- **Aggregations:** Use `aggregate_records` for BI-style queries (grouping, counting, summing). This is much more context-efficient than reading thousands of records to perform local math.
+
+### 5. Agent-Driven Undo Workflow
 If you make a mistake or are asked to "undo" a change:
 1. **Locate:** Use `search_read` on the `mail.message` model for the target record to find the "Before Snapshot" you previously posted.
 2. **Analyze:** Verify the current record state. Do not attempt a rollback if it violates Odoo's business logic (e.g., trying to revert an invoice that has since been paid).

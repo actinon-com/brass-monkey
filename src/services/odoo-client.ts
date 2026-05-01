@@ -19,6 +19,11 @@ export class OdooClient {
     this.objectClient = xmlrpc.createSecureClient(objectUrl);
   }
 
+  get activeUid(): number | null { return this.uid; }
+  get db(): string { return this.config.db; }
+  get url(): string { return this.config.url; }
+  get writeGuard(): boolean { return this.config.write_guard ?? true; }
+
   /**
    * Returns the major version of the Odoo instance (e.g. 16).
    */

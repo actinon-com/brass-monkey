@@ -1,3 +1,6 @@
+import { appendFile, readFile } from 'fs/promises';
+import { join } from 'path';
+import { homedir } from 'os';
 import { OdooClient } from './odoo-client.js';
 
 /**
@@ -5,7 +8,44 @@ import { OdooClient } from './odoo-client.js';
  * Ensures all AI-driven changes are transparent and reversible.
  */
 export class AuditService {
-  constructor(private client: OdooClient) {}
+  private localLogPath: string;
+
+  constructor(private client: OdooClient) {
+    this.localLogPath = join(homedir(), '.gemini', 'brass-monkey', 'audit.jsonl');
+  }
+
+  /**
+   * Logs an action locally for the agent's history and verification.
+   */
+  async logLocalAction(action: string, model: string, resId: number | string, data: any, justification: string): Promise<void> {
+    const entry = {
+      timestamp: new Date().toISOString(),
+      database: this.client.db,
+      action,
+      model,
+      res_id: resId,
+      data,
+      justification
+    };
+    try {
+      await appendFile(this.localLogPath, JSON.stringify(entry) + '\n');
+    } catch (e) {
+      console.error('Failed to write to local audit log:', e);
+    }
+  }
+
+  /**
+   * Retrieves recent local audit log entries.
+   */
+  async getLocalLogs(limit: number = 10): Promise<any[]> {
+    try {
+      const data = await readFile(this.localLogPath, 'utf-8');
+      const lines = data.trim().split('\n');
+      return lines.slice(-limit).map(l => JSON.parse(l));
+    } catch (e) {
+      return [];
+    }
+  }
 
   /**
    * Logs a global system event in Odoo's ir.logging model.

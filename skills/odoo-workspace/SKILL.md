@@ -19,7 +19,7 @@ Brass-Monkey can manage multiple Odoo environments simultaneously. Each environm
 ### 3. Session Defaults & Switching
 - **Default Instance:** By default, tool calls use the first configured instance or the one set via `switch_instance`.
 - **Contextual Execution:** You can override the default for any tool call by providing the `instance_alias` parameter.
-- **Workflow:** Use `switch_instance` to change the primary environment for a session (e.g., "Switching to staging to test these changes").
+- **Workflow:** Use `switch_instance` to change the primary environment for a session. **After switching, always call `get_environment` to confirm the new context (User, DB, Version).**
 
 ### 4. Cross-Instance Operations
 You can move data between environments by reading from one instance and creating on another:

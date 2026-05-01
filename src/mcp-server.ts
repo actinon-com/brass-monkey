@@ -144,6 +144,30 @@ const toolRegistry: Record<string, { handler: Function; schema: any; description
     description: "Get version and environment information for the Brass-Monkey extension.",
     deps: 'manager'
   },
+  get_environment: {
+    handler: tools.getEnvironment,
+    schema: schemas.GET_ENVIRONMENT_SCHEMA,
+    description: "Get a global 'World Map' of the current Odoo environment.",
+    deps: 'manager'
+  },
+  trace_ui_path: {
+    handler: tools.traceUiPath,
+    schema: schemas.TRACE_UI_PATH_SCHEMA,
+    description: "Trace the UI path (Menus -> Actions -> Views) for a technical model.",
+    deps: 'manager'
+  },
+  aggregate_records: {
+    handler: tools.aggregateRecords,
+    schema: schemas.AGGREGATE_RECORDS_SCHEMA,
+    description: "Perform Odoo server-side aggregations (Pivot/Graph style).",
+    deps: 'manager'
+  },
+  get_audit_log: {
+    handler: tools.getAuditLog,
+    schema: schemas.GET_AUDIT_LOG_SCHEMA,
+    description: "Retrieve recent local audit log entries for transparency.",
+    deps: 'manager'
+  },
 };
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {

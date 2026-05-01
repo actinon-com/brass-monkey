@@ -29,7 +29,9 @@ The `inspect_model` tool uses a compressed "Lean Property Encoding" strategy. De
 ### 3. Model Discovery Workflow
 1. **Search:** Use `list_models` with a `search_term` to find the technical name (e.g., `sale.order`) of the business object you need.
 2. **Inspect:** Use `inspect_model` to understand the fields, their types, and their relationships.
-3. **Reference:** Consult the `odoo-field-types` resource for deep-dives into complex relations like `one2many` or `compute` fields.
+    - **Proactive Discovery:** Use flags like `show_methods: true` to find Server Actions and View Buttons, or `show_ui: true` to find the XML IDs of associated forms and lists.
+3. **Trace:** Use `trace_ui_path` to map a technical model back to the user's visual interface (Menu -> Action -> View). This is essential for answering "How does a user manage this data?".
+4. **Reference:** Consult the `odoo-field-types` resource for deep-dives into complex relations like `one2many` or `compute` fields.
 
 *Note: All introspection tools support the `instance_alias` parameter if you need to explore a non-default environment.*
 
