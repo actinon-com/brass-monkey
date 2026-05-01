@@ -6,7 +6,6 @@ import {
   ListToolsRequestSchema,
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import { InstanceManager } from "./services/instance-manager.js";
 import { ConfigStore } from "./services/config-store.js";
 import { CredentialStore } from "./services/credential-store.js";
