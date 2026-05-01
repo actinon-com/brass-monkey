@@ -2,15 +2,16 @@
 name: odoo-get-started
 description: Orientation skill to establish context immediately upon connecting to an Odoo instance.
 ---
-# Skill: Odoo Orientation (Getting Started)
+# Skill: Odoo Orientation (The Mandatory Start)
 
-This skill ensures the Gemini agent establishes a comprehensive "World Map" of the Odoo environment immediately upon session start or when switching instances.
+This skill ensures the Gemini agent establishes a comprehensive "World Map" of the Odoo environment immediately upon session start or when switching instances. **Bypassing this step is a violation of project architecture.**
 
 ## Core Mandates
 
-### 1. The "World Map" Protocol
-- **Mandate:** Your very first action when starting a task in a new or unknown Odoo instance **MUST** be to call `get_environment`.
-- **Reasoning:** Odoo environments vary wildly by version, installed apps, user permissions, and company structures. Starting "blind" leads to unnecessary tool calls and potential errors.
+### 1. The "World Map" Protocol (NON-NEGOTIABLE)
+- **Mandate:** Your ABSOLUTE FIRST action when starting a task in a new or unknown Odoo instance **MUST** be to call `get_environment`.
+- **Enforcement:** Do NOT attempt `search_read`, `list_models`, or any business logic until `get_environment` has returned.
+- **Reasoning:** Odoo environments vary wildly by version, installed apps, and company structures. Starting "blind" leads to "hallucinated" field names and inefficient tool-chaining.
 
 ### 2. Interpreting the Environment
 When you receive the `get_environment` response, you must internalize:
