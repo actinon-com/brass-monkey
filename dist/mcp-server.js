@@ -1,10 +1,10 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError, } from "@modelcontextprotocol/sdk/types.js";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import { InstanceManager } from "./services/instance-manager.js";
 import { ConfigStore } from "./services/config-store.js";
 import { CredentialStore } from "./services/credential-store.js";
+import * as schemas from "./tools/schemas.js";
 import * as tools from "./index.js";
 import fs from 'fs';
 import path from 'path';
@@ -37,97 +37,97 @@ const instanceManager = new InstanceManager(configStore, credentialStore);
 const toolRegistry = {
     setup_instance: {
         handler: tools.setupInstance,
-        schema: tools.SetupInstanceSchema,
+        schema: schemas.SETUP_INSTANCE_SCHEMA,
         description: "Configure and authenticate a new Odoo environment.",
         deps: 'both'
     },
     list_instances: {
         handler: tools.listInstances,
-        schema: tools.ListInstancesSchema,
+        schema: schemas.LIST_INSTANCES_SCHEMA,
         description: "Show all configured Odoo environments.",
         deps: 'config'
     },
     switch_instance: {
         handler: tools.switchInstance,
-        schema: tools.SwitchInstanceSchema,
+        schema: schemas.SWITCH_INSTANCE_SCHEMA,
         description: "Change the active Odoo instance for subsequent operations.",
         deps: 'manager'
     },
     remove_instance: {
         handler: tools.removeInstance,
-        schema: tools.RemoveInstanceSchema,
+        schema: schemas.REMOVE_INSTANCE_SCHEMA,
         description: "Delete an instance configuration and its credentials.",
         deps: 'both'
     },
     list_models: {
         handler: tools.listModels,
-        schema: tools.ListModelsSchema,
+        schema: schemas.LIST_MODELS_SCHEMA,
         description: "List all available Odoo models in the current instance.",
         deps: 'manager'
     },
     inspect_model: {
         handler: tools.inspectModel,
-        schema: tools.InspectModelSchema,
+        schema: schemas.INSPECT_MODEL_SCHEMA,
         description: "Get detailed metadata about a model's fields, relationships, and constraints.",
         deps: 'manager'
     },
     get_menu: {
         handler: tools.getMenu,
-        schema: tools.GetMenuSchema,
+        schema: schemas.GET_MENU_SCHEMA,
         description: "Retrieve the Odoo menu structure to understand navigation paths.",
         deps: 'manager'
     },
     get_action: {
         handler: tools.getAction,
-        schema: tools.GetActionSchema,
+        schema: schemas.GET_ACTION_SCHEMA,
         description: "Retrieve window actions that define how views are opened.",
         deps: 'manager'
     },
     get_view: {
         handler: tools.getView,
-        schema: tools.GetViewSchema,
+        schema: schemas.GET_VIEW_SCHEMA,
         description: "Fetch specific view definitions (form, tree, kanban) for a model.",
         deps: 'manager'
     },
     search_read: {
         handler: tools.searchRead,
-        schema: tools.SearchReadSchema,
+        schema: schemas.SEARCH_READ_SCHEMA,
         description: "Search for records using Odoo domains and read specific fields.",
         deps: 'manager'
     },
     create_record: {
         handler: tools.createRecord,
-        schema: tools.CreateRecordSchema,
+        schema: schemas.CREATE_RECORD_SCHEMA,
         description: "Create new records in a specified model with audit logging.",
         deps: 'manager'
     },
     write_record: {
         handler: tools.writeRecord,
-        schema: tools.WriteRecordSchema,
+        schema: schemas.WRITE_RECORD_SCHEMA,
         description: "Update existing records with field-level tracking.",
         deps: 'manager'
     },
     unlink_record: {
         handler: tools.unlinkRecord,
-        schema: tools.UnlinkRecordSchema,
+        schema: schemas.UNLINK_RECORD_SCHEMA,
         description: "Delete records from the system.",
         deps: 'manager'
     },
     list_reports: {
         handler: tools.listReports,
-        schema: tools.ListReportsSchema,
+        schema: schemas.LIST_REPORTS_SCHEMA,
         description: "List all available reports for a specific model.",
         deps: 'manager'
     },
     download_report: {
         handler: tools.downloadReport,
-        schema: tools.DownloadReportSchema,
+        schema: schemas.DOWNLOAD_REPORT_SCHEMA,
         description: "Generate and retrieve report data (e.g., PDFs).",
         deps: 'manager'
     },
     get_info: {
         handler: tools.getInfo,
-        schema: tools.GetInfoSchema,
+        schema: schemas.GET_INFO_SCHEMA,
         description: "Get version and environment information for the Brass-Monkey extension.",
         deps: 'manager'
     },
@@ -137,7 +137,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         tools: Object.entries(toolRegistry).map(([name, { description, schema }]) => ({
             name,
             description,
-            inputSchema: zodToJsonSchema(schema),
+            inputSchema: schema,
         })),
     };
 });
