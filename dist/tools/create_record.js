@@ -30,6 +30,8 @@ export async function createRecord(manager, input) {
     const client = await manager.getClient(instance_alias);
     const audit = await manager.getAudit(instance_alias);
     const recordId = await client.executeKw(model, 'create', [values]);
+    // Log locally for agent history
+    await audit.logLocalAction('create', model, recordId, values, justification);
     // Log to global system logs
     await audit.logSystemEvent(`Created ${model}(${recordId}): ${justification}`);
     // Log to chatter (if supported by model)

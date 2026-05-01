@@ -37698,6 +37698,10 @@ class OdooClient {
         this.commonClient = xmlrpc_default().createSecureClient(commonUrl);
         this.objectClient = xmlrpc_default().createSecureClient(objectUrl);
     }
+    get activeUid() { return this.uid; }
+    get db() { return this.config.db; }
+    get url() { return this.config.url; }
+    get writeGuard() { return this.config.write_guard ?? true; }
     /**
      * Returns the major version of the Odoo instance (e.g. 16).
      */
@@ -37809,15 +37813,61 @@ class OdooClient {
     }
 }
 
+;// CONCATENATED MODULE: external "fs/promises"
+const promises_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("fs/promises");
+;// CONCATENATED MODULE: external "path"
+const external_path_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("path");
+var external_path_default = /*#__PURE__*/__nccwpck_require__.n(external_path_namespaceObject);
+;// CONCATENATED MODULE: external "os"
+const external_os_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("os");
+var external_os_default = /*#__PURE__*/__nccwpck_require__.n(external_os_namespaceObject);
 ;// CONCATENATED MODULE: ./src/services/audit-service.ts
+
+
+
 /**
  * Service to handle Odoo system logging and record-level auditing (Chatter).
  * Ensures all AI-driven changes are transparent and reversible.
  */
 class AuditService {
     client;
+    localLogPath;
     constructor(client) {
         this.client = client;
+        this.localLogPath = (0,external_path_namespaceObject.join)((0,external_os_namespaceObject.homedir)(), '.gemini', 'brass-monkey', 'audit.jsonl');
+    }
+    /**
+     * Logs an action locally for the agent's history and verification.
+     */
+    async logLocalAction(action, model, resId, data, justification) {
+        const entry = {
+            timestamp: new Date().toISOString(),
+            database: this.client.db,
+            action,
+            model,
+            res_id: resId,
+            data,
+            justification
+        };
+        try {
+            await (0,promises_namespaceObject.appendFile)(this.localLogPath, JSON.stringify(entry) + '\n');
+        }
+        catch (e) {
+            console.error('Failed to write to local audit log:', e);
+        }
+    }
+    /**
+     * Retrieves recent local audit log entries.
+     */
+    async getLocalLogs(limit = 10) {
+        try {
+            const data = await (0,promises_namespaceObject.readFile)(this.localLogPath, 'utf-8');
+            const lines = data.trim().split('\n');
+            return lines.slice(-limit).map(l => JSON.parse(l));
+        }
+        catch (e) {
+            return [];
+        }
     }
     /**
      * Logs a global system event in Odoo's ir.logging model.
@@ -37942,14 +37992,6 @@ class InstanceManager {
     }
 }
 
-;// CONCATENATED MODULE: external "fs/promises"
-const promises_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("fs/promises");
-;// CONCATENATED MODULE: external "path"
-const external_path_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("path");
-var external_path_default = /*#__PURE__*/__nccwpck_require__.n(external_path_namespaceObject);
-;// CONCATENATED MODULE: external "os"
-const external_os_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("os");
-var external_os_default = /*#__PURE__*/__nccwpck_require__.n(external_os_namespaceObject);
 ;// CONCATENATED MODULE: ./src/services/config-store.ts
 
 
@@ -38080,6 +38122,25 @@ const INSPECT_MODEL_SCHEMA = {
     type: "object",
     properties: {
         model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
+        show_base: { type: "boolean", description: "Include standard 'Base' fields (Name, Active, ID, etc.)." },
+        show_extended: { type: "boolean", description: "Include fields added by extension modules." },
+        show_computed: { type: "boolean", description: "Include non-stored, calculated fields." },
+        show_related: { type: "boolean", description: "Include mirror fields from related models." },
+        show_lines: { type: "boolean", description: "Include One2many and Many2many field definitions." },
+        show_relationships: { type: "boolean", description: "Include relational IDs (Many2one definitions)." },
+        show_stats: { type: "boolean", description: "Include record counts (Active vs Archived) and storage metrics." },
+        show_access: { type: "boolean", description: "Include Access Control Lists (ACLs) and Record Rules." },
+        show_modules: { type: "boolean", description: "Include module lineage (Inheritance hierarchy)." },
+        show_ui: { type: "boolean", description: "Include associated View XML IDs and Window Actions." },
+        show_methods: { type: "boolean", description: "Include Server Actions and available execution points." },
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
+    required: ["model"],
+};
+const TRACE_UI_PATH_SCHEMA = {
+    type: "object",
+    properties: {
+        model: { type: "string", description: 'Technical name of the model (e.g., "sale.order")' },
         instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
     },
     required: ["model"],
@@ -38113,12 +38174,33 @@ const SEARCH_READ_SCHEMA = {
     properties: {
         model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
         domain: { type: "array", items: {}, description: 'Odoo domain filter (e.g., [["is_company", "=", true]])' },
-        fields: { type: "array", items: { type: "string" }, description: "List of fields to read." },
+        fields: { type: "array", items: { type: "string" }, description: "List of fields to read. If empty, defaults to 'Base' fields." },
+        include_extended: { type: "boolean", description: "If fields is empty, include fields from extension modules." },
+        include_computed: { type: "boolean", description: "If fields is empty, include non-stored/calculated fields." },
         limit: { type: "number", description: "Maximum number of records to return." },
         order: { type: "string", description: 'Order by clause (e.g., "name asc").' },
         instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
     },
     required: ["model"],
+};
+const AGGREGATE_RECORDS_SCHEMA = {
+    type: "object",
+    properties: {
+        model: { type: "string", description: 'Technical name of the model (e.g., "account.move.line")' },
+        domain: { type: "array", items: {}, description: 'Odoo domain filter (e.g., [["move_type", "=", "out_invoice"]])' },
+        groupby: { type: "array", items: { type: "string" }, description: "Fields to group by. Use 'field:interval' for dates (e.g., 'date:month')." },
+        fields: { type: "array", items: { type: "string" }, description: "Numeric/Monetary fields to aggregate (sum). Defaults to '__count'." },
+        limit: { type: "number", description: "Maximum number of groups to return." },
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
+    required: ["model", "groupby"],
+};
+const GET_AUDIT_LOG_SCHEMA = {
+    type: "object",
+    properties: {
+        limit: { type: "number", description: "Number of recent entries to retrieve." },
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
 };
 const CREATE_RECORD_SCHEMA = {
     type: "object",
@@ -38173,6 +38255,14 @@ const DOWNLOAD_REPORT_SCHEMA = {
 const GET_INFO_SCHEMA = {
     type: "object",
     properties: {},
+};
+const GET_ENVIRONMENT_SCHEMA = {
+    type: "object",
+    properties: {
+        show_security: { type: "boolean", description: "Include the current user's security groups and roles." },
+        show_manifest: { type: "boolean", description: "Include a full list of all installed Odoo modules/apps." },
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
 };
 
 ;// CONCATENATED MODULE: ./src/tools/setup_instance.ts
@@ -38370,57 +38460,161 @@ async function listModels(manager, input = {}) {
 
 /**
  * Zod schema for inspect_model tool input.
- * Includes pre-processing to handle single-item arrays.
+ * Full parity with original brass-compass flags for deep introspection.
  */
 const InspectModelSchema = schemas_object({
-    model: preprocess((val) => {
-        if (Array.isArray(val) && val.length === 1 && typeof val[0] === 'string') {
-            return val[0];
-        }
-        return val;
-    }, classic_schemas_string()).describe('Technical model name (e.g., "res.partner")'),
+    model: classic_schemas_string().describe('Technical model name (e.g., "res.partner")'),
+    show_base: classic_schemas_boolean().optional().default(false).describe("Include standard 'Base' fields (Name, Active, ID, etc.)."),
+    show_extended: classic_schemas_boolean().optional().default(false).describe("Include fields added by extension modules."),
+    show_computed: classic_schemas_boolean().optional().default(false).describe("Include non-stored, calculated fields."),
+    show_related: classic_schemas_boolean().optional().default(false).describe("Include mirror fields from related models."),
+    show_lines: classic_schemas_boolean().optional().default(false).describe("Include One2many and Many2many field definitions."),
+    show_relationships: classic_schemas_boolean().optional().default(false).describe("Include relational IDs (Many2one definitions)."),
+    show_stats: classic_schemas_boolean().optional().default(false).describe("Include record counts (Active vs Archived) and storage metrics."),
+    show_access: classic_schemas_boolean().optional().default(false).describe("Include Access Control Lists (ACLs) and Record Rules."),
+    show_modules: classic_schemas_boolean().optional().default(false).describe("Include module lineage (Inheritance hierarchy)."),
+    show_ui: classic_schemas_boolean().optional().default(false).describe("Include associated View XML IDs and Window Actions."),
+    show_methods: classic_schemas_boolean().optional().default(false).describe("Include Server Actions and available execution points."),
     instance_alias: classic_schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
- * Tool to inspect an Odoo model with "Lean Property Encoding".
- * @param manager The InstanceManager instance.
- * @param input The InspectModelInput parameters.
- * @returns An optimized map of model fields and their technical attributes.
+ * Tool to perform a deep architectural audit of an Odoo model's definition.
+ * Dynamically categorizes fields and discovers execution/UI entry points.
  */
 async function inspectModel(manager, input) {
-    const { model, instance_alias } = input;
+    const { model, instance_alias, ...flags } = input;
     const client = await manager.getClient(instance_alias);
-    const rawFields = await client.executeKw(model, 'fields_get', [], {
-        attributes: [
-            'type', 'string', 'help', 'relation', 'relation_field',
-            'domain', 'selection', 'required', 'readonly',
-            'store', 'company_dependent'
-        ],
+    // 1. Resolve Model Metadata
+    const modelInfo = await client.executeKw('ir.model', 'search_read', [[['model', '=', model]]], {
+        fields: ['id', 'name', 'modules', 'transient'],
+        limit: 1
     });
-    const optimized = {};
-    for (const [fieldName, fieldData] of Object.entries(rawFields)) {
-        const properties = [];
-        // Compress behavioral flags into the "properties" array
-        if (fieldData.required)
-            properties.push('required');
-        if (fieldData.readonly)
-            properties.push('readonly');
-        if (fieldData.company_dependent)
-            properties.push('company-dependent');
-        if (fieldData.store === false)
-            properties.push('not-stored');
-        optimized[fieldName] = {
-            type: fieldData.type,
-            string: fieldData.string,
-            help: fieldData.help || undefined,
-            relation: fieldData.relation || undefined,
-            relation_field: fieldData.relation_field || undefined,
-            domain: fieldData.domain || undefined,
-            selection: fieldData.selection || undefined,
-            properties: properties.length > 0 ? properties : undefined,
+    if (!modelInfo || modelInfo.length === 0)
+        throw new Error(`Model not found: ${model}`);
+    const m = modelInfo[0];
+    const baseModule = m.modules.split(',')[0].trim();
+    const res = {
+        identity: {
+            model: model,
+            description: m.name,
+            base_module: baseModule,
+            is_transient: m.transient
+        }
+    };
+    // 2. Fetch Field Metadata if any field flag is set
+    const anyFieldFlag = flags.show_base || flags.show_extended || flags.show_computed || flags.show_related || flags.show_lines || flags.show_relationships;
+    if (anyFieldFlag) {
+        const fRecords = await client.executeKw('ir.model.fields', 'search_read', [[['model_id', '=', m.id]]], {
+            fields: ['name', 'field_description', 'ttype', 'relation', 'store', 'compute', 'related', 'modules', 'readonly', 'required', 'selection', 'help']
+        });
+        const buckets = { base: {}, extended: {}, computed: {}, related: {}, relational: {}, lines: {} };
+        for (const f of fRecords) {
+            const isBase = f.modules.includes(baseModule);
+            const props = [];
+            if (f.required)
+                props.push('required');
+            if (f.readonly)
+                props.push('readonly');
+            if (!f.store)
+                props.push('not-stored');
+            const fieldData = {
+                type: f.ttype,
+                string: f.field_description,
+                relation: f.relation || undefined,
+                properties: props.length > 0 ? props : undefined,
+                help: f.help || undefined,
+            };
+            if (f.compute)
+                buckets.computed[f.name] = fieldData;
+            if (f.related)
+                buckets.related[f.name] = fieldData;
+            if (['many2one', 'reference'].includes(f.ttype))
+                buckets.relational[f.name] = fieldData;
+            if (['one2many', 'many2many'].includes(f.ttype))
+                buckets.lines[f.name] = fieldData;
+            if (isBase)
+                buckets.base[f.name] = fieldData;
+            else
+                buckets.extended[f.name] = fieldData;
+        }
+        res.fields = {};
+        if (flags.show_base)
+            res.fields.base = buckets.base;
+        if (flags.show_extended)
+            res.fields.extended = buckets.extended;
+        if (flags.show_computed)
+            res.fields.computed = buckets.computed;
+        if (flags.show_related)
+            res.fields.related = buckets.related;
+        if (flags.show_relationships)
+            res.fields.relationships = buckets.relational;
+        if (flags.show_lines)
+            res.fields.lines = buckets.lines;
+    }
+    // 3. Stats
+    if (flags.show_stats) {
+        const total = await client.executeKw(model, 'search_count', [[]]);
+        res.stats = { records: { total } };
+        try {
+            res.stats.records.active = await client.executeKw(model, 'search_count', [[['active', '=', true]]]);
+            res.stats.records.archived = await client.executeKw(model, 'search_count', [[['active', '=', false]]]);
+        }
+        catch (e) { }
+    }
+    // 4. Methods
+    if (flags.show_methods) {
+        const serverActions = await client.executeKw('ir.actions.server', 'search_read', [[['model_id', '=', m.id]]], {
+            fields: ['name', 'state', 'usage']
+        });
+        res.execution_points = {
+            server_actions: serverActions.reduce((acc, a) => {
+                acc[a.name] = { state: a.state, usage: a.usage, id: a.id };
+                return acc;
+            }, {})
+        };
+        // Try to find methods from view buttons
+        try {
+            const views = await client.executeKw('ir.ui.view', 'search_read', [[['model', '=', model], ['type', '=', 'form']]], {
+                fields: ['arch_db'],
+                limit: 5
+            });
+            const buttonMethods = new Set();
+            const btnRegex = /<button[^>]+name="([^"]+)"[^>]+type="object"/g;
+            for (const v of views) {
+                let match;
+                while ((match = btnRegex.exec(v.arch_db)) !== null) {
+                    buttonMethods.add(match[1]);
+                }
+            }
+            res.execution_points.view_methods = Array.from(buttonMethods).sort();
+        }
+        catch (e) { }
+    }
+    // 5. UI Entry Points
+    if (flags.show_ui) {
+        const views = await client.executeKw('ir.ui.view', 'search_read', [[['model', '=', model], ['inherit_id', '=', false]]], {
+            fields: ['name', 'type', 'xml_id']
+        });
+        res.ui = { views: {} };
+        for (const v of views) {
+            if (!res.ui.views[v.type])
+                res.ui.views[v.type] = {};
+            res.ui.views[v.type][v.xml_id || v.id] = v.name;
+        }
+    }
+    // 6. Security
+    if (flags.show_access) {
+        const acls = await client.executeKw('ir.model.access', 'search_read', [[['model_id', '=', m.id]]], {
+            fields: ['group_id', 'perm_read', 'perm_write', 'perm_create', 'perm_unlink']
+        });
+        res.security = {
+            acls: acls.map((a) => ({
+                group: a.group_id ? a.group_id[1] : 'Global',
+                read: a.perm_read, write: a.perm_write, create: a.perm_create, unlink: a.perm_unlink
+            }))
         };
     }
-    return optimized;
+    return res;
 }
 
 ;// CONCATENATED MODULE: ./src/tools/get_menu.ts
@@ -38579,6 +38773,8 @@ const SearchReadSchema = schemas_object({
         }
         return val;
     }, schemas_array(classic_schemas_string()).optional()).describe('Fields to retrieve (empty = default fields)'),
+    include_extended: classic_schemas_boolean().optional().default(false).describe("Include fields from extension modules if 'fields' is empty."),
+    include_computed: classic_schemas_boolean().optional().default(false).describe("Include non-stored/calculated fields if 'fields' is empty."),
     limit: classic_coerce_number().optional().describe('Maximum number of records to return'),
     offset: classic_coerce_number().optional().describe('Number of records to skip (for pagination)'),
     order: classic_schemas_string().optional().describe('Sort order (e.g., "id desc", "create_date asc")'),
@@ -38586,15 +38782,49 @@ const SearchReadSchema = schemas_object({
 });
 /**
  * Tool to search and read Odoo records.
- * @param manager The InstanceManager instance.
- * @param input The SearchReadInput parameters.
- * @returns An array of records matching the search criteria.
+ * Automatically handles field categorization to prevent context window flooding.
  */
 async function searchRead(manager, input) {
-    const { model, domain, fields, limit, offset, order, instance_alias } = input;
+    const { model, domain = [], fields, include_extended, include_computed, limit, offset, order, instance_alias } = input;
     const client = await manager.getClient(instance_alias);
+    let readFields = fields;
+    // If no fields specified, perform auto-categorization
+    if (!readFields || readFields.length === 0) {
+        // 1. Resolve Model and its Base Module
+        const modelInfo = await client.executeKw('ir.model', 'search_read', [[['model', '=', model]]], {
+            fields: ['modules'],
+            limit: 1
+        });
+        if (modelInfo && modelInfo.length > 0) {
+            const baseModule = modelInfo[0].modules.split(',')[0].trim();
+            // 2. Fetch Fields and Filter
+            const fRecords = await client.executeKw('ir.model.fields', 'search_read', [[['model_id.model', '=', model]]], {
+                fields: ['name', 'modules', 'compute']
+            });
+            const categorizedFields = fRecords.filter((f) => {
+                const isBase = f.modules.includes(baseModule);
+                if (isBase)
+                    return true;
+                if (include_extended)
+                    return true; // Include non-base if requested
+                if (include_computed && f.compute)
+                    return true; // Include computed if requested
+                return false;
+            }).map((f) => f.name);
+            // Ensure essential fields are present
+            if (!categorizedFields.includes('id'))
+                categorizedFields.push('id');
+            if (!categorizedFields.includes('display_name')) {
+                // Try to add display_name if it exists in the model
+                const hasDisplayName = fRecords.some((f) => f.name === 'display_name');
+                if (hasDisplayName)
+                    categorizedFields.push('display_name');
+            }
+            readFields = categorizedFields;
+        }
+    }
     return await client.executeKw(model, 'search_read', [domain], {
-        fields,
+        fields: readFields,
         limit,
         offset,
         order,
@@ -38634,6 +38864,8 @@ async function createRecord(manager, input) {
     const client = await manager.getClient(instance_alias);
     const audit = await manager.getAudit(instance_alias);
     const recordId = await client.executeKw(model, 'create', [values]);
+    // Log locally for agent history
+    await audit.logLocalAction('create', model, recordId, values, justification);
     // Log to global system logs
     await audit.logSystemEvent(`Created ${model}(${recordId}): ${justification}`);
     // Log to chatter (if supported by model)
@@ -38680,8 +38912,9 @@ async function writeRecord(manager, input) {
     const before = beforeRecords && beforeRecords.length > 0 ? beforeRecords[0] : {};
     // 2. Execute the write
     const success = await client.executeKw(model, 'write', [[id], values]);
-    // 3. Audit and store reversibility context in Chatter
+    // 3. Audit and store reversibility context
     if (success) {
+        await audit.logLocalAction('write', model, id, { before, after: values }, justification);
         const body = audit.formatWriteSnapshot(before, justification);
         await audit.postChatterMessage(model, id, body);
         await audit.logSystemEvent(`Modified ${model}(${id}): ${justification}`);
@@ -38712,8 +38945,9 @@ async function unlinkRecord(manager, input) {
     const client = await manager.getClient(instance_alias);
     const audit = await manager.getAudit(instance_alias);
     const success = await client.executeKw(model, 'unlink', [[id]]);
-    // Log to global system logs
+    // Log locally and to global system logs
     if (success) {
+        await audit.logLocalAction('unlink', model, id, null, justification);
         await audit.logSystemEvent(`Deleted ${model}(${id}): ${justification}`, 'warning');
     }
     return success;
@@ -38878,6 +39112,224 @@ async function getInfo(manager) {
     };
 }
 
+;// CONCATENATED MODULE: ./src/tools/get_environment.ts
+
+/**
+ * Zod schema for get_environment tool input.
+ */
+const GetEnvironmentSchema = schemas_object({
+    show_security: classic_schemas_boolean().optional().default(false).describe("Include the current user's security groups and roles."),
+    show_manifest: classic_schemas_boolean().optional().default(false).describe("Include a full list of all installed Odoo modules/apps."),
+    instance_alias: classic_schemas_string().optional().describe("Optional alias of the Odoo instance to use."),
+});
+/**
+ * Dense Tool: Get a global 'World Map' of the current Odoo environment.
+ * Provides server, user, and organization context in one call.
+ */
+async function getEnvironment(manager, input) {
+    const { show_security, show_manifest, instance_alias } = input;
+    const client = await manager.getClient(instance_alias);
+    // Ensure authenticated
+    await client.authenticate();
+    // 1. Get Version
+    const version = client.versionInfo || { server_version: `v${client.majorVersion}` };
+    // 2. Get User Info
+    const uid = client.activeUid;
+    if (!uid)
+        throw new Error("Not authenticated");
+    const userData = await client.executeKw('res.users', 'read', [[uid]], {
+        fields: ['name', 'login', 'lang', 'company_id', 'groups_id']
+    });
+    const user = userData[0];
+    // 3. Get Organization Info (Companies, Languages)
+    const companies = await client.executeKw('res.company', 'search_read', [[]], {
+        fields: ['name', 'currency_id', 'country_id']
+    });
+    let languages = [];
+    try {
+        languages = await client.executeKw('res.lang', 'search_read', [[['active', '=', true]]], {
+            fields: ['name', 'code']
+        });
+    }
+    catch (e) {
+        // res.lang might be restricted
+    }
+    const res = {
+        server: {
+            version: version.server_version,
+            database: client.db,
+            url: client.url,
+            write_guard: client.writeGuard,
+        },
+        user: {
+            id: uid,
+            name: user.name,
+            login: user.login,
+            lang: user.lang,
+            active_company: formatRelation(user.company_id),
+        },
+        organization: {
+            companies: companies.map((c) => ({
+                id: c.id,
+                name: c.name,
+                currency: formatRelation(c.currency_id),
+                country: formatRelation(c.country_id),
+            })),
+            languages: languages.reduce((acc, l) => {
+                acc[l.code] = l.name;
+                return acc;
+            }, {}),
+        }
+    };
+    if (show_security) {
+        const groups = await client.executeKw('res.groups', 'read', [user.groups_id], {
+            fields: ['full_name']
+        });
+        res.user.security_groups = groups.reduce((acc, g) => {
+            acc[g.full_name] = g.id;
+            return acc;
+        }, {});
+    }
+    if (show_manifest) {
+        const modules = await client.executeKw('ir.module.module', 'search_read', [[['state', '=', 'installed']]], {
+            fields: ['name', 'shortdesc']
+        });
+        res.manifest = {
+            count: modules.length,
+            apps: modules.reduce((acc, m) => {
+                acc[m.name] = m.shortdesc;
+                return acc;
+            }, {}),
+        };
+    }
+    const summary = `🌍 WORLD MAP: Connected to Odoo ${res.server.version} (${res.server.database}) ${res.server.write_guard ? '🔒 WRITE_GUARD ACTIVE' : '🔓 NO GUARD'}.\n👤 USER: ${res.user.name} (${res.user.login})\n🏢 COMPANY: ${res.user.active_company}`;
+    return {
+        summary,
+        environment: res
+    };
+}
+/**
+ * Helper to format Many2one relations for the agent.
+ */
+function formatRelation(val) {
+    if (Array.isArray(val) && val.length >= 2) {
+        return val[1];
+    }
+    return val;
+}
+
+;// CONCATENATED MODULE: ./src/tools/trace_ui_path.ts
+
+/**
+ * Zod schema for trace_ui_path tool input.
+ */
+const TraceUiPathSchema = schemas_object({
+    model: classic_schemas_string().describe('Technical model name (e.g., "sale.order")'),
+    instance_alias: classic_schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
+});
+/**
+ * Tool to trace the UI path (Menus -> Actions -> Views) for a technical model.
+ * Helps the agent understand how a user visually accesses specific data.
+ */
+async function traceUiPath(manager, input) {
+    const { model, instance_alias } = input;
+    const client = await manager.getClient(instance_alias);
+    // 1. Find Window Actions for this model
+    const actions = await client.executeKw('ir.actions.act_window', 'search_read', [[['res_model', '=', model]]], {
+        fields: ['name', 'view_mode', 'context', 'domain', 'xml_id']
+    });
+    const paths = [];
+    for (const action of actions) {
+        // 2. Find Menus linked to each action
+        // Odoo stores action as 'ir.actions.act_window,ID' in the menu
+        const actionStr = `ir.actions.act_window,${action.id}`;
+        const menus = await client.executeKw('ir.ui.menu', 'search_read', [[['action', '=', actionStr]]], {
+            fields: ['complete_name']
+        });
+        for (const menu of menus) {
+            paths.push({
+                menu_path: menu.complete_name,
+                action_name: action.name,
+                action_xmlid: action.xml_id || undefined,
+                view_mode: action.view_mode,
+                context: action.context,
+                domain: action.domain
+            });
+        }
+    }
+    if (paths.length === 0) {
+        return `No UI entry points (Menus/Actions) found for model '${model}'. It might be a technical model or managed via relations only.`;
+    }
+    return {
+        summary: `Found ${paths.length} UI path(s) for model '${model}'.`,
+        paths: paths
+    };
+}
+
+;// CONCATENATED MODULE: ./src/tools/aggregate_records.ts
+
+/**
+ * Zod schema for aggregate_records tool input.
+ */
+const AggregateRecordsSchema = schemas_object({
+    model: classic_schemas_string().describe('Technical model name (e.g., "account.move.line")'),
+    domain: preprocess((val) => {
+        if (typeof val === 'string') {
+            try {
+                return JSON.parse(val);
+            }
+            catch {
+                return val;
+            }
+        }
+        return val;
+    }, schemas_array(schemas_any()).default([])).describe('Odoo domain filter'),
+    groupby: schemas_array(classic_schemas_string()).describe("Fields to group by. Use 'field:interval' for dates (e.g., 'date:month')."),
+    fields: schemas_array(classic_schemas_string()).optional().describe("Numeric/Monetary fields to aggregate (sum). Defaults to '__count'."),
+    limit: classic_coerce_number().optional().describe('Maximum number of groups to return'),
+    instance_alias: classic_schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
+});
+/**
+ * Tool to perform Odoo server-side aggregations (Pivot/Graph style).
+ * Wraps the 'read_group' RPC method to provide summarized data.
+ */
+async function aggregateRecords(manager, input) {
+    const { model, domain, groupby, fields, limit, instance_alias } = input;
+    const client = await manager.getClient(instance_alias);
+    // Odoo read_group signature: (domain, fields, groupby, offset=0, limit=None, orderby=False, lazy=True)
+    // We use lazy: false to get a flattened result set of all groupby levels.
+    return await client.executeKw(model, 'read_group', [domain, fields || [], groupby], {
+        limit,
+        lazy: false
+    });
+}
+
+;// CONCATENATED MODULE: ./src/tools/get_audit_log.ts
+
+/**
+ * Zod schema for get_audit_log tool input.
+ */
+const GetAuditLogSchema = schemas_object({
+    limit: classic_coerce_number().optional().default(10).describe("Number of recent entries to retrieve."),
+    instance_alias: classic_schemas_string().optional().describe("Optional alias of the Odoo instance to use."),
+});
+/**
+ * Tool to retrieve recent local audit log entries.
+ * Allows the agent to verify its own history and provide transparency.
+ */
+async function getAuditLog(manager, input) {
+    const { limit, instance_alias } = input;
+    const audit = await manager.getAudit(instance_alias);
+    const logs = await audit.getLocalLogs(limit);
+    if (logs.length === 0) {
+        return "No recent audit log entries found.";
+    }
+    return {
+        summary: `Retrieved ${logs.length} recent audit entry(ies).`,
+        logs: logs
+    };
+}
+
 ;// CONCATENATED MODULE: ./src/index.ts
 // Services
 
@@ -38886,6 +39338,10 @@ async function getInfo(manager) {
 
 
 // Tools
+
+
+
+
 
 
 
@@ -39037,6 +39493,30 @@ const toolRegistry = {
         handler: getInfo,
         schema: GET_INFO_SCHEMA,
         description: "Get version and environment information for the Brass-Monkey extension.",
+        deps: 'manager'
+    },
+    get_environment: {
+        handler: getEnvironment,
+        schema: GET_ENVIRONMENT_SCHEMA,
+        description: "Get a global 'World Map' of the current Odoo environment.",
+        deps: 'manager'
+    },
+    trace_ui_path: {
+        handler: traceUiPath,
+        schema: TRACE_UI_PATH_SCHEMA,
+        description: "Trace the UI path (Menus -> Actions -> Views) for a technical model.",
+        deps: 'manager'
+    },
+    aggregate_records: {
+        handler: aggregateRecords,
+        schema: AGGREGATE_RECORDS_SCHEMA,
+        description: "Perform Odoo server-side aggregations (Pivot/Graph style).",
+        deps: 'manager'
+    },
+    get_audit_log: {
+        handler: getAuditLog,
+        schema: GET_AUDIT_LOG_SCHEMA,
+        description: "Retrieve recent local audit log entries for transparency.",
         deps: 'manager'
     },
 };

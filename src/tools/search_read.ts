@@ -40,7 +40,7 @@ export async function searchRead(manager: InstanceManager, input: SearchReadInpu
   const { model, domain = [], fields, include_extended, include_computed, limit, offset, order, instance_alias } = input;
   const client = await manager.getClient(instance_alias);
 
-  let readFields = fields;
+  let readFields: string[] | undefined = fields;
 
   // If no fields specified, perform auto-categorization
   if (!readFields || readFields.length === 0) {
@@ -58,21 +58,22 @@ export async function searchRead(manager: InstanceManager, input: SearchReadInpu
         fields: ['name', 'modules', 'compute']
       });
 
-      readFields = fRecords.filter((f: any) => {
+      const categorizedFields = fRecords.filter((f: any) => {
         const isBase = f.modules.includes(baseModule);
         if (isBase) return true;
         if (include_extended) return true; // Include non-base if requested
         if (include_computed && f.compute) return true; // Include computed if requested
         return false;
-      }).map((f: any) => f.name);
+      }).map((f: any) => f.name as string);
 
       // Ensure essential fields are present
-      if (!readFields.includes('id')) readFields.push('id');
-      if (!readFields.includes('display_name')) {
+      if (!categorizedFields.includes('id')) categorizedFields.push('id');
+      if (!categorizedFields.includes('display_name')) {
         // Try to add display_name if it exists in the model
         const hasDisplayName = fRecords.some((f: any) => f.name === 'display_name');
-        if (hasDisplayName) readFields.push('display_name');
+        if (hasDisplayName) categorizedFields.push('display_name');
       }
+      readFields = categorizedFields;
     }
   }
   

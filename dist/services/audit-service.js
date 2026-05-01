@@ -1,11 +1,49 @@
+import { appendFile, readFile } from 'fs/promises';
+import { join } from 'path';
+import { homedir } from 'os';
 /**
  * Service to handle Odoo system logging and record-level auditing (Chatter).
  * Ensures all AI-driven changes are transparent and reversible.
  */
 export class AuditService {
     client;
+    localLogPath;
     constructor(client) {
         this.client = client;
+        this.localLogPath = join(homedir(), '.gemini', 'brass-monkey', 'audit.jsonl');
+    }
+    /**
+     * Logs an action locally for the agent's history and verification.
+     */
+    async logLocalAction(action, model, resId, data, justification) {
+        const entry = {
+            timestamp: new Date().toISOString(),
+            database: this.client.db,
+            action,
+            model,
+            res_id: resId,
+            data,
+            justification
+        };
+        try {
+            await appendFile(this.localLogPath, JSON.stringify(entry) + '\n');
+        }
+        catch (e) {
+            console.error('Failed to write to local audit log:', e);
+        }
+    }
+    /**
+     * Retrieves recent local audit log entries.
+     */
+    async getLocalLogs(limit = 10) {
+        try {
+            const data = await readFile(this.localLogPath, 'utf-8');
+            const lines = data.trim().split('\n');
+            return lines.slice(-limit).map(l => JSON.parse(l));
+        }
+        catch (e) {
+            return [];
+        }
     }
     /**
      * Logs a global system event in Odoo's ir.logging model.

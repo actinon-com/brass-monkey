@@ -20,8 +20,9 @@ export async function unlinkRecord(manager, input) {
     const client = await manager.getClient(instance_alias);
     const audit = await manager.getAudit(instance_alias);
     const success = await client.executeKw(model, 'unlink', [[id]]);
-    // Log to global system logs
+    // Log locally and to global system logs
     if (success) {
+        await audit.logLocalAction('unlink', model, id, null, justification);
         await audit.logSystemEvent(`Deleted ${model}(${id}): ${justification}`, 'warning');
     }
     return success;

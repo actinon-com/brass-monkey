@@ -7,6 +7,7 @@ export declare const OdooConfigSchema: z.ZodObject<{
     db: z.ZodString;
     username: z.ZodString;
     api_key: z.ZodOptional<z.ZodString>;
+    write_guard: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strip>;
 /**
  * TypeScript type inferred from the OdooConfigSchema.

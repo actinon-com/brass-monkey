@@ -5,7 +5,16 @@ import { OdooClient } from './odoo-client.js';
  */
 export declare class AuditService {
     private client;
+    private localLogPath;
     constructor(client: OdooClient);
+    /**
+     * Logs an action locally for the agent's history and verification.
+     */
+    logLocalAction(action: string, model: string, resId: number | string, data: any, justification: string): Promise<void>;
+    /**
+     * Retrieves recent local audit log entries.
+     */
+    getLocalLogs(limit?: number): Promise<any[]>;
     /**
      * Logs a global system event in Odoo's ir.logging model.
      * @param message The technical log message.
