@@ -10,6 +10,10 @@ export declare class OdooClient {
     private uid;
     private versionInfo;
     constructor(config: OdooConfig);
+    get activeUid(): number | null;
+    get db(): string;
+    get url(): string;
+    get writeGuard(): boolean;
     /**
      * Returns the major version of the Odoo instance (e.g. 16).
      */

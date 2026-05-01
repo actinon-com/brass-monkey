@@ -44,3 +44,4 @@ lerna-debug.log*
 # Vitest
 *.test.ts.snap
 /working/
+/secrets.json

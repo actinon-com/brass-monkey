@@ -42,6 +42,25 @@ export const INSPECT_MODEL_SCHEMA = {
     type: "object",
     properties: {
         model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
+        show_base: { type: "boolean", description: "Include standard 'Base' fields (Name, Active, ID, etc.)." },
+        show_extended: { type: "boolean", description: "Include fields added by extension modules." },
+        show_computed: { type: "boolean", description: "Include non-stored, calculated fields." },
+        show_related: { type: "boolean", description: "Include mirror fields from related models." },
+        show_lines: { type: "boolean", description: "Include One2many and Many2many field definitions." },
+        show_relationships: { type: "boolean", description: "Include relational IDs (Many2one definitions)." },
+        show_stats: { type: "boolean", description: "Include record counts (Active vs Archived) and storage metrics." },
+        show_access: { type: "boolean", description: "Include Access Control Lists (ACLs) and Record Rules." },
+        show_modules: { type: "boolean", description: "Include module lineage (Inheritance hierarchy)." },
+        show_ui: { type: "boolean", description: "Include associated View XML IDs and Window Actions." },
+        show_methods: { type: "boolean", description: "Include Server Actions and available execution points." },
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
+    required: ["model"],
+};
+export const TRACE_UI_PATH_SCHEMA = {
+    type: "object",
+    properties: {
+        model: { type: "string", description: 'Technical name of the model (e.g., "sale.order")' },
         instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
     },
     required: ["model"],
@@ -75,12 +94,33 @@ export const SEARCH_READ_SCHEMA = {
     properties: {
         model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
         domain: { type: "array", items: {}, description: 'Odoo domain filter (e.g., [["is_company", "=", true]])' },
-        fields: { type: "array", items: { type: "string" }, description: "List of fields to read." },
+        fields: { type: "array", items: { type: "string" }, description: "List of fields to read. If empty, defaults to 'Base' fields." },
+        include_extended: { type: "boolean", description: "If fields is empty, include fields from extension modules." },
+        include_computed: { type: "boolean", description: "If fields is empty, include non-stored/calculated fields." },
         limit: { type: "number", description: "Maximum number of records to return." },
         order: { type: "string", description: 'Order by clause (e.g., "name asc").' },
         instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
     },
     required: ["model"],
+};
+export const AGGREGATE_RECORDS_SCHEMA = {
+    type: "object",
+    properties: {
+        model: { type: "string", description: 'Technical name of the model (e.g., "account.move.line")' },
+        domain: { type: "array", items: {}, description: 'Odoo domain filter (e.g., [["move_type", "=", "out_invoice"]])' },
+        groupby: { type: "array", items: { type: "string" }, description: "Fields to group by. Use 'field:interval' for dates (e.g., 'date:month')." },
+        fields: { type: "array", items: { type: "string" }, description: "Numeric/Monetary fields to aggregate (sum). Defaults to '__count'." },
+        limit: { type: "number", description: "Maximum number of groups to return." },
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
+    required: ["model", "groupby"],
+};
+export const GET_AUDIT_LOG_SCHEMA = {
+    type: "object",
+    properties: {
+        limit: { type: "number", description: "Number of recent entries to retrieve." },
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
 };
 export const CREATE_RECORD_SCHEMA = {
     type: "object",
@@ -135,5 +175,13 @@ export const DOWNLOAD_REPORT_SCHEMA = {
 export const GET_INFO_SCHEMA = {
     type: "object",
     properties: {},
+};
+export const GET_ENVIRONMENT_SCHEMA = {
+    type: "object",
+    properties: {
+        show_security: { type: "boolean", description: "Include the current user's security groups and roles." },
+        show_manifest: { type: "boolean", description: "Include a full list of all installed Odoo modules/apps." },
+        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+    },
 };
 //# sourceMappingURL=schemas.js.map

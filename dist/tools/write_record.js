@@ -36,8 +36,9 @@ export async function writeRecord(manager, input) {
     const before = beforeRecords && beforeRecords.length > 0 ? beforeRecords[0] : {};
     // 2. Execute the write
     const success = await client.executeKw(model, 'write', [[id], values]);
-    // 3. Audit and store reversibility context in Chatter
+    // 3. Audit and store reversibility context
     if (success) {
+        await audit.logLocalAction('write', model, id, { before, after: values }, justification);
         const body = audit.formatWriteSnapshot(before, justification);
         await audit.postChatterMessage(model, id, body);
         await audit.logSystemEvent(`Modified ${model}(${id}): ${justification}`);

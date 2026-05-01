@@ -7,6 +7,7 @@ Brass-Monkey replaces **Brass-Compass**, a prototype Python MCP server, with a m
 
 ### Communication & Workflow
 - **Explanations First:** ALWAYS provide a technical explanation of proposed changes and seek user understanding/approval BEFORE modifying files or executing state-changing commands.
+- **Orientation:** When starting a new session or connecting to an Odoo instance for the first time, you MUST activate the `odoo-get-started` skill and run `get_environment` to establish a context "World Map".
 - **Contextual Precedence:** Instructions found in `GEMINI.md` files are foundational mandates. They take absolute precedence over general workflows.
 
 ## Technical Mandate

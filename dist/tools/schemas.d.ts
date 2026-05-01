@@ -72,6 +72,64 @@ export declare const INSPECT_MODEL_SCHEMA: {
             type: string;
             description: string;
         };
+        show_base: {
+            type: string;
+            description: string;
+        };
+        show_extended: {
+            type: string;
+            description: string;
+        };
+        show_computed: {
+            type: string;
+            description: string;
+        };
+        show_related: {
+            type: string;
+            description: string;
+        };
+        show_lines: {
+            type: string;
+            description: string;
+        };
+        show_relationships: {
+            type: string;
+            description: string;
+        };
+        show_stats: {
+            type: string;
+            description: string;
+        };
+        show_access: {
+            type: string;
+            description: string;
+        };
+        show_modules: {
+            type: string;
+            description: string;
+        };
+        show_ui: {
+            type: string;
+            description: string;
+        };
+        show_methods: {
+            type: string;
+            description: string;
+        };
+        instance_alias: {
+            type: string;
+            description: string;
+        };
+    };
+    required: string[];
+};
+export declare const TRACE_UI_PATH_SCHEMA: {
+    type: string;
+    properties: {
+        model: {
+            type: string;
+            description: string;
+        };
         instance_alias: {
             type: string;
             description: string;
@@ -143,6 +201,14 @@ export declare const SEARCH_READ_SCHEMA: {
             };
             description: string;
         };
+        include_extended: {
+            type: string;
+            description: string;
+        };
+        include_computed: {
+            type: string;
+            description: string;
+        };
         limit: {
             type: string;
             description: string;
@@ -157,6 +223,56 @@ export declare const SEARCH_READ_SCHEMA: {
         };
     };
     required: string[];
+};
+export declare const AGGREGATE_RECORDS_SCHEMA: {
+    type: string;
+    properties: {
+        model: {
+            type: string;
+            description: string;
+        };
+        domain: {
+            type: string;
+            items: {};
+            description: string;
+        };
+        groupby: {
+            type: string;
+            items: {
+                type: string;
+            };
+            description: string;
+        };
+        fields: {
+            type: string;
+            items: {
+                type: string;
+            };
+            description: string;
+        };
+        limit: {
+            type: string;
+            description: string;
+        };
+        instance_alias: {
+            type: string;
+            description: string;
+        };
+    };
+    required: string[];
+};
+export declare const GET_AUDIT_LOG_SCHEMA: {
+    type: string;
+    properties: {
+        limit: {
+            type: string;
+            description: string;
+        };
+        instance_alias: {
+            type: string;
+            description: string;
+        };
+    };
 };
 export declare const CREATE_RECORD_SCHEMA: {
     type: string;
@@ -271,4 +387,21 @@ export declare const DOWNLOAD_REPORT_SCHEMA: {
 export declare const GET_INFO_SCHEMA: {
     type: string;
     properties: {};
+};
+export declare const GET_ENVIRONMENT_SCHEMA: {
+    type: string;
+    properties: {
+        show_security: {
+            type: string;
+            description: string;
+        };
+        show_manifest: {
+            type: string;
+            description: string;
+        };
+        instance_alias: {
+            type: string;
+            description: string;
+        };
+    };
 };
