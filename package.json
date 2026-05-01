@@ -1,11 +1,11 @@
 {
   "name": "brass-monkey",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc && npm run bundle",
-    "bundle": "ncc build src/mcp-server.ts -o dist/bundle -e keytar",
+    "bundle": "ncc build src/mcp-server.ts -o dist/bundle",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src/**/*.ts"
