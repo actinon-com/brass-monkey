@@ -4,6 +4,7 @@ import { createRecord } from '../src/tools/create_record.js';
 import { writeRecord } from '../src/tools/write_record.js';
 import { unlinkRecord } from '../src/tools/unlink_record.js';
 import { aggregateRecords } from '../src/tools/aggregate_records.js';
+import { searchCount } from '../src/tools/search_count.js';
 
 describe('CRUD Tools', () => {
   let mockClient: any;
@@ -68,6 +69,18 @@ describe('CRUD Tools', () => {
         lazy: false
       }));
       expect(result[0].__count).toBe(5);
+    });
+  });
+
+  describe('searchCount', () => {
+    it('should return the record count', async () => {
+      mockClient.executeKw.mockResolvedValue(42);
+      const result = await searchCount(mockManager, {
+        model: 'res.partner',
+        domain: [['is_company', '=', true]]
+      });
+      expect(result).toBe(42);
+      expect(mockClient.executeKw).toHaveBeenCalledWith('res.partner', 'search_count', [[['is_company', '=', true]]]);
     });
   });
 

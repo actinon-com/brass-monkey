@@ -12,6 +12,7 @@ import { getView } from '../src/tools/get_view.js';
 import { createRecord } from '../src/tools/create_record.js';
 import { writeRecord } from '../src/tools/write_record.js';
 import { searchRead } from '../src/tools/search_read.js';
+import { searchCount } from '../src/tools/search_count.js';
 import { unlinkRecord } from '../src/tools/unlink_record.js';
 import { listReports } from '../src/tools/list_reports.js';
 import { getEnvironment } from '../src/tools/get_environment.js';
@@ -92,6 +93,13 @@ async function runDiagnostics() {
       fields: ['name', 'comment']
     });
     console.log(`✅ searchRead: Found record with comment: "${searchResult[0].comment}"`);
+
+    const count = await searchCount(manager, {
+      instance_alias: alias,
+      model: 'res.partner',
+      domain: [['name', '=', dummyName]]
+    });
+    console.log(`✅ searchCount: Found ${count} records matching dummy name`);
 
     const deleteSuccess = await unlinkRecord(manager, {
       instance_alias: alias,
