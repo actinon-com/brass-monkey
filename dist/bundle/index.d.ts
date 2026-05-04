@@ -22,4 +22,5 @@ export * from './tools/get_info.js';
 export * from './tools/get_environment.js';
 export * from './tools/trace_ui_path.js';
 export * from './tools/aggregate_records.js';
+export * from './tools/search_count.js';
 export * from './tools/get_audit_log.js';

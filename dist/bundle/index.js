@@ -38056,7 +38056,7 @@ class ConfigStore {
             instances.push(metadata);
         }
         await this.ensureDir();
-        await (0,promises_namespaceObject.writeFile)(this.configPath, JSON.stringify({ instances }, null, 2), {
+        await (0,promises_namespaceObject.writeFile)(this.configPath, JSON.stringify({ instances }), {
             mode: 0o600, // Restricted permissions
         });
     }
@@ -38067,7 +38067,7 @@ class ConfigStore {
         const instances = await this.load();
         const filtered = instances.filter(i => i.alias !== alias);
         await this.ensureDir();
-        await (0,promises_namespaceObject.writeFile)(this.configPath, JSON.stringify({ instances: filtered }, null, 2));
+        await (0,promises_namespaceObject.writeFile)(this.configPath, JSON.stringify({ instances: filtered }));
     }
     async ensureDir() {
         const dir = (0,external_path_namespaceObject.join)((0,external_os_namespaceObject.homedir)(), '.gemini', 'brass-monkey');
@@ -38085,11 +38085,11 @@ var credential_store = __nccwpck_require__(7639);
 const SETUP_INSTANCE_SCHEMA = {
     type: "object",
     properties: {
-        alias: { type: "string", description: 'A unique name for this instance (e.g., "prod", "staging")' },
-        url: { type: "string", description: "Odoo instance URL" },
-        db: { type: "string", description: "Database name" },
-        username: { type: "string", description: "Username/Email" },
-        api_key: { type: "string", description: "Odoo External API Key or user password" },
+        alias: { type: "string", description: 'A unique name for this instance (e.g., "prod", "staging"). Use this alias in other tools to target this instance.' },
+        url: { type: "string", description: "Odoo instance URL (e.g., https://my-company.odoo.com). No trailing slash." },
+        db: { type: "string", description: "Database name. Find this on the Odoo selector page if unsure." },
+        username: { type: "string", description: "Username or Email address for login." },
+        api_key: { type: "string", description: "Odoo External API Key (recommended) or user password. SECURE: This is never logged." },
     },
     required: ["alias"],
 };
@@ -38100,155 +38100,164 @@ const LIST_INSTANCES_SCHEMA = {
 const SWITCH_INSTANCE_SCHEMA = {
     type: "object",
     properties: {
-        alias: { type: "string", description: "The alias of the Odoo instance to switch to." },
+        alias: { type: "string", description: "The alias of the instance to set as active for all subsequent calls." },
     },
     required: ["alias"],
 };
 const REMOVE_INSTANCE_SCHEMA = {
     type: "object",
     properties: {
-        alias: { type: "string", description: "The alias of the Odoo instance to remove." },
+        alias: { type: "string", description: "The alias of the Odoo instance to delete from local storage." },
     },
     required: ["alias"],
 };
 const LIST_MODELS_SCHEMA = {
     type: "object",
     properties: {
-        search_term: { type: "string", description: 'Optional filter for model name or description (e.g., "sale")' },
-        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+        search_term: { type: "string", description: 'Filter models by technical name or description (e.g., "sale"). Use this to find the correct model name before searching.' },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
 };
 const INSPECT_MODEL_SCHEMA = {
     type: "object",
     properties: {
-        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
-        show_base: { type: "boolean", description: "Include standard 'Base' fields (Name, Active, ID, etc.)." },
-        show_extended: { type: "boolean", description: "Include fields added by extension modules." },
-        show_computed: { type: "boolean", description: "Include non-stored, calculated fields." },
-        show_related: { type: "boolean", description: "Include mirror fields from related models." },
-        show_lines: { type: "boolean", description: "Include One2many and Many2many field definitions." },
-        show_relationships: { type: "boolean", description: "Include relational IDs (Many2one definitions)." },
-        show_stats: { type: "boolean", description: "Include record counts (Active vs Archived) and storage metrics." },
-        show_access: { type: "boolean", description: "Include Access Control Lists (ACLs) and Record Rules." },
-        show_modules: { type: "boolean", description: "Include module lineage (Inheritance hierarchy)." },
-        show_ui: { type: "boolean", description: "Include associated View XML IDs and Window Actions." },
-        show_methods: { type: "boolean", description: "Include Server Actions and available execution points." },
-        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner"). MUST be exact.' },
+        show_base: { type: "boolean", description: "Include standard Odoo fields (Name, ID, Create Date). Highly recommended for initial schema discovery." },
+        show_extended: { type: "boolean", description: "Include fields added by custom or third-party modules." },
+        show_computed: { type: "boolean", description: "Include calculated fields. Note: These may slow down search_read if not stored." },
+        show_related: { type: "boolean", description: "Include 'mirror' fields from related records." },
+        show_lines: { type: "boolean", description: "Include One2many and Many2many field definitions to understand record links." },
+        show_relationships: { type: "boolean", description: "Include Many2one relational field definitions." },
+        show_stats: { type: "boolean", description: "Include record counts (Active vs Archived). Use this for a quick high-level overview of data volume." },
+        show_access: { type: "boolean", description: "Include Access Control Lists (ACLs) to verify if the current user can Create/Write/Delete." },
+        show_modules: { type: "boolean", description: "Include the list of modules that define/extend this model." },
+        show_ui: { type: "boolean", description: "Include associated View IDs (Form, List, Search) and Window Actions for UI navigation." },
+        show_methods: { type: "boolean", description: "Include available Server Actions and methods triggered by UI buttons." },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model"],
 };
 const TRACE_UI_PATH_SCHEMA = {
     type: "object",
     properties: {
-        model: { type: "string", description: 'Technical name of the model (e.g., "sale.order")' },
-        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+        model: { type: "string", description: 'Technical name of the model (e.g., "sale.order"). Use this to find out WHERE in the Odoo menu this model lives.' },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model"],
 };
 const GET_MENU_SCHEMA = {
     type: "object",
     properties: {
-        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
 };
 const GET_ACTION_SCHEMA = {
     type: "object",
     properties: {
-        action_id: { type: "number", description: "The technical ID of the window action." },
-        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+        action_id: { type: "number", description: "The technical database ID of the ir.actions.act_window." },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["action_id"],
 };
 const GET_VIEW_SCHEMA = {
     type: "object",
     properties: {
-        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
-        view_type: { type: "string", description: 'Type of view: "form", "list", "kanban", etc.' },
-        view_id: { type: "number", description: "Optional specific view ID." },
-        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
+        view_type: { type: "string", description: 'Type of view: "form", "list", "kanban", "search", etc.' },
+        view_id: { type: "number", description: "Optional specific database ID of the view. If omitted, returns the default view for the type." },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model"],
 };
 const SEARCH_READ_SCHEMA = {
     type: "object",
     properties: {
-        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
-        domain: { type: "array", items: {}, description: 'Odoo domain filter (e.g., [["is_company", "=", true]])' },
-        fields: { type: "array", items: { type: "string" }, description: "List of fields to read. If empty, defaults to 'Base' fields." },
-        include_extended: { type: "boolean", description: "If fields is empty, include fields from extension modules." },
-        include_computed: { type: "boolean", description: "If fields is empty, include non-stored/calculated fields." },
-        limit: { type: "number", description: "Maximum number of records to return." },
-        order: { type: "string", description: 'Order by clause (e.g., "name asc").' },
-        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
+        domain: { type: "array", items: {}, description: 'Odoo domain filter. A list of triplets: [["field", "operator", value]]. Example: [["is_company", "=", true]]. Use empty list [] for all records.' },
+        fields: { type: "array", items: { type: "string" }, description: "List of field names to retrieve. PRO TIP: Use inspect_model first to find valid field names. If omitted, returns 'Base' fields." },
+        include_extended: { type: "boolean", description: "If 'fields' is empty, include fields from extension modules." },
+        include_computed: { type: "boolean", description: "If 'fields' is empty, include non-stored/calculated fields." },
+        limit: { type: "number", description: "Maximum number of records to return. Keep low for performance unless batching." },
+        order: { type: "string", description: 'Order by clause (e.g., "name asc", "create_date desc").' },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
+    },
+    required: ["model"],
+};
+const SEARCH_COUNT_SCHEMA = {
+    type: "object",
+    properties: {
+        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
+        domain: { type: "array", items: {}, description: 'Odoo domain filter. Example: [["is_company", "=", true]]. Use this for simple record tallies instead of search_read.' },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model"],
 };
 const AGGREGATE_RECORDS_SCHEMA = {
     type: "object",
     properties: {
-        model: { type: "string", description: 'Technical name of the model (e.g., "account.move.line")' },
-        domain: { type: "array", items: {}, description: 'Odoo domain filter (e.g., [["move_type", "=", "out_invoice"]])' },
-        groupby: { type: "array", items: { type: "string" }, description: "Fields to group by. Use 'field:interval' for dates (e.g., 'date:month')." },
-        fields: { type: "array", items: { type: "string" }, description: "Numeric/Monetary fields to aggregate (sum). Defaults to '__count'." },
+        model: { type: "string", description: 'Technical name of the model (e.g., "account.move.line").' },
+        domain: { type: "array", items: {}, description: 'Odoo domain filter. Example: [["move_type", "=", "out_invoice"]].' },
+        groupby: { type: "array", items: { type: "string" }, description: "Fields to group by. Use 'field:interval' for dates (e.g., 'date:month'). REQUIRED for aggregation." },
+        fields: { type: "array", items: { type: "string" }, description: "Numeric/Monetary fields to sum (e.g., ['price_total']). Defaults to '__count' (record count per group)." },
         limit: { type: "number", description: "Maximum number of groups to return." },
-        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "groupby"],
 };
 const GET_AUDIT_LOG_SCHEMA = {
     type: "object",
     properties: {
-        limit: { type: "number", description: "Number of recent entries to retrieve." },
-        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+        limit: { type: "number", description: "Number of recent local actions to retrieve for transparency and verification." },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
 };
 const CREATE_RECORD_SCHEMA = {
     type: "object",
     properties: {
-        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
-        values: { type: "object", description: "Field values for the new record." },
-        justification: { type: "string", description: "Mandatory justification for audit logs." },
-        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
+        values: { type: "object", description: "Dictionary of field values: {'field_name': value}. Use inspect_model to find writable fields." },
+        justification: { type: "string", description: "MANDATORY: Explain WHY this record is being created. This is logged to Odoo Chatter and local audit logs." },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "values", "justification"],
 };
 const WRITE_RECORD_SCHEMA = {
     type: "object",
     properties: {
-        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
-        id: { type: "number", description: "ID of the record to update." },
-        values: { type: "object", description: "New field values." },
-        justification: { type: "string", description: "Mandatory justification for audit logs." },
-        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
+        id: { type: "number", description: "The database ID of the record to update." },
+        values: { type: "object", description: "Dictionary of fields to update. PRO TIP: We take a 'Before Snapshot' automatically for reversibility." },
+        justification: { type: "string", description: "MANDATORY: Explain WHY this update is necessary. Logged for audit and safety." },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "id", "values", "justification"],
 };
 const UNLINK_RECORD_SCHEMA = {
     type: "object",
     properties: {
-        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
-        id: { type: "number", description: "ID of the record to delete." },
-        justification: { type: "string", description: "Mandatory justification for audit logs." },
-        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
+        id: { type: "number", description: "The database ID of the record to delete." },
+        justification: { type: "string", description: "MANDATORY: Explain WHY this deletion is necessary. Deletions are hard to reverse; use with caution." },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "id", "justification"],
 };
 const LIST_REPORTS_SCHEMA = {
     type: "object",
     properties: {
-        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
-        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner"). Find available PDF reports like Invoices or Packing Slips.' },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model"],
 };
 const DOWNLOAD_REPORT_SCHEMA = {
     type: "object",
     properties: {
-        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner")' },
-        id: { type: "number", description: "Record ID to run report for." },
-        report_name: { type: "string", description: 'Internal name of report (e.g. "sale.report_saleorder")' },
-        output_path: { type: "string", description: "Optional local path to save the PDF." },
-        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+        model: { type: "string", description: 'Technical name of the model.' },
+        id: { type: "number", description: "Database ID of the record to generate the report for." },
+        report_name: { type: "string", description: 'The technical name of the report (e.g., "account.report_invoice_with_payments"). Get this from list_reports.' },
+        output_path: { type: "string", description: "Optional local path to save the PDF. If omitted, returns raw data (use with caution)." },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "id", "report_name"],
 };
@@ -38259,9 +38268,9 @@ const GET_INFO_SCHEMA = {
 const GET_ENVIRONMENT_SCHEMA = {
     type: "object",
     properties: {
-        show_security: { type: "boolean", description: "Include the current user's security groups and roles." },
-        show_manifest: { type: "boolean", description: "Include a full list of all installed Odoo modules/apps." },
-        instance_alias: { type: "string", description: "Optional alias of the Odoo instance to use." },
+        show_security: { type: "boolean", description: "Include the current user's security groups and roles. Useful for troubleshooting 'Access Denied' errors." },
+        show_manifest: { type: "boolean", description: "Include all installed Odoo modules. Use this to see if apps like 'crm' or 'sale' are available." },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
 };
 
@@ -39304,6 +39313,36 @@ async function aggregateRecords(manager, input) {
     });
 }
 
+;// CONCATENATED MODULE: ./src/tools/search_count.ts
+
+/**
+ * Zod schema for search_count tool input.
+ */
+const SearchCountSchema = schemas_object({
+    model: classic_schemas_string().describe('Technical model name (e.g., "res.partner")'),
+    domain: preprocess((val) => {
+        if (typeof val === 'string') {
+            try {
+                return JSON.parse(val);
+            }
+            catch {
+                return val;
+            }
+        }
+        return val;
+    }, schemas_array(schemas_any()).default([])).describe('Odoo domain filter (e.g., [["is_company", "=", true]])'),
+    instance_alias: classic_schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
+});
+/**
+ * Tool to get the total number of records matching a domain.
+ * Lightweight alternative to search_read when only the count is needed.
+ */
+async function searchCount(manager, input) {
+    const { model, domain, instance_alias } = input;
+    const client = await manager.getClient(instance_alias);
+    return await client.executeKw(model, 'search_count', [domain]);
+}
+
 ;// CONCATENATED MODULE: ./src/tools/get_audit_log.ts
 
 /**
@@ -39358,6 +39397,7 @@ async function getAuditLog(manager, input) {
 
 
 
+
 // The extension manifest will typically be handled by the Gemini CLI 
 // by scanning the exported tools and the src/skills directory.
 
@@ -39375,7 +39415,7 @@ async function getAuditLog(manager, input) {
 
 const mcp_server_dirname = external_path_default().dirname((0,external_url_.fileURLToPath)(import.meta.url));
 // Read package.json for metadata
-let mcp_server_version = "1.2.2";
+let mcp_server_version = "1.3.2";
 try {
     const pkgPath = __nccwpck_require__.ab + "package.json";
     const pkg = JSON.parse(external_fs_default().readFileSync(__nccwpck_require__.ab + "package.json", "utf-8"));
@@ -39426,37 +39466,43 @@ const toolRegistry = {
     list_models: {
         handler: listModels,
         schema: LIST_MODELS_SCHEMA,
-        description: "List all available Odoo models in the current instance.",
+        description: "List all available Odoo models. Use get_environment first to see if the relevant app is installed.",
         deps: 'manager'
     },
     inspect_model: {
         handler: inspectModel,
         schema: INSPECT_MODEL_SCHEMA,
-        description: "Get detailed metadata about a model's fields, relationships, and constraints.",
+        description: "DENSE TOOL: Deeply audit a model's fields, relationships, and UI paths in one call. Use this before search_read if you don't know the schema.",
         deps: 'manager'
     },
     get_menu: {
         handler: getMenu,
         schema: GET_MENU_SCHEMA,
-        description: "Retrieve the Odoo menu structure to understand navigation paths.",
+        description: "Retrieve Odoo's menu structure. Use trace_ui_path for targeted discovery instead.",
         deps: 'manager'
     },
     get_action: {
         handler: getAction,
         schema: GET_ACTION_SCHEMA,
-        description: "Retrieve window actions that define how views are opened.",
+        description: "Retrieve window actions. Prefer trace_ui_path for navigating to a specific model.",
         deps: 'manager'
     },
     get_view: {
         handler: getView,
         schema: GET_VIEW_SCHEMA,
-        description: "Fetch specific view definitions (form, tree, kanban) for a model.",
+        description: "Fetch view XML/definitions. Use inspect_model (show_ui=true) to find view IDs first.",
         deps: 'manager'
     },
     search_read: {
         handler: searchRead,
         schema: SEARCH_READ_SCHEMA,
-        description: "Search for records using Odoo domains and read specific fields.",
+        description: "Search and read records. MANDATORY: Run get_environment and/or inspect_model first to verify fields and context.",
+        deps: 'manager'
+    },
+    search_count: {
+        handler: searchCount,
+        schema: SEARCH_COUNT_SCHEMA,
+        description: "Get the total number of records matching a domain. Use this for simple record tallies.",
         deps: 'manager'
     },
     create_record: {
@@ -39498,19 +39544,19 @@ const toolRegistry = {
     get_environment: {
         handler: getEnvironment,
         schema: GET_ENVIRONMENT_SCHEMA,
-        description: "Get a global 'World Map' of the current Odoo environment.",
+        description: "DENSE TOOL: Mandatory 'World Map' orientation. Provides server, user, company, and app context. Run this FIRST in every session.",
         deps: 'manager'
     },
     trace_ui_path: {
         handler: traceUiPath,
         schema: TRACE_UI_PATH_SCHEMA,
-        description: "Trace the UI path (Menus -> Actions -> Views) for a technical model.",
+        description: "DENSE TOOL: Discover exactly how to reach a model through the UI (Menus -> Actions -> Views).",
         deps: 'manager'
     },
     aggregate_records: {
         handler: aggregateRecords,
         schema: AGGREGATE_RECORDS_SCHEMA,
-        description: "Perform Odoo server-side aggregations (Pivot/Graph style).",
+        description: "Server-side grouping and aggregation (Pivot style). For simple counts, search_read with limit=0 is safer.",
         deps: 'manager'
     },
     get_audit_log: {
@@ -39554,7 +39600,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             content: [
                 {
                     type: "text",
-                    text: typeof result === 'string' ? result : JSON.stringify(result, null, 2),
+                    text: typeof result === 'string' ? result : JSON.stringify(result),
                 },
             ],
         };

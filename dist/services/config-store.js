@@ -61,7 +61,7 @@ export class ConfigStore {
             instances.push(metadata);
         }
         await this.ensureDir();
-        await writeFile(this.configPath, JSON.stringify({ instances }, null, 2), {
+        await writeFile(this.configPath, JSON.stringify({ instances }), {
             mode: 0o600, // Restricted permissions
         });
     }
@@ -72,7 +72,7 @@ export class ConfigStore {
         const instances = await this.load();
         const filtered = instances.filter(i => i.alias !== alias);
         await this.ensureDir();
-        await writeFile(this.configPath, JSON.stringify({ instances: filtered }, null, 2));
+        await writeFile(this.configPath, JSON.stringify({ instances: filtered }));
     }
     async ensureDir() {
         const dir = join(homedir(), '.gemini', 'brass-monkey');

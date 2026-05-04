@@ -224,6 +224,25 @@ export declare const SEARCH_READ_SCHEMA: {
     };
     required: string[];
 };
+export declare const SEARCH_COUNT_SCHEMA: {
+    type: string;
+    properties: {
+        model: {
+            type: string;
+            description: string;
+        };
+        domain: {
+            type: string;
+            items: {};
+            description: string;
+        };
+        instance_alias: {
+            type: string;
+            description: string;
+        };
+    };
+    required: string[];
+};
 export declare const AGGREGATE_RECORDS_SCHEMA: {
     type: string;
     properties: {
