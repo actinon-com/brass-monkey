@@ -11,7 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Read package.json for metadata
-let version = "1.2.2";
+let version = "1.3.2";
 try {
     const pkgPath = path.resolve(__dirname, "../package.json");
     const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
@@ -62,37 +62,43 @@ const toolRegistry = {
     list_models: {
         handler: tools.listModels,
         schema: schemas.LIST_MODELS_SCHEMA,
-        description: "List all available Odoo models in the current instance.",
+        description: "List all available Odoo models. Use get_environment first to see if the relevant app is installed.",
         deps: 'manager'
     },
     inspect_model: {
         handler: tools.inspectModel,
         schema: schemas.INSPECT_MODEL_SCHEMA,
-        description: "Get detailed metadata about a model's fields, relationships, and constraints.",
+        description: "DENSE TOOL: Deeply audit a model's fields, relationships, and UI paths in one call. Use this before search_read if you don't know the schema.",
         deps: 'manager'
     },
     get_menu: {
         handler: tools.getMenu,
         schema: schemas.GET_MENU_SCHEMA,
-        description: "Retrieve the Odoo menu structure to understand navigation paths.",
+        description: "Retrieve Odoo's menu structure. Use trace_ui_path for targeted discovery instead.",
         deps: 'manager'
     },
     get_action: {
         handler: tools.getAction,
         schema: schemas.GET_ACTION_SCHEMA,
-        description: "Retrieve window actions that define how views are opened.",
+        description: "Retrieve window actions. Prefer trace_ui_path for navigating to a specific model.",
         deps: 'manager'
     },
     get_view: {
         handler: tools.getView,
         schema: schemas.GET_VIEW_SCHEMA,
-        description: "Fetch specific view definitions (form, tree, kanban) for a model.",
+        description: "Fetch view XML/definitions. Use inspect_model (show_ui=true) to find view IDs first.",
         deps: 'manager'
     },
     search_read: {
         handler: tools.searchRead,
         schema: schemas.SEARCH_READ_SCHEMA,
-        description: "Search for records using Odoo domains and read specific fields.",
+        description: "Search and read records. MANDATORY: Run get_environment and/or inspect_model first to verify fields and context.",
+        deps: 'manager'
+    },
+    search_count: {
+        handler: tools.searchCount,
+        schema: schemas.SEARCH_COUNT_SCHEMA,
+        description: "Get the total number of records matching a domain. Use this for simple record tallies.",
         deps: 'manager'
     },
     create_record: {
@@ -134,19 +140,19 @@ const toolRegistry = {
     get_environment: {
         handler: tools.getEnvironment,
         schema: schemas.GET_ENVIRONMENT_SCHEMA,
-        description: "Get a global 'World Map' of the current Odoo environment.",
+        description: "DENSE TOOL: Mandatory 'World Map' orientation. Provides server, user, company, and app context. Run this FIRST in every session.",
         deps: 'manager'
     },
     trace_ui_path: {
         handler: tools.traceUiPath,
         schema: schemas.TRACE_UI_PATH_SCHEMA,
-        description: "Trace the UI path (Menus -> Actions -> Views) for a technical model.",
+        description: "DENSE TOOL: Discover exactly how to reach a model through the UI (Menus -> Actions -> Views).",
         deps: 'manager'
     },
     aggregate_records: {
         handler: tools.aggregateRecords,
         schema: schemas.AGGREGATE_RECORDS_SCHEMA,
-        description: "Perform Odoo server-side aggregations (Pivot/Graph style).",
+        description: "Server-side grouping and aggregation (Pivot style). For simple counts, search_read with limit=0 is safer.",
         deps: 'manager'
     },
     get_audit_log: {
@@ -190,7 +196,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             content: [
                 {
                     type: "text",
-                    text: typeof result === 'string' ? result : JSON.stringify(result, null, 2),
+                    text: typeof result === 'string' ? result : JSON.stringify(result),
                 },
             ],
         };
