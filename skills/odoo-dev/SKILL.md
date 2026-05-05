@@ -1,6 +1,6 @@
 ---
 name: odoo-dev
-description: High-level technical expertise in Odoo's customization engine, covering Server Actions, Automated Rules, and Odoo Studio modifications.
+description: MANDATORY for customizations. High-level technical expertise in Odoo's customization engine, covering Server Actions, Automated Rules, and Odoo Studio modifications.
 ---
 # Skill: Odoo Development & Customization
 
@@ -21,6 +21,7 @@ Before troubleshooting or proposing changes, the agent must identify existing lo
 ### 2. Server Actions (`ir.actions.server`)
 - **Purpose:** Execute Python code, update records, or trigger multi-step workflows via the UI.
 - **Mandate:** When writing Python code in a Server Action, ensure all variables (`env`, `model`, `record`, `records`, `time`) are used correctly. Avoid long-running loops or operations that could cause database locks.
+- **HTML Communication:** If using `message_post` within a Server Action to send HTML, remember to pass `body_is_html=True` to prevent escaping.
 
 ### 3. Automated Rules (`base.automation`)
 - **Purpose:** Automatically trigger Server Actions based on specific events.
