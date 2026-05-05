@@ -11,7 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Read package.json for metadata
-let version = "1.3.2";
+let version = "1.3.4";
 try {
     const pkgPath = path.resolve(__dirname, "../package.json");
     const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
@@ -217,6 +217,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
+    console.error("Brass Monkey MCP Server running on stdio");
+    // Handle clean shutdown
+    const shutdown = async () => {
+        console.error("Shutting down Brass Monkey MCP Server...");
+        await server.close();
+        process.exit(0);
+    };
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
+    // StdioServerTransport doesn't always exit the process on stdin close on Windows
+    process.stdin.on("close", shutdown);
 }
 main().catch((error) => {
     console.error("Fatal error in main():", error);
