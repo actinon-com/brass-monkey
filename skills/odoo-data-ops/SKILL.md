@@ -29,7 +29,13 @@ Every CRUD tool supports an `instance_alias` parameter.
 - **Field Categorization:** By default, `search_read` only returns "Base" fields to save context. If you need more, use `include_extended: true` (for extra modules) or `include_computed: true` (for calculated fields).
 - **Aggregations:** Use `aggregate_records` for BI-style queries (grouping, counting, summing). This is much more context-efficient than reading thousands of records to perform local math.
 
-### 5. Agent-Driven Undo Workflow
+### 5. Schema Strictness & Error Recovery
+Odoo v18+ is strict about field lists in `search_read`. 
+- **The Trigger:** If you receive a `ValueError` or `KeyError` stating a field does not exist.
+- **The Mandate:** You must STOP and call `inspect_model` to verify the current live schema. Do NOT guess field names.
+- **Action:** After finding the correct field, retry the operation with the updated field list.
+
+### 6. Agent-Driven Undo Workflow
 If you make a mistake or are asked to "undo" a change:
 1. **Locate:** Use `search_read` on the `mail.message` model for the target record to find the "Before Snapshot" you previously posted.
 2. **Analyze:** Verify the current record state. Do not attempt a rollback if it violates Odoo's business logic (e.g., trying to revert an invoice that has since been paid).

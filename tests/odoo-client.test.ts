@@ -27,6 +27,7 @@ describe('OdooClient', () => {
 
   it('should authenticate successfully', async () => {
     const commonClient = (xmlrpc.createSecureClient as any).mock.results[0].value;
+    const objectClient = (xmlrpc.createSecureClient as any).mock.results[1].value;
     
     commonClient.methodCall
       .mockImplementationOnce((method, params, callback) => {
@@ -36,6 +37,10 @@ describe('OdooClient', () => {
         callback(null, 1); // UID response
       });
 
+    objectClient.methodCall.mockImplementationOnce((method, params, callback) => {
+      callback(null, [{ company_ids: [1] }]); // res.users read
+    });
+
     const uid = await client.authenticate();
     expect(uid).toBe(1);
     expect(client.majorVersion).toBe(15);
@@ -43,6 +48,11 @@ describe('OdooClient', () => {
     expect(commonClient.methodCall).toHaveBeenCalledWith(
       'authenticate',
       ['test-db', 'admin', 'password', {}],
+      expect.any(Function)
+    );
+    expect(objectClient.methodCall).toHaveBeenCalledWith(
+      'execute_kw',
+      ['test-db', 1, 'password', 'res.users', 'read', [[1]], { fields: ['company_ids'] }],
       expect.any(Function)
     );
   });
@@ -122,6 +132,80 @@ describe('OdooClient', () => {
     expect(objectClient.methodCall).toHaveBeenCalledWith(
       'execute_kw',
       ['test-db', 1, 'password', 'res.partner', 'message_post', [1], { body: plainBody }],
+      expect.any(Function)
+    );
+  });
+
+  it('should inject allowed_company_ids into context if companyIds are available', async () => {
+    const commonClient = (xmlrpc.createSecureClient as any).mock.results[0].value;
+    const objectClient = (xmlrpc.createSecureClient as any).mock.results[1].value;
+
+    commonClient.methodCall
+      .mockImplementationOnce((method, params, callback) => callback(null, { server_version: '15.0' }))
+      .mockImplementationOnce((method, params, callback) => callback(null, 1));
+
+    // Mock the user read to return company IDs
+    objectClient.methodCall.mockImplementationOnce((method, params, callback) => {
+      callback(null, [{ company_ids: [1, 26] }]);
+    });
+
+    await client.authenticate();
+    
+    // Now call executeKw and check context
+    objectClient.methodCall.mockImplementationOnce((method, params, callback) => callback(null, []));
+    await client.executeKw('res.partner', 'search', [[]]);
+
+    expect(objectClient.methodCall).toHaveBeenCalledWith(
+      'execute_kw',
+      ['test-db', 1, 'password', 'res.partner', 'search', [[]], { context: { allowed_company_ids: [1, 26] } }],
+      expect.any(Function)
+    );
+  });
+
+  it('should preserve existing context when injecting allowed_company_ids', async () => {
+    const commonClient = (xmlrpc.createSecureClient as any).mock.results[0].value;
+    const objectClient = (xmlrpc.createSecureClient as any).mock.results[1].value;
+
+    commonClient.methodCall
+      .mockImplementationOnce((method, params, callback) => callback(null, { server_version: '15.0' }))
+      .mockImplementationOnce((method, params, callback) => callback(null, 1));
+
+    objectClient.methodCall.mockImplementationOnce((method, params, callback) => {
+      callback(null, [{ company_ids: [1, 26] }]);
+    });
+
+    await client.authenticate();
+    
+    objectClient.methodCall.mockImplementationOnce((method, params, callback) => callback(null, []));
+    await client.executeKw('res.partner', 'search', [[]], { context: { lang: 'en_US' } });
+
+    expect(objectClient.methodCall).toHaveBeenCalledWith(
+      'execute_kw',
+      ['test-db', 1, 'password', 'res.partner', 'search', [[]], { context: { lang: 'en_US', allowed_company_ids: [1, 26] } }],
+      expect.any(Function)
+    );
+  });
+
+  it('should NOT overwrite allowed_company_ids if explicitly provided', async () => {
+    const commonClient = (xmlrpc.createSecureClient as any).mock.results[0].value;
+    const objectClient = (xmlrpc.createSecureClient as any).mock.results[1].value;
+
+    commonClient.methodCall
+      .mockImplementationOnce((method, params, callback) => callback(null, { server_version: '15.0' }))
+      .mockImplementationOnce((method, params, callback) => callback(null, 1));
+
+    objectClient.methodCall.mockImplementationOnce((method, params, callback) => {
+      callback(null, [{ company_ids: [1, 26] }]);
+    });
+
+    await client.authenticate();
+    
+    objectClient.methodCall.mockImplementationOnce((method, params, callback) => callback(null, []));
+    await client.executeKw('res.partner', 'search', [[]], { context: { allowed_company_ids: [26] } });
+
+    expect(objectClient.methodCall).toHaveBeenCalledWith(
+      'execute_kw',
+      ['test-db', 1, 'password', 'res.partner', 'search', [[]], { context: { allowed_company_ids: [26] } }],
       expect.any(Function)
     );
   });

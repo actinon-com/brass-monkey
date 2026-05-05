@@ -10,6 +10,7 @@ export class OdooClient {
   private objectClient: any;
   private uid: number | null = null;
   private versionInfo: any = null;
+  private companyIds: number[] = [];
 
   constructor(private config: OdooConfig) {
     const commonUrl = new URL('/xmlrpc/2/common', config.url).toString();
@@ -62,7 +63,18 @@ export class OdooClient {
               }
 
               this.uid = uid as number;
-              resolve(this.uid);
+
+              // Fetch allowed companies for cross-company visibility
+              this.objectClient.methodCall(
+                'execute_kw',
+                [db, this.uid, api_key, 'res.users', 'read', [[this.uid]], { fields: ['company_ids'] }],
+                (companyError: any, userRecords: any) => {
+                  if (!companyError && userRecords && userRecords.length > 0) {
+                    this.companyIds = userRecords[0].company_ids || [];
+                  }
+                  resolve(this.uid as number);
+                }
+              );
             }
           );
         }
@@ -128,6 +140,14 @@ export class OdooClient {
       }
     }
 
+    // Context Injection: Enable cross-company visibility by default
+    if (this.companyIds.length > 0) {
+      kwargs.context = kwargs.context || {};
+      if (kwargs.context.allowed_company_ids === undefined) {
+        kwargs.context.allowed_company_ids = this.companyIds;
+      }
+    }
+
     return new Promise((resolve, reject) => {
       this.objectClient.methodCall(
         'execute_kw',
@@ -153,7 +173,9 @@ export class OdooClient {
       /odoo\.exceptions\.UserError: (.*)/,
       /odoo\.exceptions\.ValidationError: (.*)/,
       /odoo\.exceptions\.AccessError: (.*)/,
-      /odoo\.exceptions\.MissingError: (.*)/
+      /odoo\.exceptions\.MissingError: (.*)/,
+      /ValueError: (.*)/,
+      /KeyError: (.*)/
     ];
 
     for (const pattern of businessErrors) {
