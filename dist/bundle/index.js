@@ -37691,6 +37691,7 @@ class OdooClient {
     objectClient;
     uid = null;
     versionInfo = null;
+    companyIds = [];
     constructor(config) {
         this.config = config;
         const commonUrl = new URL('/xmlrpc/2/common', config.url).toString();
@@ -37731,7 +37732,13 @@ class OdooClient {
                         return reject(new Error('Odoo authentication failed: Invalid credentials'));
                     }
                     this.uid = uid;
-                    resolve(this.uid);
+                    // Fetch allowed companies for cross-company visibility
+                    this.objectClient.methodCall('execute_kw', [db, this.uid, api_key, 'res.users', 'read', [[this.uid]], { fields: ['company_ids'] }], (companyError, userRecords) => {
+                        if (!companyError && userRecords && userRecords.length > 0) {
+                            this.companyIds = userRecords[0].company_ids || [];
+                        }
+                        resolve(this.uid);
+                    });
                 });
             });
         });
@@ -37776,6 +37783,20 @@ class OdooClient {
             await this.authenticate();
         }
         const { db, api_key } = this.config;
+        // Safety Interceptor: Auto-detect HTML in message_post calls
+        if (method === 'message_post' && kwargs && typeof kwargs.body === 'string') {
+            const containsHtml = /<[a-z][\s\S]*>/i.test(kwargs.body);
+            if (containsHtml && kwargs.body_is_html === undefined) {
+                kwargs.body_is_html = true;
+            }
+        }
+        // Context Injection: Enable cross-company visibility by default
+        if (this.companyIds.length > 0) {
+            kwargs.context = kwargs.context || {};
+            if (kwargs.context.allowed_company_ids === undefined) {
+                kwargs.context.allowed_company_ids = this.companyIds;
+            }
+        }
         return new Promise((resolve, reject) => {
             this.objectClient.methodCall('execute_kw', [db, this.uid, api_key, model, method, args, kwargs], (error, result) => {
                 if (error) {
@@ -37795,7 +37816,9 @@ class OdooClient {
             /odoo\.exceptions\.UserError: (.*)/,
             /odoo\.exceptions\.ValidationError: (.*)/,
             /odoo\.exceptions\.AccessError: (.*)/,
-            /odoo\.exceptions\.MissingError: (.*)/
+            /odoo\.exceptions\.MissingError: (.*)/,
+            /ValueError: (.*)/,
+            /KeyError: (.*)/
         ];
         for (const pattern of businessErrors) {
             const match = rawMessage.match(pattern);
@@ -37903,6 +37926,7 @@ class AuditService {
                 body: `<div><strong>🤖 AI Agent Action:</strong><br/>${body}</div>`,
                 message_type: 'comment',
                 subtype_xmlid: 'mail.mt_note',
+                body_is_html: true,
             });
         }
         catch (error) {
@@ -39415,7 +39439,7 @@ async function getAuditLog(manager, input) {
 
 const mcp_server_dirname = external_path_default().dirname((0,external_url_.fileURLToPath)(import.meta.url));
 // Read package.json for metadata
-let mcp_server_version = "1.3.2";
+let mcp_server_version = "1.3.3";
 try {
     const pkgPath = __nccwpck_require__.ab + "package.json";
     const pkg = JSON.parse(external_fs_default().readFileSync(__nccwpck_require__.ab + "package.json", "utf-8"));
@@ -39621,6 +39645,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
+    console.error("Brass Monkey MCP Server running on stdio");
+    // Handle clean shutdown
+    const shutdown = async () => {
+        console.error("Shutting down Brass Monkey MCP Server...");
+        await server.close();
+        process.exit(0);
+    };
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
+    // StdioServerTransport doesn't always exit the process on stdin close on Windows
+    process.stdin.on("close", shutdown);
 }
 main().catch((error) => {
     console.error("Fatal error in main():", error);

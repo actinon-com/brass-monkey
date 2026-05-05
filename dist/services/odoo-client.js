@@ -9,6 +9,7 @@ export class OdooClient {
     objectClient;
     uid = null;
     versionInfo = null;
+    companyIds = [];
     constructor(config) {
         this.config = config;
         const commonUrl = new URL('/xmlrpc/2/common', config.url).toString();
@@ -49,7 +50,13 @@ export class OdooClient {
                         return reject(new Error('Odoo authentication failed: Invalid credentials'));
                     }
                     this.uid = uid;
-                    resolve(this.uid);
+                    // Fetch allowed companies for cross-company visibility
+                    this.objectClient.methodCall('execute_kw', [db, this.uid, api_key, 'res.users', 'read', [[this.uid]], { fields: ['company_ids'] }], (companyError, userRecords) => {
+                        if (!companyError && userRecords && userRecords.length > 0) {
+                            this.companyIds = userRecords[0].company_ids || [];
+                        }
+                        resolve(this.uid);
+                    });
                 });
             });
         });
@@ -94,6 +101,20 @@ export class OdooClient {
             await this.authenticate();
         }
         const { db, api_key } = this.config;
+        // Safety Interceptor: Auto-detect HTML in message_post calls
+        if (method === 'message_post' && kwargs && typeof kwargs.body === 'string') {
+            const containsHtml = /<[a-z][\s\S]*>/i.test(kwargs.body);
+            if (containsHtml && kwargs.body_is_html === undefined) {
+                kwargs.body_is_html = true;
+            }
+        }
+        // Context Injection: Enable cross-company visibility by default
+        if (this.companyIds.length > 0) {
+            kwargs.context = kwargs.context || {};
+            if (kwargs.context.allowed_company_ids === undefined) {
+                kwargs.context.allowed_company_ids = this.companyIds;
+            }
+        }
         return new Promise((resolve, reject) => {
             this.objectClient.methodCall('execute_kw', [db, this.uid, api_key, model, method, args, kwargs], (error, result) => {
                 if (error) {
@@ -113,7 +134,9 @@ export class OdooClient {
             /odoo\.exceptions\.UserError: (.*)/,
             /odoo\.exceptions\.ValidationError: (.*)/,
             /odoo\.exceptions\.AccessError: (.*)/,
-            /odoo\.exceptions\.MissingError: (.*)/
+            /odoo\.exceptions\.MissingError: (.*)/,
+            /ValueError: (.*)/,
+            /KeyError: (.*)/
         ];
         for (const pattern of businessErrors) {
             const match = rawMessage.match(pattern);

@@ -235,6 +235,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  console.error("Brass Monkey MCP Server running on stdio");
+
+  // Handle clean shutdown
+  const shutdown = async () => {
+    console.error("Shutting down Brass Monkey MCP Server...");
+    await server.close();
+    process.exit(0);
+  };
+
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+
+  // StdioServerTransport doesn't always exit the process on stdin close on Windows
+  process.stdin.on("close", shutdown);
 }
 
 main().catch((error) => {

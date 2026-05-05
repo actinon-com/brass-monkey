@@ -9,6 +9,7 @@ export declare class OdooClient {
     private objectClient;
     private uid;
     private versionInfo;
+    private companyIds;
     constructor(config: OdooConfig);
     get activeUid(): number | null;
     get db(): string;

@@ -79,6 +79,7 @@ export class AuditService {
                 body: `<div><strong>🤖 AI Agent Action:</strong><br/>${body}</div>`,
                 message_type: 'comment',
                 subtype_xmlid: 'mail.mt_note',
+                body_is_html: true,
             });
         }
         catch (error) {
