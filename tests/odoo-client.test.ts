@@ -85,4 +85,44 @@ describe('OdooClient', () => {
       expect.any(Function)
     );
   });
+
+  it('should automatically inject body_is_html for message_post with HTML', async () => {
+    const commonClient = (xmlrpc.createSecureClient as any).mock.results[0].value;
+    const objectClient = (xmlrpc.createSecureClient as any).mock.results[1].value;
+
+    commonClient.methodCall
+      .mockImplementationOnce((method, params, callback) => callback(null, { server_version: '15.0' }))
+      .mockImplementationOnce((method, params, callback) => callback(null, 1));
+
+    objectClient.methodCall.mockImplementation((method, params, callback) => callback(null, true));
+
+    const htmlBody = '<div><strong>Test</strong></div>';
+    await client.executeKw('res.partner', 'message_post', [1], { body: htmlBody });
+
+    expect(objectClient.methodCall).toHaveBeenCalledWith(
+      'execute_kw',
+      ['test-db', 1, 'password', 'res.partner', 'message_post', [1], { body: htmlBody, body_is_html: true }],
+      expect.any(Function)
+    );
+  });
+
+  it('should NOT inject body_is_html for plain text message_post', async () => {
+    const commonClient = (xmlrpc.createSecureClient as any).mock.results[0].value;
+    const objectClient = (xmlrpc.createSecureClient as any).mock.results[1].value;
+
+    commonClient.methodCall
+      .mockImplementationOnce((method, params, callback) => callback(null, { server_version: '15.0' }))
+      .mockImplementationOnce((method, params, callback) => callback(null, 1));
+
+    objectClient.methodCall.mockImplementation((method, params, callback) => callback(null, true));
+
+    const plainBody = 'Just a plain text message';
+    await client.executeKw('res.partner', 'message_post', [1], { body: plainBody });
+
+    expect(objectClient.methodCall).toHaveBeenCalledWith(
+      'execute_kw',
+      ['test-db', 1, 'password', 'res.partner', 'message_post', [1], { body: plainBody }],
+      expect.any(Function)
+    );
+  });
 });

@@ -120,6 +120,14 @@ export class OdooClient {
 
     const { db, api_key } = this.config;
 
+    // Safety Interceptor: Auto-detect HTML in message_post calls
+    if (method === 'message_post' && kwargs && typeof kwargs.body === 'string') {
+      const containsHtml = /<[a-z][\s\S]*>/i.test(kwargs.body);
+      if (containsHtml && kwargs.body_is_html === undefined) {
+        kwargs.body_is_html = true;
+      }
+    }
+
     return new Promise((resolve, reject) => {
       this.objectClient.methodCall(
         'execute_kw',
