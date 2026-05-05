@@ -39439,7 +39439,7 @@ async function getAuditLog(manager, input) {
 
 const mcp_server_dirname = external_path_default().dirname((0,external_url_.fileURLToPath)(import.meta.url));
 // Read package.json for metadata
-let mcp_server_version = "1.3.3";
+let mcp_server_version = "1.3.4";
 try {
     const pkgPath = __nccwpck_require__.ab + "package.json";
     const pkg = JSON.parse(external_fs_default().readFileSync(__nccwpck_require__.ab + "package.json", "utf-8"));

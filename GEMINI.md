@@ -17,6 +17,13 @@ Brass-Monkey replaces **Brass-Compass**, a prototype Python MCP server, with a m
 ### 2. Explanations First
 - **Mandate:** ALWAYS provide a technical explanation of proposed changes and seek user understanding/approval BEFORE modifying files or executing state-changing commands.
 
+### 3. Release Workflow
+- **Branching:** All release work must be performed on a dedicated release branch (e.g., `release-1.3.4`).
+- **Versioning:** Ensure versions are synchronized and incremented properly across `package.json`, `gemini-extension.json`, and the default version in `src/mcp-server.ts`.
+- **Pull Requests:** Once work is complete and verified, use a Pull Request to merge the release branch into `main`. 
+- **Finalization:** The Author (Matt) will review and complete the merge on GitHub.
+- **Cleanup:** After a successful merge, cleanup any local/remote release branches and add a corresponding version tag (e.g., `v1.3.4`) to the `main` branch.
+
 ## Technical Mandate
 - **Language:** TypeScript (Strict Mode).
 - **Module System:** ES Modules (ESM).
