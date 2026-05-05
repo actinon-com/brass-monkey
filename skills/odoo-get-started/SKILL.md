@@ -1,6 +1,6 @@
 ---
 name: odoo-get-started
-description: Orientation skill to establish context immediately upon connecting to an Odoo instance.
+description: MANDATORY FIRST STEP. Orientation skill to establish the Odoo World Map context (Version, Apps, Company, Permissions) BEFORE executing any other tools.
 ---
 # Skill: Odoo Orientation (The Mandatory Start)
 

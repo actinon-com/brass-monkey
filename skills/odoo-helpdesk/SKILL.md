@@ -1,6 +1,6 @@
 ---
 name: odoo-helpdesk
-description: High-level functional expertise in Odoo's Customer Support engine, covering Ticket management, SLA compliance, and multi-channel integration.
+description: MANDATORY for Tickets (helpdesk.ticket) and SLAs (helpdesk.sla). Expertise in Odoo's support engine and customer service.
 ---
 # Skill: Odoo Helpdesk & Customer Support
 
@@ -24,8 +24,8 @@ Helpdesk is the bridge between a customer problem and a technical solution:
 - **Sales/Invoicing:** Reference the original `sale.order_id` to verify warranty status or bill for support time via `sale_line_id`.
 
 ### 4. Communication Protocol
-- **Public Reply:** Use `message_post` with `message_type: 'comment'` for messages sent directly to the customer via email/portal.
-- **Internal Note:** Use `message_post` with `subtype_xmlid: 'mail.mt_note'` for internal technical updates.
+- **Public Reply:** Use `message_post` with `message_type: 'comment'` and `body_is_html: true` (if sending HTML) for messages sent directly to the customer.
+- **Internal Note:** Use `message_post` with `subtype_xmlid: 'mail.mt_note'` and `body_is_html: true` (if sending HTML) for internal technical updates.
 - **Mandate:** Clearly distinguish between the two. Never leak internal technical jargon to the customer.
 
 ## Available Resources

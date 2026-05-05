@@ -1,6 +1,6 @@
 ---
 name: odoo-mrp
-description: High-level functional expertise in Odoo's Manufacturing and Product Lifecycle Management engines, covering production planning, execution, and engineering changes.
+description: MANDATORY for Manufacturing Orders (mrp.production), BoMs (mrp.bom), and Work Orders (mrp.workorder). Expertise in Odoo's production engine.
 ---
 # Skill: Odoo MRP (Manufacturing) & PLM
 

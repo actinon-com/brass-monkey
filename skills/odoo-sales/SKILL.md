@@ -1,6 +1,6 @@
 ---
 name: odoo-sales
-description: Functional expertise in Odoo's Sales engine, covering the entire lifecycle from Quotation to Order Fulfillment.
+description: MANDATORY for Sales Orders (sale.order), Quotations, and Order Fulfillment. Functional expertise in Odoo's Sales engine and lifecycle states.
 ---
 # Skill: Odoo Sales & Order Fulfillment
 

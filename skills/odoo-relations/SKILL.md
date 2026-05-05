@@ -1,6 +1,6 @@
 ---
 name: odoo-relations
-description: Expertise required to manage the res.partner ecosystem, the foundational directory for all people and organizations in Odoo.
+description: MANDATORY for Contacts, Customers, and Vendors (res.partner). Expertise in Odoo's central directory and relationship hierarchies.
 ---
 # Skill: Odoo Relations (Partners & Contacts)
 

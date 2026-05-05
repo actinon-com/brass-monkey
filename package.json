@@ -1,6 +1,6 @@
 {
   "name": "brass-monkey",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -13,14 +13,18 @@
   "keywords": [
     "odoo",
     "gemini",
+    "gemini-cli",
+    "cli",
     "extension",
+    "mcp",
+    "ai-agent",
     "xml-rpc",
     "erp",
     "crm"
   ],
-  "author": "",
+  "author": "Actinon",
   "license": "MIT",
-  "description": "Secure, intelligent bridge between AI agents and Odoo instances.",
+  "description": "A high-fidelity Gemini CLI extension and MCP bridge for Odoo ERP/CRM.",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "keytar": "^7.9.0",
