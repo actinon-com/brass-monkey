@@ -11,7 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Read package.json for metadata
-let version = "1.3.4";
+let version = "1.3.5";
 try {
     const pkgPath = path.resolve(__dirname, "../package.json");
     const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
