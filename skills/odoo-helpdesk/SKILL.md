@@ -1,6 +1,6 @@
 ---
 name: odoo-helpdesk
-description: High-level functional expertise in Odoo's Customer Support engine, covering Ticket management, SLA compliance, and multi-channel integration.
+description: MANDATORY for Tickets (helpdesk.ticket) and SLAs (helpdesk.sla). Expertise in Odoo's support engine and customer service.
 ---
 # Skill: Odoo Helpdesk & Customer Support
 

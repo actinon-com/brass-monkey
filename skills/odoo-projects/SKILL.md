@@ -1,6 +1,6 @@
 ---
 name: odoo-projects
-description: High-level functional expertise in Odoo's Project Management engine, covering Tasks, Milestones, and integration with Sales and Accounting.
+description: MANDATORY for Projects (project.project) and Tasks (project.task). Expertise in Odoo's project management and milestone tracking.
 ---
 # Skill: Odoo Projects, Milestones & Timesheets
 

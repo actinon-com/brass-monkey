@@ -1,6 +1,6 @@
 ---
 name: odoo-introspector
-description: Expertise to examine, understand, and interpret Odoo's internal ORM structures and metadata.
+description: MANDATORY for technical discovery. Expertise in Odoo's internal ORM structures, field types, and metadata interpretation.
 ---
 # Skill: Odoo Introspector
 

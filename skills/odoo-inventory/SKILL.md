@@ -1,6 +1,6 @@
 ---
 name: odoo-inventory
-description: Expertise required to manage Odoo's inventory operations, covering transfers, stock moves, and physical warehouse structure.
+description: MANDATORY for Transfers (stock.picking), Stock Moves (stock.move), and Locations (stock.location). Expertise in Odoo's logistics and warehouse structure.
 ---
 # Skill: Odoo Inventory & Logistics
 

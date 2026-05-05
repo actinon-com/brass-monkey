@@ -1,6 +1,6 @@
 ---
 name: odoo-hr
-description: Functional expertise in Odoo's HR module, covering Employee management, Departmental structures, and Employment contracts.
+description: MANDATORY for Employees (hr.employee) and Departments (hr.department). Expertise in Odoo's human resources and org structure.
 ---
 # Skill: Odoo Human Resources (HR)
 

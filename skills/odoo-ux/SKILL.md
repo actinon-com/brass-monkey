@@ -1,6 +1,6 @@
 ---
 name: odoo-ux
-description: Expertise to navigate Odoo's user interface architecture and interpret frontend metadata.
+description: MANDATORY for UI navigation. Expertise in Odoo's interface architecture (Menus, Actions, Views) and frontend metadata.
 ---
 # Skill: Odoo UX & Navigation
 

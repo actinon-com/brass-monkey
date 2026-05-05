@@ -1,6 +1,6 @@
 ---
 name: odoo-products
-description: Expertise required to manage Odoo's product catalog, covering both general templates and specific product variants.
+description: MANDATORY for Product Templates (product.template) and Variants (product.product). Expertise in Odoo's catalog and attribute management.
 ---
 # Skill: Odoo Product Management
 

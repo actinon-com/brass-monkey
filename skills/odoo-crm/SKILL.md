@@ -1,6 +1,6 @@
 ---
 name: odoo-crm
-description: High-level functional expertise in Odoo's CRM engine, covering Lead qualification, Opportunity management, and Activity tracking.
+description: MANDATORY for Leads and Opportunities (crm.lead). Expertise in Odoo's CRM pipeline, stages, and activity tracking.
 ---
 # Skill: Odoo CRM & Pipeline Management
 

@@ -1,6 +1,6 @@
 ---
 name: odoo-finance
-description: High-level business expertise in Odoo's unified accounting engine, covering Invoicing, Billing, Banking, Consolidation, and Analytics.
+description: MANDATORY for Customer Invoices (out_invoice), Vendor Bills (in_invoice), and Payments (account.payment). High-level expertise in Odoo's unified ledger and banking.
 ---
 # Skill: Odoo Finance & Accounting
 

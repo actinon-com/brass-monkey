@@ -1,6 +1,6 @@
 ---
 name: odoo-purchasing
-description: High-level functional expertise in Odoo's Purchasing engine, covering RFQs, Purchase Orders, and Vendor Price management.
+description: MANDATORY for RFQs and Purchase Orders (purchase.order). Expertise in Odoo's procurement engine and vendor pricing.
 ---
 # Skill: Odoo Purchasing & Procurement
 
