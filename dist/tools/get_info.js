@@ -10,10 +10,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const GetInfoSchema = z.object({}); // No parameters needed
 /**
  * Tool to get version and environment information for the Brass-Monkey extension.
- * @param manager The InstanceManager instance.
- * @returns An object containing version, instance, and system metadata.
  */
-export async function getInfo(manager) {
+export async function getInfo(manager, guard) {
     // Try to read version from package.json
     let version = 'unknown';
     try {
@@ -43,7 +41,8 @@ export async function getInfo(manager) {
         context: {
             active_instance: activeAlias,
             odoo_version: odooVersion,
-            configured_instances: instances.length
+            configured_instances: instances.length,
+            active_skills: guard.getActivated()
         },
         environment: {
             platform: process.platform,

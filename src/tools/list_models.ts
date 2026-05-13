@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { InstanceManager } from '../services/instance-manager.js';
+import { SKILL_DOMAIN_MAP } from '../services/skill-guard.js';
 
 /**
  * Zod schema for list_models tool input.
@@ -19,9 +20,7 @@ export type ListModelsInput = z.infer<typeof ListModelsSchema>;
 
 /**
  * Tool to list Odoo technical models.
- * @param manager The InstanceManager instance.
- * @param input The ListModelsInput parameters.
- * @returns A map of model technical names to human-readable descriptions.
+ * Enhances the output with Skill Gate breadcrumbs to guide the agent.
  */
 export async function listModels(manager: InstanceManager, input: ListModelsInput = {}) {
   const { search_term, instance_alias } = input;
@@ -33,14 +32,29 @@ export async function listModels(manager: InstanceManager, input: ListModelsInpu
   }
 
   const models = await client.executeKw('ir.model', 'search_read', [domain], {
-    fields: ['model', 'name'],
+    fields: ['model', 'name', 'transient'],
     order: 'model asc',
   });
 
-  const result: Record<string, string> = {};
-  for (const m of models) {
-    result[m.model] = m.name;
-  }
+  return models.map((m: any) => {
+    // Resolve required skill for breadcrumb
+    let requiredSkill = null;
+    for (const [skill, prefixes] of Object.entries(SKILL_DOMAIN_MAP)) {
+      for (const prefix of prefixes) {
+        const regex = new RegExp('^' + prefix.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$');
+        if (regex.test(m.model)) {
+          requiredSkill = skill;
+          break;
+        }
+      }
+      if (requiredSkill) break;
+    }
 
-  return result;
+    return {
+      model: m.model,
+      name: m.name,
+      transient: m.transient,
+      required_skill: requiredSkill
+    };
+  });
 }

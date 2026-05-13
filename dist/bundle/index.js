@@ -38101,6 +38101,147 @@ class ConfigStore {
 
 // EXTERNAL MODULE: ./src/services/credential-store.ts
 var credential_store = __nccwpck_require__(7639);
+;// CONCATENATED MODULE: ./src/services/skill-guard.ts
+/**
+ * Registry of Expert Domains and their associated Odoo model prefixes.
+ * Derived from the Brass-Monkey Skill Gate Specification.
+ */
+const SKILL_DOMAIN_MAP = {
+    'odoo-sales': ['sale.*', 'crm.team', 'res.partner', 'product.pricelist'],
+    'odoo-finance': ['account.*', 'res.currency', 'payment.*', 'res.bank', 'res.partner.bank'],
+    'odoo-inventory': ['stock.*', 'product.*', 'uom.*', 'delivery.*'],
+    'odoo-mrp': ['mrp.*'],
+    'odoo-projects': ['project.*', 'account.analytic.line', 'fsm.*'],
+    'odoo-crm': ['crm.lead', 'crm.stage', 'crm.tag', 'crm.lost.reason'],
+    'odoo-hr': ['hr.*', 'resource.*'],
+    'odoo-helpdesk': ['helpdesk.*'],
+    'odoo-attendance': ['hr.attendance'],
+    'odoo-documents': ['documents.*'],
+    'odoo-knowledge': ['knowledge.*'],
+    'odoo-quality': ['quality.*'],
+    'odoo-purchasing': ['purchase.*'],
+    'odoo-plm': ['mrp.eco.*', 'mrp.bom.*'],
+    'odoo-field-service': ['project.task', 'fsm.*'],
+    'odoo-website': ['website.*'],
+    'odoo-worksheets': ['worksheet.template', 'x_custom.worksheet.*'],
+    'odoo-spreadsheets': ['documents_spreadsheet.*', 'spreadsheet.*'],
+    'odoo-security': ['res.groups', 'res.users', 'ir.model.access', 'ir.rule'],
+    'odoo-ux': ['ir.ui.view', 'ir.ui.menu', 'ir.actions.*'],
+    'odoo-relations': ['res.partner', 'res.partner.category', 'res.partner.title'],
+    'odoo-products': ['product.template', 'product.product', 'product.category', 'product.attribute.*'],
+};
+/**
+ * Tools that are exempted from the Skill Gate to allow for discovery.
+ */
+const EXEMPT_TOOLS = [
+    'setup_instance',
+    'list_instances',
+    'switch_instance',
+    'remove_instance',
+    'list_models',
+    'get_info',
+    'get_environment',
+    'get_audit_log',
+    'activate_skill' // The key that unlocks the gate
+];
+/**
+ * Service to manage and enforce domain-specific skill activation.
+ */
+class SkillGuard {
+    activatedSkills = new Set();
+    /**
+     * Activates a skill for the current session.
+     */
+    activate(skillName) {
+        this.activatedSkills.add(skillName);
+    }
+    /**
+     * Returns the set of currently activated skills.
+     */
+    getActivated() {
+        return Array.from(this.activatedSkills);
+    }
+    /**
+     * Resolves which skill is required for a given Odoo model.
+     * Uses regex matching against the domain map.
+     */
+    getRequiredSkill(model) {
+        for (const [skill, prefixes] of Object.entries(SKILL_DOMAIN_MAP)) {
+            for (const prefix of prefixes) {
+                const regex = new RegExp('^' + prefix.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$');
+                if (regex.test(model)) {
+                    return skill;
+                }
+            }
+        }
+        return null;
+    }
+    /**
+     * Validates if the required skill for a model is active.
+     * @throws Error if the domain is locked.
+     */
+    validateAccess(toolName, args) {
+        if (EXEMPT_TOOLS.includes(toolName))
+            return;
+        const model = args?.model;
+        if (!model)
+            return;
+        const requiredSkill = this.getRequiredSkill(model);
+        if (requiredSkill && !this.activatedSkills.has(requiredSkill)) {
+            throw new Error(`DOMAIN_LOCKED: Access to model '${model}' is locked. You must first activate the '${requiredSkill}' skill to internalize the expert domain rules for this operation.`);
+        }
+    }
+}
+
+;// CONCATENATED MODULE: ./src/services/response-pruner.ts
+/**
+ * Utility to prune and compress Odoo responses for context efficiency.
+ */
+class ResponsePruner {
+    /**
+     * Recursively prunes an object to minimize token usage.
+     * - Minifies XML/HTML strings (strips newlines and redundant whitespace).
+     * - Strips empty strings/objects if they don't add value (optional, but keeping it lossless for now).
+     */
+    static prune(data) {
+        if (data === null || data === undefined)
+            return data;
+        if (Array.isArray(data)) {
+            return data.map(item => this.prune(item));
+        }
+        if (typeof data === 'object') {
+            const pruned = {};
+            for (const [key, value] of Object.entries(data)) {
+                // We keep 'false' values as requested for 'lossless' compression, 
+                // but we prune the content of the values.
+                pruned[key] = this.prune(value);
+            }
+            return pruned;
+        }
+        if (typeof data === 'string') {
+            return this.minifyString(data);
+        }
+        return data;
+    }
+    /**
+     * Minifies strings, especially XML/HTML content which is common in Odoo.
+     */
+    static minifyString(str) {
+        // 1. Handle literal escape sequences that might be returned as part of the string
+        let minified = str.replace(/\\n/g, ' ').replace(/\\r/g, ' ');
+        // 2. Check if it looks like XML/HTML
+        if (minified.includes('<') && minified.includes('>')) {
+            return minified
+                .replace(/>\s+</g, '><') // Remove whitespace between tags
+                .replace(/\s{2,}/g, ' ') // Collapse multiple spaces
+                .replace(/[\n\r]+/g, '') // Remove actual newlines
+                .trim();
+        }
+        // 3. Standard string cleaning (remove actual newlines and redundant spaces)
+        return minified.replace(/[\n\r]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    }
+}
+
 ;// CONCATENATED MODULE: ./src/tools/schemas.ts
 /**
  * Static JSON schemas for MCP tool discovery.
@@ -38297,6 +38438,13 @@ const GET_ENVIRONMENT_SCHEMA = {
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
 };
+const ACTIVATE_SKILL_SCHEMA = {
+    type: "object",
+    properties: {
+        skill_name: { type: "string", description: 'The name of the domain skill to activate (e.g., "odoo-sales").' },
+    },
+    required: ["skill_name"],
+};
 
 ;// CONCATENATED MODULE: ./src/tools/setup_instance.ts
 
@@ -38452,6 +38600,7 @@ async function removeInstance(configStore, credentialStore, input) {
 
 ;// CONCATENATED MODULE: ./src/tools/list_models.ts
 
+
 /**
  * Zod schema for list_models tool input.
  * Includes pre-processing to handle single-item arrays.
@@ -38467,9 +38616,7 @@ const ListModelsSchema = schemas_object({
 });
 /**
  * Tool to list Odoo technical models.
- * @param manager The InstanceManager instance.
- * @param input The ListModelsInput parameters.
- * @returns A map of model technical names to human-readable descriptions.
+ * Enhances the output with Skill Gate breadcrumbs to guide the agent.
  */
 async function listModels(manager, input = {}) {
     const { search_term, instance_alias } = input;
@@ -38479,14 +38626,30 @@ async function listModels(manager, input = {}) {
         domain.push('|', ['model', 'ilike', search_term], ['name', 'ilike', search_term]);
     }
     const models = await client.executeKw('ir.model', 'search_read', [domain], {
-        fields: ['model', 'name'],
+        fields: ['model', 'name', 'transient'],
         order: 'model asc',
     });
-    const result = {};
-    for (const m of models) {
-        result[m.model] = m.name;
-    }
-    return result;
+    return models.map((m) => {
+        // Resolve required skill for breadcrumb
+        let requiredSkill = null;
+        for (const [skill, prefixes] of Object.entries(SKILL_DOMAIN_MAP)) {
+            for (const prefix of prefixes) {
+                const regex = new RegExp('^' + prefix.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$');
+                if (regex.test(m.model)) {
+                    requiredSkill = skill;
+                    break;
+                }
+            }
+            if (requiredSkill)
+                break;
+        }
+        return {
+            model: m.model,
+            name: m.name,
+            transient: m.transient,
+            required_skill: requiredSkill
+        };
+    });
 }
 
 ;// CONCATENATED MODULE: ./src/tools/inspect_model.ts
@@ -39101,10 +39264,8 @@ const get_info_dirname = external_path_default().dirname((0,external_url_.fileUR
 const GetInfoSchema = schemas_object({}); // No parameters needed
 /**
  * Tool to get version and environment information for the Brass-Monkey extension.
- * @param manager The InstanceManager instance.
- * @returns An object containing version, instance, and system metadata.
  */
-async function getInfo(manager) {
+async function getInfo(manager, guard) {
     // Try to read version from package.json
     let version = 'unknown';
     try {
@@ -39134,7 +39295,8 @@ async function getInfo(manager) {
         context: {
             active_instance: activeAlias,
             odoo_version: odooVersion,
-            configured_instances: instances.length
+            configured_instances: instances.length,
+            active_skills: guard.getActivated()
         },
         environment: {
             platform: process.platform,
@@ -39159,7 +39321,7 @@ const GetEnvironmentSchema = schemas_object({
  * Dense Tool: Get a global 'World Map' of the current Odoo environment.
  * Provides server, user, and organization context in one call.
  */
-async function getEnvironment(manager, input) {
+async function getEnvironment(manager, guard, input) {
     const { show_security, show_manifest, instance_alias } = input;
     const client = await manager.getClient(instance_alias);
     // Ensure authenticated
@@ -39212,6 +39374,9 @@ async function getEnvironment(manager, input) {
                 acc[l.code] = l.name;
                 return acc;
             }, {}),
+        },
+        session: {
+            active_skills: guard.getActivated()
         }
     };
     if (show_security) {
@@ -39235,7 +39400,7 @@ async function getEnvironment(manager, input) {
             }, {}),
         };
     }
-    const summary = `🌍 WORLD MAP: Connected to Odoo ${res.server.version} (${res.server.database}) ${res.server.write_guard ? '🔒 WRITE_GUARD ACTIVE' : '🔓 NO GUARD'}.\n👤 USER: ${res.user.name} (${res.user.login})\n🏢 COMPANY: ${res.user.active_company}`;
+    const summary = `🌍 WORLD MAP: Connected to Odoo ${res.server.version} (${res.server.database}) ${res.server.write_guard ? '🔒 WRITE_GUARD ACTIVE' : '🔓 NO GUARD'}.\n👤 USER: ${res.user.name} (${res.user.login})\n🏢 COMPANY: ${res.user.active_company}\n🔑 ACTIVE SKILLS: ${res.session.active_skills.join(', ') || 'none'}`;
     return {
         summary,
         environment: res
@@ -39393,6 +39558,28 @@ async function getAuditLog(manager, input) {
     };
 }
 
+;// CONCATENATED MODULE: ./src/tools/activate_skill.ts
+
+/**
+ * Zod schema for activate_skill tool input.
+ */
+const ActivateSkillSchema = schemas_object({
+    skill_name: classic_schemas_string().describe('The name of the domain skill to activate (e.g., "odoo-sales").'),
+});
+/**
+ * Tool to activate a domain-specific skill within the MCP session.
+ * This unlocks access to the associated Odoo models.
+ */
+async function activateSkill(guard, input) {
+    const { skill_name } = input;
+    guard.activate(skill_name);
+    return {
+        status: 'success',
+        message: `Skill '${skill_name}' activated. Access to associated Odoo models is now unlocked.`,
+        active_skills: guard.getActivated()
+    };
+}
+
 ;// CONCATENATED MODULE: ./src/index.ts
 // Services
 
@@ -39400,7 +39587,10 @@ async function getAuditLog(manager, input) {
 
 
 
+
+
 // Tools
+
 
 
 
@@ -39437,9 +39627,11 @@ async function getAuditLog(manager, input) {
 
 
 
+
+
 const mcp_server_dirname = external_path_default().dirname((0,external_url_.fileURLToPath)(import.meta.url));
 // Read package.json for metadata
-let mcp_server_version = "1.3.5";
+let mcp_server_version = "1.3.6";
 try {
     const pkgPath = __nccwpck_require__.ab + "package.json";
     const pkg = JSON.parse(external_fs_default().readFileSync(__nccwpck_require__.ab + "package.json", "utf-8"));
@@ -39459,6 +39651,7 @@ const server = new Server({
 const configStore = new ConfigStore();
 const credentialStore = new credential_store/* CredentialStore */.L();
 const instanceManager = new InstanceManager(configStore, credentialStore);
+const skillGuard = new SkillGuard();
 /**
  * Mapping of tool names to their implementation and metadata.
  */
@@ -39563,13 +39756,13 @@ const toolRegistry = {
         handler: getInfo,
         schema: GET_INFO_SCHEMA,
         description: "Get version and environment information for the Brass-Monkey extension.",
-        deps: 'manager'
+        deps: 'manager_guard'
     },
     get_environment: {
         handler: getEnvironment,
         schema: GET_ENVIRONMENT_SCHEMA,
         description: "DENSE TOOL: Mandatory 'World Map' orientation. Provides server, user, company, and app context. Run this FIRST in every session.",
-        deps: 'manager'
+        deps: 'manager_guard'
     },
     trace_ui_path: {
         handler: traceUiPath,
@@ -39589,6 +39782,12 @@ const toolRegistry = {
         description: "Retrieve recent local audit log entries for transparency.",
         deps: 'manager'
     },
+    activate_skill: {
+        handler: activateSkill,
+        schema: ACTIVATE_SKILL_SCHEMA,
+        description: "Activate a domain-specific skill to unlock access to associated Odoo models.",
+        deps: 'guard'
+    },
 };
 server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
@@ -39606,6 +39805,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         throw new McpError(ErrorCode.MethodNotFound, `Tool not found: ${name}`);
     }
     try {
+        // 1. Enforce Skill Gate
+        skillGuard.validateAccess(name, args);
+        // 2. Execute Tool
         let result;
         switch (tool.deps) {
             case 'both':
@@ -39617,14 +39819,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             case 'manager':
                 result = await tool.handler(instanceManager, args);
                 break;
+            case 'guard':
+                result = await tool.handler(skillGuard, args);
+                break;
+            case 'manager_guard':
+                result = await tool.handler(instanceManager, skillGuard, args);
+                break;
             default:
                 throw new Error(`Internal error: unknown dependency pattern for tool ${name}`);
         }
+        // 3. Compress Response (Minify internal strings/XML)
+        const prunedResult = ResponsePruner.prune(result);
         return {
             content: [
                 {
                     type: "text",
-                    text: typeof result === 'string' ? result : JSON.stringify(result),
+                    text: typeof prunedResult === 'string' ? prunedResult : JSON.stringify(prunedResult),
                 },
             ],
         };

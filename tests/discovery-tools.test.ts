@@ -38,7 +38,8 @@ describe('Discovery Tools', () => {
         .mockResolvedValueOnce([{ id: 1, name: 'MyCompany', currency_id: [2, 'USD'], country_id: [3, 'US'] }]) // companies
         .mockResolvedValueOnce([{ name: 'English', code: 'en_US' }]); // languages
 
-      const result = await getEnvironment(mockManager, {});
+      const mockGuard = { getActivated: vi.fn().mockReturnValue([]) };
+      const result = await getEnvironment(mockManager, mockGuard as any, { show_security: false, show_manifest: false });
       
       expect(result.summary).toContain('WORLD MAP');
       expect(result.environment.server.database).toBe('test-db');
