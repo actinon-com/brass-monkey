@@ -11,7 +11,7 @@ export const GetEnvironmentSchema = z.object({
  * Dense Tool: Get a global 'World Map' of the current Odoo environment.
  * Provides server, user, and organization context in one call.
  */
-export async function getEnvironment(manager, input) {
+export async function getEnvironment(manager, guard, input) {
     const { show_security, show_manifest, instance_alias } = input;
     const client = await manager.getClient(instance_alias);
     // Ensure authenticated
@@ -64,6 +64,9 @@ export async function getEnvironment(manager, input) {
                 acc[l.code] = l.name;
                 return acc;
             }, {}),
+        },
+        session: {
+            active_skills: guard.getActivated()
         }
     };
     if (show_security) {
@@ -87,7 +90,7 @@ export async function getEnvironment(manager, input) {
             }, {}),
         };
     }
-    const summary = `🌍 WORLD MAP: Connected to Odoo ${res.server.version} (${res.server.database}) ${res.server.write_guard ? '🔒 WRITE_GUARD ACTIVE' : '🔓 NO GUARD'}.\n👤 USER: ${res.user.name} (${res.user.login})\n🏢 COMPANY: ${res.user.active_company}`;
+    const summary = `🌍 WORLD MAP: Connected to Odoo ${res.server.version} (${res.server.database}) ${res.server.write_guard ? '🔒 WRITE_GUARD ACTIVE' : '🔓 NO GUARD'}.\n👤 USER: ${res.user.name} (${res.user.login})\n🏢 COMPANY: ${res.user.active_company}\n🔑 ACTIVE SKILLS: ${res.session.active_skills.join(', ') || 'none'}`;
     return {
         summary,
         environment: res

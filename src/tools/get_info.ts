@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { InstanceManager } from '../services/instance-manager.js';
+import { SkillGuard } from '../services/skill-guard.js';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
@@ -14,10 +15,8 @@ export const GetInfoSchema = z.object({}); // No parameters needed
 
 /**
  * Tool to get version and environment information for the Brass-Monkey extension.
- * @param manager The InstanceManager instance.
- * @returns An object containing version, instance, and system metadata.
  */
-export async function getInfo(manager: InstanceManager) {
+export async function getInfo(manager: InstanceManager, guard: SkillGuard) {
   // Try to read version from package.json
   let version = 'unknown';
   try {
@@ -48,7 +47,8 @@ export async function getInfo(manager: InstanceManager) {
     context: {
       active_instance: activeAlias,
       odoo_version: odooVersion,
-      configured_instances: instances.length
+      configured_instances: instances.length,
+      active_skills: guard.getActivated()
     },
     environment: {
       platform: process.platform,

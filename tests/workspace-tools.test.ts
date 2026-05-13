@@ -117,10 +117,12 @@ describe('Workspace Tools', () => {
       mockManager.list = vi.fn().mockResolvedValue([{ alias: 'prod', url: 'https://prod.com' }]);
       mockManager.getClient = vi.fn().mockResolvedValue({ majorVersion: 18 });
 
-      const result = await getInfo(mockManager);
+      const mockGuard = { getActivated: vi.fn().mockReturnValue(['odoo-sales']) };
+      const result = await getInfo(mockManager, mockGuard as any);
       
       expect(result.extension.name).toBe('brass-monkey');
       expect(result.context.odoo_version).toBe('v18');
+      expect(result.context.active_skills).toContain('odoo-sales');
       expect(result.environment.platform).toBe(process.platform);
     });
   });

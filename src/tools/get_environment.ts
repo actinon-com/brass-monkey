@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { InstanceManager } from '../services/instance-manager.js';
+import { SkillGuard } from '../services/skill-guard.js';
 
 /**
  * Zod schema for get_environment tool input.
@@ -16,7 +17,7 @@ export type GetEnvironmentInput = z.infer<typeof GetEnvironmentSchema>;
  * Dense Tool: Get a global 'World Map' of the current Odoo environment.
  * Provides server, user, and organization context in one call.
  */
-export async function getEnvironment(manager: InstanceManager, input: GetEnvironmentInput) {
+export async function getEnvironment(manager: InstanceManager, guard: SkillGuard, input: GetEnvironmentInput) {
   const { show_security, show_manifest, instance_alias } = input;
   const client = await manager.getClient(instance_alias);
 
@@ -74,6 +75,9 @@ export async function getEnvironment(manager: InstanceManager, input: GetEnviron
         acc[l.code] = l.name;
         return acc;
       }, {}),
+    },
+    session: {
+      active_skills: guard.getActivated()
     }
   };
 
@@ -100,7 +104,7 @@ export async function getEnvironment(manager: InstanceManager, input: GetEnviron
     };
   }
 
-  const summary = `🌍 WORLD MAP: Connected to Odoo ${res.server.version} (${res.server.database}) ${res.server.write_guard ? '🔒 WRITE_GUARD ACTIVE' : '🔓 NO GUARD'}.\n👤 USER: ${res.user.name} (${res.user.login})\n🏢 COMPANY: ${res.user.active_company}`;
+  const summary = `🌍 WORLD MAP: Connected to Odoo ${res.server.version} (${res.server.database}) ${res.server.write_guard ? '🔒 WRITE_GUARD ACTIVE' : '🔓 NO GUARD'}.\n👤 USER: ${res.user.name} (${res.user.login})\n🏢 COMPANY: ${res.user.active_company}\n🔑 ACTIVE SKILLS: ${res.session.active_skills.join(', ') || 'none'}`;
 
   return {
     summary,

@@ -11,8 +11,6 @@ export declare const ListModelsSchema: z.ZodObject<{
 export type ListModelsInput = z.infer<typeof ListModelsSchema>;
 /**
  * Tool to list Odoo technical models.
- * @param manager The InstanceManager instance.
- * @param input The ListModelsInput parameters.
- * @returns A map of model technical names to human-readable descriptions.
+ * Enhances the output with Skill Gate breadcrumbs to guide the agent.
  */
-export declare function listModels(manager: InstanceManager, input?: ListModelsInput): Promise<Record<string, string>>;
+export declare function listModels(manager: InstanceManager, input?: ListModelsInput): Promise<any>;

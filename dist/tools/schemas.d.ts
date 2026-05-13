@@ -424,3 +424,13 @@ export declare const GET_ENVIRONMENT_SCHEMA: {
         };
     };
 };
+export declare const ACTIVATE_SKILL_SCHEMA: {
+    type: string;
+    properties: {
+        skill_name: {
+            type: string;
+            description: string;
+        };
+    };
+    required: string[];
+};

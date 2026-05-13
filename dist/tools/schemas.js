@@ -193,4 +193,11 @@ export const GET_ENVIRONMENT_SCHEMA = {
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
 };
+export const ACTIVATE_SKILL_SCHEMA = {
+    type: "object",
+    properties: {
+        skill_name: { type: "string", description: 'The name of the domain skill to activate (e.g., "odoo-sales").' },
+    },
+    required: ["skill_name"],
+};
 //# sourceMappingURL=schemas.js.map
