@@ -32,14 +32,17 @@ export async function getEnvironment(manager: InstanceManager, guard: SkillGuard
   if (!uid) throw new Error("Not authenticated");
 
   const userData = await client.executeKw('res.users', 'read', [[uid]], {
-    fields: ['name', 'login', 'lang', 'company_id', 'groups_id']
+    fields: ['name', 'login', 'lang', 'company_id', 'company_ids', 'groups_id']
   });
   const user = userData[0];
 
   // 3. Get Organization Info (Companies, Languages)
-  const companies = await client.executeKw('res.company', 'search_read', [[]], {
+  const allCompanies = await client.executeKw('res.company', 'search_read', [[]], {
     fields: ['name', 'currency_id', 'country_id']
   });
+
+  // Filter companies to only those the user actually has access to
+  const accessibleCompanies = allCompanies.filter((c: any) => user.company_ids.includes(c.id));
 
   let languages: any[] = [];
   try {
@@ -62,10 +65,14 @@ export async function getEnvironment(manager: InstanceManager, guard: SkillGuard
       name: user.name,
       login: user.login,
       lang: user.lang,
-      active_company: formatRelation(user.company_id),
+      default_company: formatRelation(user.company_id),
+      accessible_companies: accessibleCompanies.map((c: any) => ({
+        id: c.id,
+        name: c.name
+      })),
     },
     organization: {
-      companies: companies.map((c: any) => ({
+      companies: accessibleCompanies.map((c: any) => ({
         id: c.id,
         name: c.name,
         currency: formatRelation(c.currency_id),
@@ -104,7 +111,8 @@ export async function getEnvironment(manager: InstanceManager, guard: SkillGuard
     };
   }
 
-  const summary = `🌍 WORLD MAP: Connected to Odoo ${res.server.version} (${res.server.database}) ${res.server.write_guard ? '🔒 WRITE_GUARD ACTIVE' : '🔓 NO GUARD'}.\n👤 USER: ${res.user.name} (${res.user.login})\n🏢 COMPANY: ${res.user.active_company}\n🔑 ACTIVE SKILLS: ${res.session.active_skills.join(', ') || 'none'}`;
+  const companyList = res.user.accessible_companies.map((c: any) => `${c.name} (${c.id})`).join(', ');
+  const summary = `🌍 WORLD MAP: Connected to Odoo ${res.server.version} (${res.server.database}) ${res.server.write_guard ? '🔒 WRITE_GUARD ACTIVE' : '🔓 NO GUARD'}.\n👤 USER: ${res.user.name} (${res.user.login})\n🏢 MULTI-COMPANY: Enabled. Accessible Companies: ${companyList}\n🔑 ACTIVE SKILLS: ${res.session.active_skills.join(', ') || 'none'}\n💡 TIP: You have global visibility. To filter for a specific company, use a domain: [('company_id', '=', ID)].`;
 
   return {
     summary,

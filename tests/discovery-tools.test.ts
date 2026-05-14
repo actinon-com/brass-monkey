@@ -34,7 +34,7 @@ describe('Discovery Tools', () => {
   describe('getEnvironment', () => {
     it('should retrieve server, user and org info', async () => {
       mockClient.executeKw
-        .mockResolvedValueOnce([{ name: 'Admin', login: 'admin', lang: 'en_US', company_id: [1, 'MyCompany'], groups_id: [10] }]) // user
+        .mockResolvedValueOnce([{ name: 'Admin', login: 'admin', lang: 'en_US', company_id: [1, 'MyCompany'], company_ids: [1], groups_id: [10] }]) // user
         .mockResolvedValueOnce([{ id: 1, name: 'MyCompany', currency_id: [2, 'USD'], country_id: [3, 'US'] }]) // companies
         .mockResolvedValueOnce([{ name: 'English', code: 'en_US' }]); // languages
 
@@ -44,6 +44,8 @@ describe('Discovery Tools', () => {
       expect(result.summary).toContain('WORLD MAP');
       expect(result.environment.server.database).toBe('test-db');
       expect(result.environment.user.name).toBe('Admin');
+      expect(result.environment.user.default_company).toBe('MyCompany');
+      expect(result.environment.user.accessible_companies[0].name).toBe('MyCompany');
       expect(result.environment.organization.companies[0].name).toBe('MyCompany');
     });
   });

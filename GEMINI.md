@@ -14,8 +14,14 @@ Brass-Monkey replaces **Brass-Compass**, a prototype Python MCP server, with a m
 - **Reasoning:** Odoo instances vary wildly. "Blind" discovery via multiple `search_read` calls is inefficient and error-prone. One `get_environment` call provides server version, user permissions, active company, and installed apps.
 - **Enforcement:** Failure to orient before executing business logic is considered a violation of project standards.
 
-### 2. Explanations First
+### 2. Explanations First & Buy-in
 - **Mandate:** ALWAYS provide a technical explanation of proposed changes and seek user understanding/approval BEFORE modifying files or executing state-changing commands.
+- **UI Transparency:** When using state-changing tools (`create_record`, `write_record`, `unlink_record`), you MUST describe the intended change and the specific values in the chat message *before* calling the tool. Because tool parameters are often truncated in the UI, the chat message is the primary source of truth for user approval.
+- **Enforcement:** For any change affecting more than one file, modifying tool logic, or altering architectural patterns, you MUST present a strategy and wait for explicit user buy-in. Treat reports of bugs or concerning behavior as **Inquiries** (Research/Strategy) rather than Directives (Immediate Action) until a plan is agreed upon.
+
+### 4. Structural Fixes over Band-aids
+- **Mandate:** Prioritize correcting the root cause of agent confusion over implementing restrictive "Write Guards" or tool-level blocks. 
+- **Pattern:** If an agent makes a mistake, first audit the **Orientation (World Map)** data provided by `get_environment` and the **Skill** instructions. Fix the data presentation or the guidance before resorting to hard-coded tool restrictions.
 
 ### 3. Release Workflow
 - **Branching:** All release work must be performed on a dedicated release branch (e.g., `release-1.3.4`).

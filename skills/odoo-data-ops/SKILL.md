@@ -41,7 +41,7 @@ If you make a mistake or are asked to "undo" a change:
 2. **Analyze:** Verify the current record state. Do not attempt a rollback if it violates Odoo's business logic (e.g., trying to revert an invoice that has since been paid).
 3. **Revert:** Use `write_record` to re-apply the old values from the snapshot, providing a justification like `"Reverting previous AI action: [Original Reason]"`.
 
-### 4. Handling Relational Fields
+### 7. Handling Relational Fields
 - **Many2one:** Pass the integer ID of the target record.
 - **X2many (One2many/Many2many):** Use command tuples:
     - `(0, 0, {values})`: Create a new linked record.
@@ -49,3 +49,17 @@ If you make a mistake or are asked to "undo" a change:
     - `(3, id)`: Unlink (but don't delete) a record.
     - `(2, id)`: Unlink and delete a record.
     - `(6, 0, [ids])`: Replace all existing links with this list of IDs.
+
+### 8. Multi-Company Logic (Golden Rule)
+Odoo is a multi-company environment. By default, Brass-Monkey enables cross-company visibility, but you must be precise:
+- **Visibility:** You can see records from all allowed companies (retrieved during `get_environment`).
+- **Filtering:** To query data for a specific company, ALWAYS include `['company_id', '=', ID]` in your domain.
+- **Operational Safety:** NEVER attempt to modify your own `res.users` record to change your active company. This is considered **System Vandalism**. 
+- **Correct Pattern:** If you need to "switch" companies for a query, simply use the `company_id` domain filter.
+
+### 9. System Vandalism Warning
+You are an AI agent with high-level access. You must NEVER:
+- Modify your own user record's `company_id`, `company_ids`, or `groups_id`.
+- Delete system-critical records to "clean up" your view.
+- Bypass Odoo's business logic by directly modifying internal state fields (e.g., `state`, `move_id`) if a specialized method is available.
+- **Enforcement:** Attempting these actions will trigger tool-level safety blocks and may result in session termination.
