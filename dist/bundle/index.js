@@ -38385,6 +38385,7 @@ const CREATE_RECORD_SCHEMA = {
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "values", "justification"],
+    description: "Create new records in a specified model with audit logging. MANDATORY: Describe your intent and the specific values in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
 };
 const WRITE_RECORD_SCHEMA = {
     type: "object",
@@ -38396,6 +38397,7 @@ const WRITE_RECORD_SCHEMA = {
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "id", "values", "justification"],
+    description: "Update existing records with field-level tracking. MANDATORY: Describe your intent and the specific values in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
 };
 const UNLINK_RECORD_SCHEMA = {
     type: "object",
@@ -38406,6 +38408,7 @@ const UNLINK_RECORD_SCHEMA = {
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "id", "justification"],
+    description: "Delete records from the system. MANDATORY: Describe your intent in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
 };
 const LIST_REPORTS_SCHEMA = {
     type: "object",
@@ -39333,13 +39336,15 @@ async function getEnvironment(manager, guard, input) {
     if (!uid)
         throw new Error("Not authenticated");
     const userData = await client.executeKw('res.users', 'read', [[uid]], {
-        fields: ['name', 'login', 'lang', 'company_id', 'groups_id']
+        fields: ['name', 'login', 'lang', 'company_id', 'company_ids', 'groups_id']
     });
     const user = userData[0];
     // 3. Get Organization Info (Companies, Languages)
-    const companies = await client.executeKw('res.company', 'search_read', [[]], {
+    const allCompanies = await client.executeKw('res.company', 'search_read', [[]], {
         fields: ['name', 'currency_id', 'country_id']
     });
+    // Filter companies to only those the user actually has access to
+    const accessibleCompanies = allCompanies.filter((c) => user.company_ids.includes(c.id));
     let languages = [];
     try {
         languages = await client.executeKw('res.lang', 'search_read', [[['active', '=', true]]], {
@@ -39361,10 +39366,14 @@ async function getEnvironment(manager, guard, input) {
             name: user.name,
             login: user.login,
             lang: user.lang,
-            active_company: formatRelation(user.company_id),
+            default_company: formatRelation(user.company_id),
+            accessible_companies: accessibleCompanies.map((c) => ({
+                id: c.id,
+                name: c.name
+            })),
         },
         organization: {
-            companies: companies.map((c) => ({
+            companies: accessibleCompanies.map((c) => ({
                 id: c.id,
                 name: c.name,
                 currency: formatRelation(c.currency_id),
@@ -39400,7 +39409,8 @@ async function getEnvironment(manager, guard, input) {
             }, {}),
         };
     }
-    const summary = `🌍 WORLD MAP: Connected to Odoo ${res.server.version} (${res.server.database}) ${res.server.write_guard ? '🔒 WRITE_GUARD ACTIVE' : '🔓 NO GUARD'}.\n👤 USER: ${res.user.name} (${res.user.login})\n🏢 COMPANY: ${res.user.active_company}\n🔑 ACTIVE SKILLS: ${res.session.active_skills.join(', ') || 'none'}`;
+    const companyList = res.user.accessible_companies.map((c) => `${c.name} (${c.id})`).join(', ');
+    const summary = `🌍 WORLD MAP: Connected to Odoo ${res.server.version} (${res.server.database}) ${res.server.write_guard ? '🔒 WRITE_GUARD ACTIVE' : '🔓 NO GUARD'}.\n👤 USER: ${res.user.name} (${res.user.login})\n🏢 MULTI-COMPANY: Enabled. Accessible Companies: ${companyList}\n🔑 ACTIVE SKILLS: ${res.session.active_skills.join(', ') || 'none'}\n💡 TIP: You have global visibility. To filter for a specific company, use a domain: [('company_id', '=', ID)].`;
     return {
         summary,
         environment: res
@@ -39631,7 +39641,7 @@ async function activateSkill(guard, input) {
 
 const mcp_server_dirname = external_path_default().dirname((0,external_url_.fileURLToPath)(import.meta.url));
 // Read package.json for metadata
-let mcp_server_version = "1.3.6";
+let mcp_server_version = "1.3.7";
 try {
     const pkgPath = __nccwpck_require__.ab + "package.json";
     const pkg = JSON.parse(external_fs_default().readFileSync(__nccwpck_require__.ab + "package.json", "utf-8"));

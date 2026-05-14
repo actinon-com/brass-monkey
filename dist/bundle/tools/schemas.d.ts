@@ -314,6 +314,7 @@ export declare const CREATE_RECORD_SCHEMA: {
         };
     };
     required: string[];
+    description: string;
 };
 export declare const WRITE_RECORD_SCHEMA: {
     type: string;
@@ -340,6 +341,7 @@ export declare const WRITE_RECORD_SCHEMA: {
         };
     };
     required: string[];
+    description: string;
 };
 export declare const UNLINK_RECORD_SCHEMA: {
     type: string;
@@ -362,6 +364,7 @@ export declare const UNLINK_RECORD_SCHEMA: {
         };
     };
     required: string[];
+    description: string;
 };
 export declare const LIST_REPORTS_SCHEMA: {
     type: string;

@@ -140,6 +140,7 @@ export const CREATE_RECORD_SCHEMA = {
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "values", "justification"],
+    description: "Create new records in a specified model with audit logging. MANDATORY: Describe your intent and the specific values in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
 };
 export const WRITE_RECORD_SCHEMA = {
     type: "object",
@@ -151,6 +152,7 @@ export const WRITE_RECORD_SCHEMA = {
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "id", "values", "justification"],
+    description: "Update existing records with field-level tracking. MANDATORY: Describe your intent and the specific values in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
 };
 export const UNLINK_RECORD_SCHEMA = {
     type: "object",
@@ -161,6 +163,7 @@ export const UNLINK_RECORD_SCHEMA = {
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "id", "justification"],
+    description: "Delete records from the system. MANDATORY: Describe your intent in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
 };
 export const LIST_REPORTS_SCHEMA = {
     type: "object",
