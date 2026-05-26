@@ -21,11 +21,19 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Read package.json for metadata
-let version = "1.3.7";
+let version = "1.4.0";
 try {
-  const pkgPath = path.resolve(__dirname, "../package.json");
-  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
-  version = pkg.version;
+  // Try both possible locations (source vs bundled)
+  const pkgPaths = [
+    path.resolve(__dirname, "../package.json"),
+    path.resolve(__dirname, "../../package.json")
+  ];
+  
+  const pkgPath = pkgPaths.find(p => fs.existsSync(p));
+  if (pkgPath) {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+    version = pkg.version;
+  }
 } catch (e) {
   console.error("Warning: Could not read package.json version", e);
 }
