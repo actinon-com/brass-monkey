@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "brass-monkey": {
+      "command": "node",
+      "args": ["/home/mcm/WebstormProjects/brass-monkey/dist/bundle/index.js"],
+      "cwd": "/home/mcm/WebstormProjects/brass-monkey"
+    }
+  }
+}
