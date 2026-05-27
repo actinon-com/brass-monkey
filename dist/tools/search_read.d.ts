@@ -13,6 +13,7 @@ export declare const SearchReadSchema: z.ZodObject<{
     limit: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     offset: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     order: z.ZodOptional<z.ZodString>;
+    with_translations: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     instance_alias: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 export type SearchReadInput = z.infer<typeof SearchReadSchema>;

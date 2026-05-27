@@ -46,7 +46,7 @@ export async function inspectModel(manager, input) {
     const anyFieldFlag = flags.show_base || flags.show_extended || flags.show_computed || flags.show_related || flags.show_lines || flags.show_relationships;
     if (anyFieldFlag) {
         const fRecords = await client.executeKw('ir.model.fields', 'search_read', [[['model_id', '=', m.id]]], {
-            fields: ['name', 'field_description', 'ttype', 'relation', 'store', 'compute', 'related', 'modules', 'readonly', 'required', 'selection', 'help']
+            fields: ['name', 'field_description', 'ttype', 'relation', 'store', 'compute', 'related', 'modules', 'readonly', 'required', 'selection', 'help', 'translate', 'company_dependent', 'domain']
         });
         const buckets = { base: {}, extended: {}, computed: {}, related: {}, relational: {}, lines: {} };
         for (const f of fRecords) {
@@ -58,6 +58,10 @@ export async function inspectModel(manager, input) {
                 props.push('readonly');
             if (!f.store)
                 props.push('not-stored');
+            if (f.translate)
+                props.push('translatable');
+            if (f.company_dependent)
+                props.push('company-dependent');
             const fieldData = {
                 type: f.ttype,
                 string: f.field_description,
@@ -65,6 +69,9 @@ export async function inspectModel(manager, input) {
                 properties: props.length > 0 ? props : undefined,
                 help: f.help || undefined,
             };
+            if (f.domain && f.domain !== '[]') {
+                fieldData.hint = `Search Filter: ${f.domain}`;
+            }
             if (f.compute)
                 buckets.computed[f.name] = fieldData;
             if (f.related)

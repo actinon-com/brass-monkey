@@ -8,6 +8,7 @@ export declare const CreateRecordSchema: z.ZodObject<{
     model: z.ZodString;
     values: z.ZodPipe<z.ZodTransform<any, unknown>, z.ZodRecord<z.ZodString, z.ZodAny>>;
     justification: z.ZodString;
+    with_translations: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     instance_alias: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 export type CreateRecordInput = z.infer<typeof CreateRecordSchema>;
@@ -17,4 +18,4 @@ export type CreateRecordInput = z.infer<typeof CreateRecordSchema>;
  * @param input The CreateRecordInput parameters.
  * @returns The database ID of the newly created record.
  */
-export declare function createRecord(manager: InstanceManager, input: CreateRecordInput): Promise<any>;
+export declare function createRecord(manager: InstanceManager, input: CreateRecordInput): Promise<number | null>;

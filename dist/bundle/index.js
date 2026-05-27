@@ -37823,7 +37823,15 @@ class OdooClient {
         for (const pattern of businessErrors) {
             const match = rawMessage.match(pattern);
             if (match && match[1]) {
-                return new Error(match[1].trim());
+                const msg = match[1].trim();
+                // Enhanced Actionable Feedback
+                if (msg.includes('does not exist') || msg.includes('column') || msg.includes('field')) {
+                    return new Error(`${msg}\n💡 ACTION: Your local schema is stale. You MUST execute 'inspect_model' for this model to synchronize.`);
+                }
+                if (msg.includes('Access Denied') || msg.includes('permission')) {
+                    return new Error(`${msg}\n💡 ACTION: You may be missing a required Skill or User Group. Verify with 'get_environment(show_security=true)'.`);
+                }
+                return new Error(msg);
             }
         }
         // 2. Check for common environment issues
@@ -38344,6 +38352,7 @@ const SEARCH_READ_SCHEMA = {
         include_computed: { type: "boolean", description: "If 'fields' is empty, include non-stored/calculated fields." },
         limit: { type: "number", description: "Maximum number of records to return. Keep low for performance unless batching." },
         order: { type: "string", description: 'Order by clause (e.g., "name asc", "create_date desc").' },
+        with_translations: { type: "boolean", description: "If True, translatable fields are enriched with their 'Forgiving' format (Matrix)." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model"],
@@ -38382,6 +38391,7 @@ const CREATE_RECORD_SCHEMA = {
         model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
         values: { type: "object", description: "Dictionary of field values: {'field_name': value}. Use inspect_model to find writable fields." },
         justification: { type: "string", description: "MANDATORY: Explain WHY this record is being created. This is logged to Odoo Chatter and local audit logs." },
+        with_translations: { type: "boolean", description: "If True, translatable fields can be provided as strings (sync to all) or expanded lists." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "values", "justification"],
@@ -38394,6 +38404,7 @@ const WRITE_RECORD_SCHEMA = {
         id: { type: "number", description: "The database ID of the record to update." },
         values: { type: "object", description: "Dictionary of fields to update. PRO TIP: We take a 'Before Snapshot' automatically for reversibility." },
         justification: { type: "string", description: "MANDATORY: Explain WHY this update is necessary. Logged for audit and safety." },
+        with_translations: { type: "boolean", description: "If True, translatable fields can be provided as strings (sync to all) or expanded lists." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "id", "values", "justification"],
@@ -38704,7 +38715,7 @@ async function inspectModel(manager, input) {
     const anyFieldFlag = flags.show_base || flags.show_extended || flags.show_computed || flags.show_related || flags.show_lines || flags.show_relationships;
     if (anyFieldFlag) {
         const fRecords = await client.executeKw('ir.model.fields', 'search_read', [[['model_id', '=', m.id]]], {
-            fields: ['name', 'field_description', 'ttype', 'relation', 'store', 'compute', 'related', 'modules', 'readonly', 'required', 'selection', 'help']
+            fields: ['name', 'field_description', 'ttype', 'relation', 'store', 'compute', 'related', 'modules', 'readonly', 'required', 'selection', 'help', 'translate', 'company_dependent', 'domain']
         });
         const buckets = { base: {}, extended: {}, computed: {}, related: {}, relational: {}, lines: {} };
         for (const f of fRecords) {
@@ -38716,6 +38727,10 @@ async function inspectModel(manager, input) {
                 props.push('readonly');
             if (!f.store)
                 props.push('not-stored');
+            if (f.translate)
+                props.push('translatable');
+            if (f.company_dependent)
+                props.push('company-dependent');
             const fieldData = {
                 type: f.ttype,
                 string: f.field_description,
@@ -38723,6 +38738,9 @@ async function inspectModel(manager, input) {
                 properties: props.length > 0 ? props : undefined,
                 help: f.help || undefined,
             };
+            if (f.domain && f.domain !== '[]') {
+                fieldData.hint = `Search Filter: ${f.domain}`;
+            }
             if (f.compute)
                 buckets.computed[f.name] = fieldData;
             if (f.related)
@@ -38939,7 +38957,202 @@ async function getView(manager, input) {
     };
 }
 
+;// CONCATENATED MODULE: ./src/services/odoo-orchestrator.ts
+/**
+ * Orchestrator service to handle complex Odoo business logic server-side.
+ * Replicates the "Forgiving Format" and "Middleware Manager" philosophy of brass-compass.
+ */
+class OdooOrchestrator {
+    client;
+    constructor(client) {
+        this.client = client;
+    }
+    /**
+     * Fetches all translations for a set of records and fields,
+     * returning them in the 'Forgiving' format.
+     */
+    async fetchTranslationMatrix(model, resIds, fieldNames) {
+        if (!fieldNames.length || !resIds.length)
+            return {};
+        try {
+            const langs = await this.client.executeKw('res.lang', 'search_read', [[['active', '=', true]]], { fields: ['code'] });
+            const langCodes = langs.map((l) => l.code);
+            // Matrix: { res_id: { field_name: { lang_code: value } } }
+            const matrix = {};
+            for (const rid of resIds) {
+                matrix[rid] = {};
+                for (const fname of fieldNames) {
+                    matrix[rid][fname] = {};
+                }
+            }
+            // Batch fetch per language
+            for (const lang of langCodes) {
+                const langData = await this.client.executeKw(model, 'read', [resIds], { fields: fieldNames, context: { lang } });
+                for (const rec of langData) {
+                    const rid = rec.id;
+                    for (const fname of fieldNames) {
+                        matrix[rid][fname][lang] = rec[fname];
+                    }
+                }
+            }
+            // Simplify Phase into "Forgiving Format"
+            const results = {};
+            for (const rid of resIds) {
+                results[rid] = {};
+                for (const fname of fieldNames) {
+                    const values = matrix[rid][fname];
+                    const uniqueValues = {};
+                    for (const [lang, val] of Object.entries(values)) {
+                        const key = JSON.stringify(val);
+                        if (!uniqueValues[key])
+                            uniqueValues[key] = [];
+                        uniqueValues[key].push(lang);
+                    }
+                    const entries = Object.entries(uniqueValues);
+                    if (entries.length <= 1) {
+                        // All identical (Clean case)
+                        results[rid][fname] = entries.length > 0 ? JSON.parse(entries[0][0]) : false;
+                    }
+                    else {
+                        // Divergent (Expanded case)
+                        // Sort by popularity to find the most common as "fallback"
+                        entries.sort((a, b) => b[1].length - a[1].length);
+                        results[rid][fname] = entries.map(([valJson, lList], index) => ({
+                            value: JSON.parse(valJson),
+                            langs: index === 0 ? [] : lList // First one is the fallback
+                        }));
+                    }
+                }
+            }
+            return results;
+        }
+        catch (e) {
+            console.error(`Translation matrix fetch failed: ${e}`);
+            return {};
+        }
+    }
+    /**
+     * Processes input values for a write/create operation, handling translatable fields.
+     * Performs "Broadcast Writing" to keep languages in sync.
+     */
+    async applyBroadcastWrite(model, resId, values, transFields) {
+        const mainWrite = {};
+        const translationWrites = {};
+        const langs = await this.client.executeKw('res.lang', 'search_read', [[['active', '=', true]]], { fields: ['code'] });
+        const langCodes = langs.map((l) => l.code);
+        for (const lcode of langCodes)
+            translationWrites[lcode] = {};
+        for (const [fname, val] of Object.entries(values)) {
+            if (transFields.includes(fname)) {
+                if (Array.isArray(val)) {
+                    // Expanded format: [{"value": "...", "langs": []}, ...]
+                    for (const bucket of val) {
+                        const targetLangs = bucket.langs || [];
+                        if (targetLangs.length === 0) {
+                            // Fallback case
+                            mainWrite[fname] = bucket.value;
+                            for (const lcode of langCodes)
+                                translationWrites[lcode][fname] = bucket.value;
+                        }
+                        else {
+                            for (const lcode of targetLangs) {
+                                if (translationWrites[lcode])
+                                    translationWrites[lcode][fname] = bucket.value;
+                            }
+                        }
+                    }
+                }
+                else {
+                    // Simple string format: Sync to all
+                    mainWrite[fname] = val;
+                    for (const lcode of langCodes)
+                        translationWrites[lcode][fname] = val;
+                }
+            }
+            else {
+                mainWrite[fname] = val;
+            }
+        }
+        // Execution
+        let resultId = resId;
+        if (resId === null) {
+            // Create
+            resultId = await this.client.executeKw(model, 'create', [mainWrite]);
+        }
+        else {
+            // Write
+            await this.client.executeKw(model, 'write', [[resId], mainWrite]);
+        }
+        // Apply translations
+        for (const [lcode, vals] of Object.entries(translationWrites)) {
+            if (Object.keys(vals).length > 0) {
+                await this.client.executeKw(model, 'write', [[resultId], vals], { context: { lang: lcode } });
+            }
+        }
+        return resultId;
+    }
+    /**
+     * Enhances records with label expansions for Many2one fields.
+     */
+    async enrichRelationalLabels(model, records) {
+        // Odoo search_read already returns [id, "name"] for Many2one.
+        // This method ensures they are consistently formatted if needed.
+        return records;
+    }
+    /**
+     * Intelligent resolution of field values.
+     * 1. Resolves strings to IDs for Many2one fields via name_search.
+     * 2. Converts lists of objects to (0, 0, {values}) commands for One2many/Many2many.
+     */
+    async resolveFieldValues(model, values) {
+        const fRecords = await this.client.executeKw('ir.model.fields', 'search_read', [[['model_id.model', '=', model]]], {
+            fields: ['name', 'ttype', 'relation']
+        });
+        const fieldMap = fRecords.reduce((acc, f) => {
+            acc[f.name] = f;
+            return acc;
+        }, {});
+        const resolvedValues = { ...values };
+        for (const [fname, val] of Object.entries(values)) {
+            const field = fieldMap[fname];
+            if (!field)
+                continue;
+            // 1. Many2one Name Resolution
+            if (field.ttype === 'many2one' && typeof val === 'string') {
+                const matches = await this.client.executeKw(field.relation, 'name_search', [], { name: val, limit: 2 });
+                if (matches.length === 1) {
+                    resolvedValues[fname] = matches[0][0]; // Extract ID
+                }
+                else if (matches.length > 1) {
+                    const options = matches.map((m) => `${m[1]} (ID: ${m[0]})`).join(', ');
+                    throw new Error(`Ambiguous resolution for '${val}' on ${fname}. Found multiple matches: ${options}. Please provide a specific ID.`);
+                }
+                else {
+                    throw new Error(`Could not resolve '${val}' to a valid ${field.relation} ID for field ${fname}.`);
+                }
+            }
+            // 2. X2many Command-Tuple Shorthand
+            if (['one2many', 'many2many'].includes(field.ttype) && Array.isArray(val)) {
+                const commands = val.map(item => {
+                    if (typeof item === 'object' && !Array.isArray(item)) {
+                        // Auto-convert object to (0, 0, {values})
+                        return [0, 0, item];
+                    }
+                    if (typeof item === 'number') {
+                        // Auto-convert ID to (4, id)
+                        return [4, item, 0];
+                    }
+                    return item; // Assume it's already a command tuple
+                });
+                resolvedValues[fname] = commands;
+            }
+        }
+        return resolvedValues;
+    }
+}
+
 ;// CONCATENATED MODULE: ./src/tools/search_read.ts
+
 
 /**
  * Zod schema for search_read tool input.
@@ -38977,6 +39190,7 @@ const SearchReadSchema = schemas_object({
     limit: classic_coerce_number().optional().describe('Maximum number of records to return'),
     offset: classic_coerce_number().optional().describe('Number of records to skip (for pagination)'),
     order: classic_schemas_string().optional().describe('Sort order (e.g., "id desc", "create_date asc")'),
+    with_translations: classic_schemas_boolean().optional().default(false).describe("If True, translatable fields are enriched with their 'Forgiving' format (Matrix)."),
     instance_alias: classic_schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -38984,7 +39198,7 @@ const SearchReadSchema = schemas_object({
  * Automatically handles field categorization to prevent context window flooding.
  */
 async function searchRead(manager, input) {
-    const { model, domain = [], fields, include_extended, include_computed, limit, offset, order, instance_alias } = input;
+    const { model, domain = [], fields, include_extended, include_computed, limit, offset, order, with_translations, instance_alias } = input;
     const client = await manager.getClient(instance_alias);
     let readFields = fields;
     // If no fields specified, perform auto-categorization
@@ -39022,15 +39236,53 @@ async function searchRead(manager, input) {
             readFields = categorizedFields;
         }
     }
-    return await client.executeKw(model, 'search_read', [domain], {
+    const records = await client.executeKw(model, 'search_read', [domain], {
         fields: readFields,
         limit,
         offset,
         order,
     });
+    // Intent-Based Search Expansion: If zero results and domain has a name filter, retry with ilike
+    if (records.length === 0 && domain.length > 0) {
+        const nameFilterIndex = domain.findIndex((d) => Array.isArray(d) && d[0] === 'name' && d[1] === '=');
+        if (nameFilterIndex !== -1) {
+            const expandedDomain = [...domain];
+            expandedDomain[nameFilterIndex] = ['name', 'ilike', domain[nameFilterIndex][2]];
+            const expandedRecords = await client.executeKw(model, 'search_read', [expandedDomain], {
+                fields: readFields,
+                limit,
+                offset,
+                order,
+            });
+            if (expandedRecords.length > 0) {
+                return expandedRecords;
+            }
+        }
+    }
+    if (with_translations && records.length > 0) {
+        const orchestrator = new OdooOrchestrator(client);
+        // Identify which fields are translatable
+        const transFieldRecs = await client.executeKw('ir.model.fields', 'search_read', [[
+                ['model_id.model', '=', model],
+                ['name', 'in', readFields],
+                ['translate', '=', true]
+            ]], { fields: ['name'] });
+        const transFieldNames = transFieldRecs.map((f) => f.name);
+        if (transFieldNames.length > 0) {
+            const resIds = records.map((r) => r.id);
+            const matrix = await orchestrator.fetchTranslationMatrix(model, resIds, transFieldNames);
+            for (const rec of records) {
+                if (matrix[rec.id]) {
+                    Object.assign(rec, matrix[rec.id]);
+                }
+            }
+        }
+    }
+    return records;
 }
 
 ;// CONCATENATED MODULE: ./src/tools/create_record.ts
+
 
 /**
  * Zod schema for create_record tool input.
@@ -39050,6 +39302,7 @@ const CreateRecordSchema = schemas_object({
         return val;
     }, schemas_record(classic_schemas_string(), schemas_any())).describe('A dictionary of field values.'),
     justification: classic_schemas_string().min(1).describe('Business justification for creating this record.'),
+    with_translations: classic_schemas_boolean().optional().default(false).describe("If True, translatable fields can be provided as strings (sync to all) or expanded lists."),
     instance_alias: classic_schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -39059,12 +39312,25 @@ const CreateRecordSchema = schemas_object({
  * @returns The database ID of the newly created record.
  */
 async function createRecord(manager, input) {
-    const { model, values, justification, instance_alias } = input;
+    const { model, values, justification, with_translations, instance_alias } = input;
     const client = await manager.getClient(instance_alias);
     const audit = await manager.getAudit(instance_alias);
-    const recordId = await client.executeKw(model, 'create', [values]);
+    const orchestrator = new OdooOrchestrator(client);
+    // Identify translatable fields if flag is set
+    let transFieldNames = [];
+    if (with_translations) {
+        const transFieldRecs = await client.executeKw('ir.model.fields', 'search_read', [[
+                ['model_id.model', '=', model],
+                ['name', 'in', Object.keys(values)],
+                ['translate', '=', true]
+            ]], { fields: ['name'] });
+        transFieldNames = transFieldRecs.map((f) => f.name);
+    }
+    // Resolve natural language values (names to IDs, objects to command tuples)
+    const resolvedValues = await orchestrator.resolveFieldValues(model, values);
+    const recordId = await orchestrator.applyBroadcastWrite(model, null, resolvedValues, transFieldNames);
     // Log locally for agent history
-    await audit.logLocalAction('create', model, recordId, values, justification);
+    await audit.logLocalAction('create', model, recordId, resolvedValues, justification);
     // Log to global system logs
     await audit.logSystemEvent(`Created ${model}(${recordId}): ${justification}`);
     // Log to chatter (if supported by model)
@@ -39073,6 +39339,7 @@ async function createRecord(manager, input) {
 }
 
 ;// CONCATENATED MODULE: ./src/tools/write_record.ts
+
 
 /**
  * Zod schema for write_record tool input.
@@ -39093,6 +39360,7 @@ const WriteRecordSchema = schemas_object({
         return val;
     }, schemas_record(classic_schemas_string(), schemas_any())).describe('A dictionary of fields to update.'),
     justification: classic_schemas_string().min(1).describe('Business justification for the change.'),
+    with_translations: classic_schemas_boolean().optional().default(false).describe("If True, translatable fields can be provided as strings (sync to all) or expanded lists."),
     instance_alias: classic_schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -39102,18 +39370,46 @@ const WriteRecordSchema = schemas_object({
  * @returns Boolean true on success.
  */
 async function writeRecord(manager, input) {
-    const { model, id, values, justification, instance_alias } = input;
+    const { model, id, values, justification, with_translations, instance_alias } = input;
     const client = await manager.getClient(instance_alias);
     const audit = await manager.getAudit(instance_alias);
-    // 1. Capture "Before Snapshot" for reversibility
-    const fieldsToCapture = Object.keys(values);
-    const beforeRecords = await client.executeKw(model, 'read', [[id]], { fields: fieldsToCapture });
-    const before = beforeRecords && beforeRecords.length > 0 ? beforeRecords[0] : {};
-    // 2. Execute the write
-    const success = await client.executeKw(model, 'write', [[id], values]);
-    // 3. Audit and store reversibility context
+    const orchestrator = new OdooOrchestrator(client);
+    // 1. Identify translatable fields if flag is set
+    let transFieldNames = [];
+    if (with_translations) {
+        const transFieldRecs = await client.executeKw('ir.model.fields', 'search_read', [[
+                ['model_id.model', '=', model],
+                ['name', 'in', Object.keys(values)],
+                ['translate', '=', true]
+            ]], { fields: ['name'] });
+        transFieldNames = transFieldRecs.map((f) => f.name);
+    }
+    // 2. Resolve natural language values (names to IDs, objects to command tuples)
+    const resolvedValues = await orchestrator.resolveFieldValues(model, values);
+    // 3. Capture "Before Snapshot" for reversibility
+    const fieldsToCapture = Object.keys(resolvedValues);
+    let before = {};
+    if (with_translations && transFieldNames.length > 0) {
+        const matrix = await orchestrator.fetchTranslationMatrix(model, [id], transFieldNames);
+        const standardFields = fieldsToCapture.filter(f => !transFieldNames.includes(f));
+        if (standardFields.length > 0) {
+            const standardBefore = await client.executeKw(model, 'read', [[id]], { fields: standardFields });
+            before = { ...standardBefore[0], ...matrix[id] };
+        }
+        else {
+            before = matrix[id];
+        }
+    }
+    else {
+        const beforeRecords = await client.executeKw(model, 'read', [[id]], { fields: fieldsToCapture });
+        before = beforeRecords && beforeRecords.length > 0 ? beforeRecords[0] : {};
+    }
+    // 4. Execute the orchestrated write
+    const resultId = await orchestrator.applyBroadcastWrite(model, id, resolvedValues, transFieldNames);
+    const success = !!resultId;
+    // 5. Audit and store reversibility context
     if (success) {
-        await audit.logLocalAction('write', model, id, { before, after: values }, justification);
+        await audit.logLocalAction('write', model, id, { before, after: resolvedValues }, justification);
         const body = audit.formatWriteSnapshot(before, justification);
         await audit.postChatterMessage(model, id, body);
         await audit.logSystemEvent(`Modified ${model}(${id}): ${justification}`);
@@ -39641,11 +39937,18 @@ async function activateSkill(guard, input) {
 
 const mcp_server_dirname = external_path_default().dirname((0,external_url_.fileURLToPath)(import.meta.url));
 // Read package.json for metadata
-let mcp_server_version = "1.3.7";
+let mcp_server_version = "1.4.1";
 try {
-    const pkgPath = __nccwpck_require__.ab + "package.json";
-    const pkg = JSON.parse(external_fs_default().readFileSync(__nccwpck_require__.ab + "package.json", "utf-8"));
-    mcp_server_version = pkg.version;
+    // Try both possible locations (source vs bundled)
+    const pkgPaths = [
+        __nccwpck_require__.ab + "package.json",
+        external_path_default().resolve(mcp_server_dirname, "../../package.json")
+    ];
+    const pkgPath = pkgPaths.find(p => external_fs_default().existsSync(p));
+    if (pkgPath) {
+        const pkg = JSON.parse(external_fs_default().readFileSync(pkgPath, "utf-8"));
+        mcp_server_version = pkg.version;
+    }
 }
 catch (e) {
     console.error("Warning: Could not read package.json version", e);

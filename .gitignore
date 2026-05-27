@@ -45,3 +45,4 @@ lerna-debug.log*
 *.test.ts.snap
 /working/
 /secrets.json
+/reference/

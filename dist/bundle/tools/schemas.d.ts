@@ -217,6 +217,10 @@ export declare const SEARCH_READ_SCHEMA: {
             type: string;
             description: string;
         };
+        with_translations: {
+            type: string;
+            description: string;
+        };
         instance_alias: {
             type: string;
             description: string;
@@ -308,6 +312,10 @@ export declare const CREATE_RECORD_SCHEMA: {
             type: string;
             description: string;
         };
+        with_translations: {
+            type: string;
+            description: string;
+        };
         instance_alias: {
             type: string;
             description: string;
@@ -332,6 +340,10 @@ export declare const WRITE_RECORD_SCHEMA: {
             description: string;
         };
         justification: {
+            type: string;
+            description: string;
+        };
+        with_translations: {
             type: string;
             description: string;
         };

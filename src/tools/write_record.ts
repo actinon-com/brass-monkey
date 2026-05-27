@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { InstanceManager } from '../services/instance-manager.js';
+import { OdooOrchestrator } from '../services/odoo-orchestrator.js';
 
 /**
  * Zod schema for write_record tool input.
@@ -15,6 +16,7 @@ export const WriteRecordSchema = z.object({
     return val;
   }, z.record(z.string(), z.any())).describe('A dictionary of fields to update.'),
   justification: z.string().min(1).describe('Business justification for the change.'),
+  with_translations: z.boolean().optional().default(false).describe("If True, translatable fields can be provided as strings (sync to all) or expanded lists."),
   instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 
@@ -27,21 +29,50 @@ export type WriteRecordInput = z.infer<typeof WriteRecordSchema>;
  * @returns Boolean true on success.
  */
 export async function writeRecord(manager: InstanceManager, input: WriteRecordInput) {
-  const { model, id, values, justification, instance_alias } = input;
+  const { model, id, values, justification, with_translations, instance_alias } = input;
   const client = await manager.getClient(instance_alias);
   const audit = await manager.getAudit(instance_alias);
+  const orchestrator = new OdooOrchestrator(client);
+
+  // 1. Identify translatable fields if flag is set
+  let transFieldNames: string[] = [];
+  if (with_translations) {
+    const transFieldRecs = await client.executeKw('ir.model.fields', 'search_read', [[
+      ['model_id.model', '=', model],
+      ['name', 'in', Object.keys(values)],
+      ['translate', '=', true]
+    ]], { fields: ['name'] });
+    transFieldNames = transFieldRecs.map((f: any) => f.name);
+  }
   
-  // 1. Capture "Before Snapshot" for reversibility
-  const fieldsToCapture = Object.keys(values);
-  const beforeRecords = await client.executeKw(model, 'read', [[id]], { fields: fieldsToCapture });
-  const before = beforeRecords && beforeRecords.length > 0 ? beforeRecords[0] : {};
+  // 2. Resolve natural language values (names to IDs, objects to command tuples)
+  const resolvedValues = await orchestrator.resolveFieldValues(model, values);
 
-  // 2. Execute the write
-  const success = await client.executeKw(model, 'write', [[id], values]);
+  // 3. Capture "Before Snapshot" for reversibility
+  const fieldsToCapture = Object.keys(resolvedValues);
+  let before: any = {};
 
-  // 3. Audit and store reversibility context
+  if (with_translations && transFieldNames.length > 0) {
+    const matrix = await orchestrator.fetchTranslationMatrix(model, [id], transFieldNames);
+    const standardFields = fieldsToCapture.filter(f => !transFieldNames.includes(f));
+    if (standardFields.length > 0) {
+      const standardBefore = await client.executeKw(model, 'read', [[id]], { fields: standardFields });
+      before = { ...standardBefore[0], ...matrix[id] };
+    } else {
+      before = matrix[id];
+    }
+  } else {
+    const beforeRecords = await client.executeKw(model, 'read', [[id]], { fields: fieldsToCapture });
+    before = beforeRecords && beforeRecords.length > 0 ? beforeRecords[0] : {};
+  }
+
+  // 4. Execute the orchestrated write
+  const resultId = await orchestrator.applyBroadcastWrite(model, id, resolvedValues, transFieldNames);
+  const success = !!resultId;
+
+  // 5. Audit and store reversibility context
   if (success) {
-    await audit.logLocalAction('write', model, id, { before, after: values }, justification);
+    await audit.logLocalAction('write', model, id, { before, after: resolvedValues }, justification);
     const body = audit.formatWriteSnapshot(before, justification);
     await audit.postChatterMessage(model, id, body);
     await audit.logSystemEvent(`Modified ${model}(${id}): ${justification}`);

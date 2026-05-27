@@ -9,6 +9,7 @@ export declare const WriteRecordSchema: z.ZodObject<{
     id: z.ZodCoercedNumber<unknown>;
     values: z.ZodPipe<z.ZodTransform<any, unknown>, z.ZodRecord<z.ZodString, z.ZodAny>>;
     justification: z.ZodString;
+    with_translations: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     instance_alias: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 export type WriteRecordInput = z.infer<typeof WriteRecordSchema>;
@@ -18,4 +19,4 @@ export type WriteRecordInput = z.infer<typeof WriteRecordSchema>;
  * @param input The WriteRecordInput parameters.
  * @returns Boolean true on success.
  */
-export declare function writeRecord(manager: InstanceManager, input: WriteRecordInput): Promise<any>;
+export declare function writeRecord(manager: InstanceManager, input: WriteRecordInput): Promise<boolean>;

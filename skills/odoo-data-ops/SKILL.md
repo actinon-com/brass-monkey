@@ -57,7 +57,14 @@ Odoo is a multi-company environment. By default, Brass-Monkey enables cross-comp
 - **Operational Safety:** NEVER attempt to modify your own `res.users` record to change your active company. This is considered **System Vandalism**. 
 - **Correct Pattern:** If you need to "switch" companies for a query, simply use the `company_id` domain filter.
 
-### 9. System Vandalism Warning
+### 9. Orchestrated Translations (Forgiving Format)
+Odoo supports multi-language fields (marked as `translatable` in `inspect_model`). Brass-Monkey handles the complexity of these fields for you:
+- **Enabling Matrix:** Set `with_translations: true` in `search_read` to see all translations.
+- **The Matrix Format:** Translatable fields will return an array of objects if values diverge: `[{"value": "My Product", "langs": []}, {"value": "Mon Produit", "langs": ["fr_FR"]}]`.
+- **Broadcast Writing:** If you provide a simple string to a translatable field (e.g., `"name": "New Name"`), the server automatically syncs it across ALL active languages.
+- **Targeted Writing:** You can provide the expanded array format to `write_record` to update specific languages.
+
+### 10. System Vandalism Warning
 You are an AI agent with high-level access. You must NEVER:
 - Modify your own user record's `company_id`, `company_ids`, or `groups_id`.
 - Delete system-critical records to "clean up" your view.

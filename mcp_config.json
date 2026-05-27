@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "brass-monkey": {
+    "brass-monkey-odoo": {
       "command": "node",
-      "args": ["/home/mcm/WebstormProjects/brass-monkey/dist/bundle/index.js"],
+      "args": ["dist/bundle/index.js"],
       "cwd": "/home/mcm/WebstormProjects/brass-monkey"
     }
   }
