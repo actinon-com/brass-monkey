@@ -54,7 +54,7 @@ export async function inspectModel(manager: InstanceManager, input: InspectModel
   
   if (anyFieldFlag) {
     const fRecords = await client.executeKw('ir.model.fields', 'search_read', [[['model_id', '=', m.id]]], {
-      fields: ['name', 'field_description', 'ttype', 'relation', 'store', 'compute', 'related', 'modules', 'readonly', 'required', 'selection', 'help']
+      fields: ['name', 'field_description', 'ttype', 'relation', 'store', 'compute', 'related', 'modules', 'readonly', 'required', 'selection', 'help', 'translate', 'company_dependent', 'domain']
     });
 
     const buckets: Record<string, any> = { base: {}, extended: {}, computed: {}, related: {}, relational: {}, lines: {} };
@@ -65,14 +65,20 @@ export async function inspectModel(manager: InstanceManager, input: InspectModel
       if (f.required) props.push('required');
       if (f.readonly) props.push('readonly');
       if (!f.store) props.push('not-stored');
+      if (f.translate) props.push('translatable');
+      if (f.company_dependent) props.push('company-dependent');
 
-      const fieldData = {
+      const fieldData: any = {
         type: f.ttype,
         string: f.field_description,
         relation: f.relation || undefined,
         properties: props.length > 0 ? props : undefined,
         help: f.help || undefined,
       };
+
+      if (f.domain && f.domain !== '[]') {
+        fieldData.hint = `Search Filter: ${f.domain}`;
+      }
 
       if (f.compute) buckets.computed[f.name] = fieldData;
       if (f.related) buckets.related[f.name] = fieldData;

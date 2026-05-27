@@ -11,6 +11,7 @@
 - **Multi-Instance Manager:** Manage Production, Staging, and Dev environments in one session.
 - **OS-Level Security:** API Keys are stored in your operating system's secure keychain (Windows Credential Vault, macOS Keychain).
 - **Audit & Reversibility:** Every write operation captures a "Before Snapshot" and logs a mandatory justification to the Odoo record's Chatter.
+- **Middleware Orchestration:** Handles Odoo's complexity (Translations, Many2one labels, Search Hints) server-side, providing a "Forgiving Format" to AI agents.
 - **Version-Aware:** Automatically adapts to Odoo versions (v14 through v18+).
 - **Forgiving Interface:** Advanced Zod schemas reduce "formatting chatter" by automatically handling type coercion and array wrapping.
 - **23 Domain Skills:** Deep functional expertise pre-loaded for Sales, MRP, Finance, HR, and more.

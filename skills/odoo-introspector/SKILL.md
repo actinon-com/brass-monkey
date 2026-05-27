@@ -18,6 +18,7 @@ When inspecting an Odoo model (via `inspect_model`), you must assume the followi
 - **Mutability:** The field is both readable and writable (`readonly: false`).
 - **Optionality:** The field is optional (`required: false`).
 - **Scope:** The field is shared across all companies in the instance (`company_dependent: false`).
+- **Translation:** The field is NOT translatable (`translate: false`).
 
 ### 2. Interpreting Lean Property Encoding
 The `inspect_model` tool uses a compressed "Lean Property Encoding" strategy. Deviations from the baseline assumptions are listed in a `properties` array:
@@ -25,8 +26,14 @@ The `inspect_model` tool uses a compressed "Lean Property Encoding" strategy. De
 - `readonly`: The field is managed by the system and cannot be manually written.
 - `company-dependent`: The field value is stored per-company (via `ir.property`).
 - `not-stored`: The field is computed on-the-fly and cannot be used in direct SQL-like searches unless it is explicitly marked as stored.
+- `translatable`: The field supports multiple languages. The server handles language synchronization for you.
 
-### 3. Model Discovery Workflow
+### 3. Orchestrated Field Metadata
+Beyond basic properties, `inspect_model` provides middleware-driven enhancements:
+- **Search Hints (`hint`)**: Relational fields (Many2one) often include a `hint` property containing the Odoo domain. Use this to construct your `search_read` filters for that model.
+- **Label Expansion**: Relational fields are automatically expanded by the server where possible, providing both the ID and the display name.
+
+### 4. Model Discovery Workflow
 1. **Search:** Use `list_models` with a `search_term` to find the technical name (e.g., `sale.order`) of the business object you need.
 2. **Inspect:** Use `inspect_model` to understand the fields, their types, and their relationships.
     - **Proactive Discovery:** Use flags like `show_methods: true` to find Server Actions and View Buttons, or `show_ui: true` to find the XML IDs of associated forms and lists.

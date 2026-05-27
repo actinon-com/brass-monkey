@@ -141,7 +141,15 @@ export class OdooClient {
         for (const pattern of businessErrors) {
             const match = rawMessage.match(pattern);
             if (match && match[1]) {
-                return new Error(match[1].trim());
+                const msg = match[1].trim();
+                // Enhanced Actionable Feedback
+                if (msg.includes('does not exist') || msg.includes('column') || msg.includes('field')) {
+                    return new Error(`${msg}\n💡 ACTION: Your local schema is stale. You MUST execute 'inspect_model' for this model to synchronize.`);
+                }
+                if (msg.includes('Access Denied') || msg.includes('permission')) {
+                    return new Error(`${msg}\n💡 ACTION: You may be missing a required Skill or User Group. Verify with 'get_environment(show_security=true)'.`);
+                }
+                return new Error(msg);
             }
         }
         // 2. Check for common environment issues
