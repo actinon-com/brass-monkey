@@ -86,7 +86,11 @@ describe('CRUD Tools', () => {
 
   describe('createRecord', () => {
     it('should create a record and log the justification', async () => {
-      mockClient.executeKw.mockResolvedValue(101);
+      mockClient.executeKw
+        .mockResolvedValueOnce([]) // resolveFieldValues: fields search
+        .mockResolvedValueOnce([{ code: 'en_US' }]) // applyBroadcastWrite: langs search
+        .mockResolvedValueOnce(101); // applyBroadcastWrite: main create call
+      
       const result = await createRecord(mockManager, {
         model: 'res.partner',
         values: { name: 'New Partner' },
@@ -99,8 +103,12 @@ describe('CRUD Tools', () => {
 
   describe('writeRecord', () => {
     it('should capture snapshot, write, and post to chatter', async () => {
-      mockClient.executeKw.mockResolvedValueOnce([{ name: 'Old Name' }]);
-      mockClient.executeKw.mockResolvedValueOnce(true);
+      mockClient.executeKw
+        .mockResolvedValueOnce([]) // resolveFieldValues: fields search
+        .mockResolvedValueOnce([{ name: 'Old Name' }]) // writeRecord: before snapshot read
+        .mockResolvedValueOnce([{ code: 'en_US' }]) // applyBroadcastWrite: langs search
+        .mockResolvedValueOnce(true); // applyBroadcastWrite: main write call
+
       await writeRecord(mockManager, {
         model: 'res.partner',
         id: 1,
