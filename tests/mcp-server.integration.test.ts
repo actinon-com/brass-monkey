@@ -97,6 +97,60 @@ describe('MCP Server Integration', () => {
     }
   }, 15000); // 15s Vitest timeout
 
+  it('should return structuredContent in tool call responses', async () => {
+    const server = spawn('node', [SERVER_PATH]);
+    
+    let stdoutData = '';
+
+    server.stdout.on('data', (data) => {
+      stdoutData += data.toString();
+    });
+
+    // Send tools/call request for list_instances (which should return a string if unconfigured)
+    const request = JSON.stringify({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: {
+        name: 'list_instances',
+        arguments: {}
+      }
+    }) + '\n';
+
+    server.stdin.write(request);
+
+    // Wait for response
+    const response = await new Promise<string>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        server.kill();
+        reject(new Error(`Timeout waiting for tools/call response.\nStdout: ${stdoutData}`));
+      }, 5000);
+
+      server.stdout.on('data', () => {
+        if (stdoutData.includes('"result"') && stdoutData.includes('"jsonrpc"')) {
+          clearTimeout(timeout);
+          resolve(stdoutData);
+        }
+      });
+    });
+
+    server.kill();
+
+    const jsonResponse = JSON.parse(response);
+    expect(jsonResponse.id).toBe(2);
+    expect(jsonResponse.result.content).toBeDefined();
+    expect(jsonResponse.result.structuredContent).toBeDefined();
+    
+    // list_instances returns a string if no instances are configured, or an array if they are.
+    // Our wrapResult should have put it in 'value' or 'items' respectively.
+    if (jsonResponse.result.structuredContent.items) {
+      expect(Array.isArray(jsonResponse.result.structuredContent.items)).toBe(true);
+    } else {
+      expect(jsonResponse.result.structuredContent).toHaveProperty('value');
+      expect(typeof jsonResponse.result.structuredContent.value).toBe('string');
+    }
+  });
+
   it('should shut down cleanly when stdin is closed', async () => {
     const server = spawn('node', [SERVER_PATH]);
 

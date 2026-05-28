@@ -12,4 +12,10 @@ export declare class ResponsePruner {
      * Minifies strings, especially XML/HTML content which is common in Odoo.
      */
     private static minifyString;
+    /**
+     * Ensures the result is always a Record (object) for MCP structuredContent compatibility.
+     * Odoo tools often return Arrays (searches) or Numbers (counts) which violate the
+     * Record<string, unknown> constraint of the MCP structuredContent field.
+     */
+    static pack(data: any): Record<string, any>;
 }
