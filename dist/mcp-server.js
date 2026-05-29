@@ -226,6 +226,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     text: typeof prunedResult === 'string' ? prunedResult : JSON.stringify(prunedResult),
                 },
             ],
+            structuredContent: ResponsePruner.pack(prunedResult),
         };
     }
     catch (error) {

@@ -44,5 +44,22 @@ export class ResponsePruner {
         // 3. Standard string cleaning (remove actual newlines and redundant spaces)
         return minified.replace(/[\n\r]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
     }
+    /**
+     * Ensures the result is always a Record (object) for MCP structuredContent compatibility.
+     * Odoo tools often return Arrays (searches) or Numbers (counts) which violate the
+     * Record<string, unknown> constraint of the MCP structuredContent field.
+     */
+    static pack(data) {
+        if (data === null || data === undefined) {
+            return { value: data };
+        }
+        if (Array.isArray(data)) {
+            return { items: data };
+        }
+        if (typeof data !== 'object') {
+            return { value: data };
+        }
+        return data;
+    }
 }
 //# sourceMappingURL=response-pruner.js.map
