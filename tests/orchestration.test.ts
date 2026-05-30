@@ -161,6 +161,7 @@ describe('Orchestrated Introspection', () => {
   it('should include translatable flag and search hints for relational fields', async () => {
     mockClient.executeKw
       .mockResolvedValueOnce([{ id: 100, modules: 'base', name: 'Partner', transient: false }]) // model info
+      .mockResolvedValueOnce([{ module: 'base' }]) // resolveBaseModule (ir.model.data)
       .mockResolvedValueOnce([
         { 
           name: 'name', 

@@ -7,7 +7,7 @@ import { InstanceManager } from '../services/instance-manager.js';
  */
 export const InspectModelSchema = z.object({
   model: z.string().describe('Technical model name (e.g., "res.partner")'),
-  show_base: z.boolean().optional().default(false).describe("Include standard 'Base' fields (Name, Active, ID, etc.)."),
+  show_base: z.boolean().optional().default(true).describe("Include standard 'Base' fields (Name, Active, ID, etc.)."),
   show_extended: z.boolean().optional().default(false).describe("Include fields added by extension modules."),
   show_computed: z.boolean().optional().default(false).describe("Include non-stored, calculated fields."),
   show_related: z.boolean().optional().default(false).describe("Include mirror fields from related models."),
@@ -24,6 +24,29 @@ export const InspectModelSchema = z.object({
 export type InspectModelInput = z.infer<typeof InspectModelSchema>;
 
 /**
+ * Definitively identifies the origin module of a model using ir.model.data (XML ID).
+ */
+async function resolveBaseModule(client: any, modelId: number, moduleListStr: string): Promise<string> {
+  const moduleList = moduleListStr.split(',').map(m => m.trim());
+  const mDatas = await client.executeKw('ir.model.data', 'search_read', [
+    [['model', '=', 'ir.model'], ['res_id', '=', modelId]]
+  ], {
+    fields: ['module']
+  });
+  
+  const allOriginMods = mDatas.map((m: any) => m.module);
+  if (allOriginMods.includes('base')) {
+    return 'base';
+  } else if (allOriginMods.length > 0) {
+    // Return the shortest module name (e.g., 'sale' vs 'sale_management' or 'helpdesk_sale_timesheet')
+    const sorted = [...allOriginMods].sort((a, b) => a.length - b.length);
+    return sorted[0];
+  } else {
+    return moduleList[0];
+  }
+}
+
+/**
  * Tool to perform a deep architectural audit of an Odoo model's definition.
  * Dynamically categorizes fields and discovers execution/UI entry points.
  */
@@ -38,14 +61,22 @@ export async function inspectModel(manager: InstanceManager, input: InspectModel
   });
   if (!modelInfo || modelInfo.length === 0) throw new Error(`Model not found: ${model}`);
   const m = modelInfo[0];
-  const baseModule = m.modules.split(',')[0].trim();
+  
+  let baseModule = '';
+  let debugErr = null;
+  try {
+    baseModule = await resolveBaseModule(client, m.id, m.modules || '');
+  } catch (e: any) {
+    debugErr = e.message || String(e);
+  }
 
   const res: any = {
     identity: {
       model: model,
       description: m.name,
       base_module: baseModule,
-      is_transient: m.transient
+      is_transient: m.transient,
+      _debug_error: debugErr
     }
   };
 
@@ -60,7 +91,8 @@ export async function inspectModel(manager: InstanceManager, input: InspectModel
     const buckets: Record<string, any> = { base: {}, extended: {}, computed: {}, related: {}, relational: {}, lines: {} };
 
     for (const f of fRecords) {
-      const isBase = f.modules.includes(baseModule);
+      // Split the comma-separated modules and check for exact module matching (prevents substring matching like sale_stock matching sale)
+      const isBase = f.modules.split(',').map((mod: string) => mod.trim()).includes(baseModule);
       const props: string[] = [];
       if (f.required) props.push('required');
       if (f.readonly) props.push('readonly');

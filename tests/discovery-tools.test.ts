@@ -54,6 +54,7 @@ describe('Discovery Tools', () => {
     it('should retrieve model identity and categorized fields', async () => {
       mockClient.executeKw
         .mockResolvedValueOnce([{ id: 1, name: 'Contact', modules: 'base', transient: false }]) // model
+        .mockResolvedValueOnce([{ module: 'base' }]) // resolveBaseModule (ir.model.data)
         .mockResolvedValueOnce([
           { name: 'name', field_description: 'Name', ttype: 'char', modules: 'base', store: true, required: true },
           { name: 'x_custom', field_description: 'Custom', ttype: 'char', modules: 'studio_custom', store: true },
