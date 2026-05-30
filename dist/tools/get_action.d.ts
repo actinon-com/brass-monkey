@@ -21,6 +21,8 @@ export declare function getAction(manager: InstanceManager, input: GetActionInpu
     res_model: any;
     view_mode: any;
     view_id: any;
+    views: Record<string, number> | undefined;
+    menus: any;
     domain: any;
     context: any;
     target: any;

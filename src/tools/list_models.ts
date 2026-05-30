@@ -13,6 +13,8 @@ export const ListModelsSchema = z.object({
     }
     return val;
   }, z.string().optional()).describe('Optional filter for model name or description (e.g., "sale")'),
+  limit: z.coerce.number().optional().default(50).describe('Maximum number of models to return (defaults to 50)'),
+  offset: z.coerce.number().optional().default(0).describe('Number of models to skip (for pagination)'),
   instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 
@@ -22,10 +24,10 @@ export type ListModelsInput = z.infer<typeof ListModelsSchema>;
  * Tool to list Odoo technical models.
  * Enhances the output with Skill Gate breadcrumbs to guide the agent.
  */
-export async function listModels(manager: InstanceManager, input: ListModelsInput = {}) {
+export async function listModels(manager: InstanceManager, input: ListModelsInput = { limit: 50, offset: 0 }) {
   // Enforce schema parsing to apply defaults and preprocessors
   const parsedInput = ListModelsSchema.parse(input);
-  const { search_term, instance_alias } = parsedInput;
+  const { search_term, limit, offset, instance_alias } = parsedInput;
   const client = await manager.getClient(instance_alias);
   
   const domain: any[] = [];
@@ -60,9 +62,14 @@ export async function listModels(manager: InstanceManager, input: ListModelsInpu
     };
   });
 
+  const paginatedResults = results.slice(offset, offset + limit);
+
   return {
     search_term: search_term || undefined,
-    count: results.length,
-    results
+    count: paginatedResults.length,
+    total_count: results.length,
+    offset,
+    limit,
+    results: paginatedResults
   };
 }

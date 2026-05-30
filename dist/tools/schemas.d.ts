@@ -59,6 +59,14 @@ export declare const LIST_MODELS_SCHEMA: {
             type: string;
             description: string;
         };
+        limit: {
+            type: string;
+            description: string;
+        };
+        offset: {
+            type: string;
+            description: string;
+        };
         instance_alias: {
             type: string;
             description: string;
@@ -140,6 +148,14 @@ export declare const TRACE_UI_PATH_SCHEMA: {
 export declare const GET_MENU_SCHEMA: {
     type: string;
     properties: {
+        parent_id: {
+            type: string;
+            description: string;
+        };
+        search_term: {
+            type: string;
+            description: string;
+        };
         instance_alias: {
             type: string;
             description: string;

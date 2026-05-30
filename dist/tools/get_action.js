@@ -32,18 +32,41 @@ export async function getAction(manager, input) {
     // 2. Select columns to read based on the resolved action model
     const fieldsToRead = ['name', 'type', 'help'];
     if (modelToQuery === 'ir.actions.act_window') {
-        fieldsToRead.push('res_model', 'view_mode', 'view_id', 'domain', 'context', 'target');
+        fieldsToRead.push('res_model', 'view_mode', 'view_id', 'domain', 'context', 'target', 'view_ids');
     }
     else if (modelToQuery === 'ir.actions.server') {
         fieldsToRead.push('model_id', 'state');
     }
-    const action = await client.executeKw(modelToQuery, 'read', [[action_id]], {
-        fields: fieldsToRead,
-    });
-    if (!action || action.length === 0) {
+    // Execute the action read and the parent menus where-used search in parallel
+    const [actionRecs, boundMenus] = await Promise.all([
+        client.executeKw(modelToQuery, 'read', [[action_id]], { fields: fieldsToRead }),
+        client.executeKw('ir.ui.menu', 'search_read', [[['action', '=', `${modelToQuery},${action_id}`]]], { fields: ['complete_name'] })
+    ]);
+    if (!actionRecs || actionRecs.length === 0) {
         throw new Error(`Action not found: ${modelToQuery} with ID ${action_id}`);
     }
-    const act = action[0];
+    const act = actionRecs[0];
+    const menusList = boundMenus.map((bm) => bm.complete_name);
+    // 3. If Windows Action, resolve its specific sub-view bindings (ir.actions.act_window.view)
+    const resolvedViews = {};
+    if (modelToQuery === 'ir.actions.act_window' && Array.isArray(act.view_ids) && act.view_ids.length > 0) {
+        try {
+            const viewsMeta = await client.executeKw('ir.actions.act_window.view', 'search_read', [[['id', 'in', act.view_ids]]], {
+                fields: ['view_mode', 'view_id']
+            });
+            for (const vm of viewsMeta) {
+                if (vm.view_id && vm.view_mode) {
+                    resolvedViews[vm.view_mode] = vm.view_id[0];
+                }
+            }
+        }
+        catch (e) { }
+    }
+    // Fallback to single view_id if no specific sub-views exist
+    if (Object.keys(resolvedViews).length === 0 && act.view_id && act.view_mode) {
+        const primaryMode = act.view_mode.split(',')[0];
+        resolvedViews[primaryMode] = act.view_id[0];
+    }
     return {
         id: action_id,
         type: modelToQuery,
@@ -51,6 +74,8 @@ export async function getAction(manager, input) {
         res_model: act.res_model || undefined,
         view_mode: act.view_mode || undefined,
         view_id: act.view_id ? act.view_id[0] : undefined,
+        views: Object.keys(resolvedViews).length > 0 ? resolvedViews : undefined,
+        menus: menusList.length > 0 ? menusList : undefined,
         domain: act.domain || undefined,
         context: act.context || undefined,
         target: act.target || undefined,

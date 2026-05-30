@@ -38511,6 +38511,8 @@ const LIST_MODELS_SCHEMA = {
     type: "object",
     properties: {
         search_term: { type: "string", description: 'Filter models by technical name or description (e.g., "sale"). Use this to find the correct model name before searching.' },
+        limit: { type: "number", description: "Maximum number of models to return (defaults to 50)." },
+        offset: { type: "number", description: "Number of models to skip (for pagination, defaults to 0)." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
 };
@@ -38544,6 +38546,8 @@ const TRACE_UI_PATH_SCHEMA = {
 const GET_MENU_SCHEMA = {
     type: "object",
     properties: {
+        parent_id: { type: "number", description: "Optional parent menu ID. If omitted and search_term is blank, returns top-level apps." },
+        search_term: { type: "string", description: 'Optional filter for menu name (e.g., "Sales").' },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
 };
@@ -38886,16 +38890,18 @@ const ListModelsSchema = schemas_object({
         }
         return val;
     }, classic_schemas_string().optional()).describe('Optional filter for model name or description (e.g., "sale")'),
+    limit: classic_coerce_number().optional().default(50).describe('Maximum number of models to return (defaults to 50)'),
+    offset: classic_coerce_number().optional().default(0).describe('Number of models to skip (for pagination)'),
     instance_alias: classic_schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
  * Tool to list Odoo technical models.
  * Enhances the output with Skill Gate breadcrumbs to guide the agent.
  */
-async function listModels(manager, input = {}) {
+async function listModels(manager, input = { limit: 50, offset: 0 }) {
     // Enforce schema parsing to apply defaults and preprocessors
     const parsedInput = ListModelsSchema.parse(input);
-    const { search_term, instance_alias } = parsedInput;
+    const { search_term, limit, offset, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     const domain = [];
     if (search_term) {
@@ -38926,10 +38932,14 @@ async function listModels(manager, input = {}) {
             required_skill: requiredSkill
         };
     });
+    const paginatedResults = results.slice(offset, offset + limit);
     return {
         search_term: search_term || undefined,
-        count: results.length,
-        results
+        count: paginatedResults.length,
+        total_count: results.length,
+        offset,
+        limit,
+        results: paginatedResults
     };
 }
 
@@ -39277,44 +39287,75 @@ async function inspectModel(manager, input) {
 
 /**
  * Zod schema for get_menu tool input.
- * Includes pre-processing to handle single-item arrays.
  */
 const GetMenuSchema = schemas_object({
+    parent_id: preprocess((val) => {
+        if (val === 'false' || val === 'False')
+            return null;
+        return val;
+    }, classic_coerce_number().nullable().optional()).describe('Optional parent menu ID. If omitted and search_term is blank, returns top-level apps.'),
     search_term: preprocess((val) => {
         if (Array.isArray(val) && val.length === 1 && typeof val[0] === 'string') {
             return val[0];
         }
         return val;
-    }, classic_schemas_string().optional()).describe('Optional filter for menu name (e.g., "Sales")'),
+    }, classic_schemas_string().optional()).describe('Optional semantic filter for menu name (e.g., "Sales").'),
     instance_alias: classic_schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
  * Tool to retrieve Odoo menu hierarchy.
- * @param manager The InstanceManager instance.
- * @param input The GetMenuInput parameters.
- * @returns An array of menu items with their complete names and associated actions.
+ * Supports hierarchical parent drilling and full ancestral path search.
  */
 async function getMenu(manager, input = {}) {
-    const { search_term, instance_alias } = input;
+    // Enforce schema parsing to apply defaults and preprocessors
+    const parsedInput = GetMenuSchema.parse(input);
+    const { parent_id, search_term, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     const domain = [];
+    // 1. Core Logic: Breadth-First Gated Routing
     if (search_term) {
-        domain.push(['name', 'ilike', search_term]);
+        // Mode A: Semantic Search
+        domain.push('|', ['name', 'ilike', search_term], ['complete_name', 'ilike', search_term]);
+    }
+    else {
+        // Mode B: Hierarchical drilling
+        if (parent_id !== undefined && parent_id !== null) {
+            domain.push(['parent_id', '=', parent_id]);
+        }
+        else {
+            domain.push(['parent_id', '=', false]); // Top-level apps only (prevents 1,000+ item dump)
+        }
     }
     const menus = await client.executeKw('ir.ui.menu', 'search_read', [domain], {
-        fields: ['id', 'complete_name', 'action', 'parent_id'],
+        fields: ['id', 'name', 'complete_name', 'action', 'parent_id', 'child_id'],
     });
-    const result = menus.map((m) => ({
-        id: m.id,
-        name: m.complete_name,
-        action: m.action ? {
-            id: parseInt(m.action.split(',')[0]),
-            type: m.action.split(',')[1],
-        } : null,
-        parent_id: m.parent_id ? m.parent_id[0] : null,
-    }));
-    // Sort by complete name in memory
-    return result.sort((a, b) => a.name.localeCompare(b.name));
+    const results = menus.map((m) => {
+        let act = null;
+        if (m.action && typeof m.action === 'string' && m.action.includes(',')) {
+            const parts = m.action.split(',');
+            act = {
+                id: parseInt(parts[0]),
+                type: parts[1],
+            };
+        }
+        return {
+            id: m.id,
+            name: m.name,
+            complete_name: m.complete_name || m.name, // Ancestor path (e.g., "Sales / Orders / Quotations")
+            action: act,
+            parent_id: m.parent_id ? m.parent_id[0] : null,
+            has_children: Array.isArray(m.child_id) && m.child_id.length > 0,
+            children_count: Array.isArray(m.child_id) ? m.child_id.length : 0,
+        };
+    });
+    // Sort by complete name in memory for clean presentation
+    results.sort((a, b) => a.complete_name.localeCompare(b.complete_name));
+    return {
+        parent_id: parent_id || undefined,
+        search_term: search_term || undefined,
+        count: results.length,
+        results
+    };
 }
 
 ;// CONCATENATED MODULE: ./src/tools/get_action.ts
@@ -39352,18 +39393,41 @@ async function getAction(manager, input) {
     // 2. Select columns to read based on the resolved action model
     const fieldsToRead = ['name', 'type', 'help'];
     if (modelToQuery === 'ir.actions.act_window') {
-        fieldsToRead.push('res_model', 'view_mode', 'view_id', 'domain', 'context', 'target');
+        fieldsToRead.push('res_model', 'view_mode', 'view_id', 'domain', 'context', 'target', 'view_ids');
     }
     else if (modelToQuery === 'ir.actions.server') {
         fieldsToRead.push('model_id', 'state');
     }
-    const action = await client.executeKw(modelToQuery, 'read', [[action_id]], {
-        fields: fieldsToRead,
-    });
-    if (!action || action.length === 0) {
+    // Execute the action read and the parent menus where-used search in parallel
+    const [actionRecs, boundMenus] = await Promise.all([
+        client.executeKw(modelToQuery, 'read', [[action_id]], { fields: fieldsToRead }),
+        client.executeKw('ir.ui.menu', 'search_read', [[['action', '=', `${modelToQuery},${action_id}`]]], { fields: ['complete_name'] })
+    ]);
+    if (!actionRecs || actionRecs.length === 0) {
         throw new Error(`Action not found: ${modelToQuery} with ID ${action_id}`);
     }
-    const act = action[0];
+    const act = actionRecs[0];
+    const menusList = boundMenus.map((bm) => bm.complete_name);
+    // 3. If Windows Action, resolve its specific sub-view bindings (ir.actions.act_window.view)
+    const resolvedViews = {};
+    if (modelToQuery === 'ir.actions.act_window' && Array.isArray(act.view_ids) && act.view_ids.length > 0) {
+        try {
+            const viewsMeta = await client.executeKw('ir.actions.act_window.view', 'search_read', [[['id', 'in', act.view_ids]]], {
+                fields: ['view_mode', 'view_id']
+            });
+            for (const vm of viewsMeta) {
+                if (vm.view_id && vm.view_mode) {
+                    resolvedViews[vm.view_mode] = vm.view_id[0];
+                }
+            }
+        }
+        catch (e) { }
+    }
+    // Fallback to single view_id if no specific sub-views exist
+    if (Object.keys(resolvedViews).length === 0 && act.view_id && act.view_mode) {
+        const primaryMode = act.view_mode.split(',')[0];
+        resolvedViews[primaryMode] = act.view_id[0];
+    }
     return {
         id: action_id,
         type: modelToQuery,
@@ -39371,6 +39435,8 @@ async function getAction(manager, input) {
         res_model: act.res_model || undefined,
         view_mode: act.view_mode || undefined,
         view_id: act.view_id ? act.view_id[0] : undefined,
+        views: Object.keys(resolvedViews).length > 0 ? resolvedViews : undefined,
+        menus: menusList.length > 0 ? menusList : undefined,
         domain: act.domain || undefined,
         context: act.context || undefined,
         target: act.target || undefined,

@@ -40,6 +40,8 @@ export const LIST_MODELS_SCHEMA = {
   type: "object",
   properties: {
     search_term: { type: "string", description: 'Filter models by technical name or description (e.g., "sale"). Use this to find the correct model name before searching.' },
+    limit: { type: "number", description: "Maximum number of models to return (defaults to 50)." },
+    offset: { type: "number", description: "Number of models to skip (for pagination, defaults to 0)." },
     instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
   },
 };
@@ -76,6 +78,8 @@ export const TRACE_UI_PATH_SCHEMA = {
 export const GET_MENU_SCHEMA = {
   type: "object",
   properties: {
+    parent_id: { type: "number", description: "Optional parent menu ID. If omitted and search_term is blank, returns top-level apps." },
+    search_term: { type: "string", description: 'Optional filter for menu name (e.g., "Sales").' },
     instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
   },
 };
