@@ -83,7 +83,8 @@ export const GET_MENU_SCHEMA = {
 export const GET_ACTION_SCHEMA = {
   type: "object",
   properties: {
-    action_id: { type: "number", description: "The technical database ID of the ir.actions.act_window." },
+    action_id: { type: "number", description: "The technical database ID of the Odoo action." },
+    action_type: { type: "string", description: "Optional technical type (e.g., 'ir.actions.act_window'). If omitted, the server dynamically auto-resolves the exact model." },
     instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
   },
   required: ["action_id"],

@@ -23,7 +23,9 @@ export type ListModelsInput = z.infer<typeof ListModelsSchema>;
  * Enhances the output with Skill Gate breadcrumbs to guide the agent.
  */
 export async function listModels(manager: InstanceManager, input: ListModelsInput = {}) {
-  const { search_term, instance_alias } = input;
+  // Enforce schema parsing to apply defaults and preprocessors
+  const parsedInput = ListModelsSchema.parse(input);
+  const { search_term, instance_alias } = parsedInput;
   const client = await manager.getClient(instance_alias);
   
   const domain: any[] = [];
@@ -36,7 +38,7 @@ export async function listModels(manager: InstanceManager, input: ListModelsInpu
     order: 'model asc',
   });
 
-  return models.map((m: any) => {
+  const results = models.map((m: any) => {
     // Resolve required skill for breadcrumb
     let requiredSkill = null;
     for (const [skill, prefixes] of Object.entries(SKILL_DOMAIN_MAP)) {
@@ -57,4 +59,10 @@ export async function listModels(manager: InstanceManager, input: ListModelsInpu
       required_skill: requiredSkill
     };
   });
+
+  return {
+    search_term: search_term || undefined,
+    count: results.length,
+    results
+  };
 }

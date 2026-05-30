@@ -38550,7 +38550,8 @@ const GET_MENU_SCHEMA = {
 const GET_ACTION_SCHEMA = {
     type: "object",
     properties: {
-        action_id: { type: "number", description: "The technical database ID of the ir.actions.act_window." },
+        action_id: { type: "number", description: "The technical database ID of the Odoo action." },
+        action_type: { type: "string", description: "Optional technical type (e.g., 'ir.actions.act_window'). If omitted, the server dynamically auto-resolves the exact model." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["action_id"],
@@ -38892,7 +38893,9 @@ const ListModelsSchema = schemas_object({
  * Enhances the output with Skill Gate breadcrumbs to guide the agent.
  */
 async function listModels(manager, input = {}) {
-    const { search_term, instance_alias } = input;
+    // Enforce schema parsing to apply defaults and preprocessors
+    const parsedInput = ListModelsSchema.parse(input);
+    const { search_term, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     const domain = [];
     if (search_term) {
@@ -38902,7 +38905,7 @@ async function listModels(manager, input = {}) {
         fields: ['model', 'name', 'transient'],
         order: 'model asc',
     });
-    return models.map((m) => {
+    const results = models.map((m) => {
         // Resolve required skill for breadcrumb
         let requiredSkill = null;
         for (const [skill, prefixes] of Object.entries(SKILL_DOMAIN_MAP)) {
@@ -38923,6 +38926,11 @@ async function listModels(manager, input = {}) {
             required_skill: requiredSkill
         };
     });
+    return {
+        search_term: search_term || undefined,
+        count: results.length,
+        results
+    };
 }
 
 ;// CONCATENATED MODULE: ./src/services/metadata-cache.ts
@@ -39317,38 +39325,58 @@ async function getMenu(manager, input = {}) {
  */
 const GetActionSchema = schemas_object({
     action_id: classic_coerce_number().describe('Database ID of the action (e.g., 123)'),
-    action_type: classic_schemas_string().default('ir.actions.act_window').describe('The technical type of the action.'),
+    action_type: classic_schemas_string().optional().describe('The technical type of the action (optional, auto-resolved if omitted).'),
     instance_alias: classic_schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
- * Tool to retrieve Odoo action details (e.g., act_window).
- * @param manager The InstanceManager instance.
- * @param input The GetActionInput parameters.
- * @returns Details of the Odoo action, including target model and views.
+ * Tool to retrieve Odoo action details (e.g., act_window, server actions).
+ * Automatically resolves the correct Odoo actions model dynamically to prevent crashes.
  */
 async function getAction(manager, input) {
-    const { action_id, action_type, instance_alias } = input;
+    // Enforce schema parsing to apply defaults and preprocessors
+    const parsedInput = GetActionSchema.parse(input);
+    const { action_id, action_type, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
-    const action = await client.executeKw(action_type, 'read', [[action_id]], {
-        fields: [
-            'name', 'res_model', 'view_mode', 'view_id',
-            'domain', 'context', 'target', 'help'
-        ],
+    let resolvedModel = action_type;
+    // 1. If action_type is omitted, dynamically resolve the actual model using ir.actions.actions
+    if (!resolvedModel) {
+        const actionMeta = await client.executeKw('ir.actions.actions', 'read', [[action_id]], {
+            fields: ['type']
+        });
+        if (!actionMeta || actionMeta.length === 0) {
+            throw new Error(`Action not found with ID ${action_id}`);
+        }
+        resolvedModel = actionMeta[0].type; // e.g. 'ir.actions.server' or 'ir.actions.act_window'
+    }
+    const modelToQuery = resolvedModel || 'ir.actions.act_window';
+    // 2. Select columns to read based on the resolved action model
+    const fieldsToRead = ['name', 'type', 'help'];
+    if (modelToQuery === 'ir.actions.act_window') {
+        fieldsToRead.push('res_model', 'view_mode', 'view_id', 'domain', 'context', 'target');
+    }
+    else if (modelToQuery === 'ir.actions.server') {
+        fieldsToRead.push('model_id', 'state');
+    }
+    const action = await client.executeKw(modelToQuery, 'read', [[action_id]], {
+        fields: fieldsToRead,
     });
     if (!action || action.length === 0) {
-        throw new Error(`Action not found: ${action_type} with ID ${action_id}`);
+        throw new Error(`Action not found: ${modelToQuery} with ID ${action_id}`);
     }
     const act = action[0];
     return {
         id: action_id,
+        type: modelToQuery,
         name: act.name,
-        res_model: act.res_model,
-        view_mode: act.view_mode,
-        view_id: act.view_id ? act.view_id[0] : null,
-        domain: act.domain || '[]',
-        context: act.context || '{}',
-        target: act.target,
-        help: act.help,
+        res_model: act.res_model || undefined,
+        view_mode: act.view_mode || undefined,
+        view_id: act.view_id ? act.view_id[0] : undefined,
+        domain: act.domain || undefined,
+        context: act.context || undefined,
+        target: act.target || undefined,
+        state: act.state || undefined,
+        model_id: act.model_id ? act.model_id[1] : undefined,
+        help: act.help || undefined,
     };
 }
 

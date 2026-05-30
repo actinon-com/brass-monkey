@@ -4,6 +4,7 @@ import { inspectModel } from '../src/tools/inspect_model.js';
 import { getEnvironment } from '../src/tools/get_environment.js';
 import { traceUiPath } from '../src/tools/trace_ui_path.js';
 import { getAuditLog } from '../src/tools/get_audit_log.js';
+import { getAction } from '../src/tools/get_action.js';
 
 describe('Discovery Tools', () => {
   let mockClient: any;
@@ -78,6 +79,46 @@ describe('Discovery Tools', () => {
 
       expect(result.summary).toContain('Found 1 UI path');
       expect(result.paths[0].menu_path).toBe('Contacts / Contacts');
+    });
+  });
+
+  describe('listModels', () => {
+    it('should retrieve list of models in a structured metadata envelope', async () => {
+      mockClient.executeKw.mockResolvedValueOnce([
+        { model: 'sale.order', name: 'Sales Order', transient: false }
+      ]);
+
+      const result = await listModels(mockManager, { search_term: 'sale' });
+
+      expect(result).toEqual({
+        search_term: 'sale',
+        count: 1,
+        results: [
+          { model: 'sale.order', name: 'Sales Order', transient: false, required_skill: 'odoo-sales' }
+        ]
+      });
+    });
+  });
+
+  describe('getAction', () => {
+    it('should dynamically auto-resolve action model and read correctly', async () => {
+      mockClient.executeKw
+        .mockResolvedValueOnce([{ type: 'ir.actions.act_window' }]) // ir.actions.actions type lookup
+        .mockResolvedValueOnce([{ name: 'All tasks', res_model: 'project.task', view_mode: 'kanban' }]); // act_window read
+
+      const result = await getAction(mockManager, { action_id: 123 });
+
+      expect(mockClient.executeKw).toHaveBeenNthCalledWith(1, 'ir.actions.actions', 'read', [[123]], { fields: ['type'] });
+      expect(mockClient.executeKw).toHaveBeenNthCalledWith(2, 'ir.actions.act_window', 'read', [[123]], expect.objectContaining({
+        fields: expect.arrayContaining(['name', 'res_model', 'view_mode'])
+      }));
+      expect(result).toEqual({
+        id: 123,
+        type: 'ir.actions.act_window',
+        name: 'All tasks',
+        res_model: 'project.task',
+        view_mode: 'kanban'
+      });
     });
   });
 

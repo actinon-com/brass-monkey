@@ -153,6 +153,10 @@ export declare const GET_ACTION_SCHEMA: {
             type: string;
             description: string;
         };
+        action_type: {
+            type: string;
+            description: string;
+        };
         instance_alias: {
             type: string;
             description: string;

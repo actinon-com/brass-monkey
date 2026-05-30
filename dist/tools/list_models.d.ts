@@ -13,4 +13,8 @@ export type ListModelsInput = z.infer<typeof ListModelsSchema>;
  * Tool to list Odoo technical models.
  * Enhances the output with Skill Gate breadcrumbs to guide the agent.
  */
-export declare function listModels(manager: InstanceManager, input?: ListModelsInput): Promise<any>;
+export declare function listModels(manager: InstanceManager, input?: ListModelsInput): Promise<{
+    search_term: string | undefined;
+    count: any;
+    results: any;
+}>;
