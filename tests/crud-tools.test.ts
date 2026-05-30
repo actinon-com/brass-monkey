@@ -87,7 +87,7 @@ describe('CRUD Tools', () => {
         count: 1,
         offset: 0,
         limit: undefined,
-        results: [{ __count: 5, state: 'draft' }]
+        results: [{ count: 5, state: 'draft' }]
       });
     });
   });

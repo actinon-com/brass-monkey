@@ -38,13 +38,22 @@ export async function aggregateRecords(manager, input) {
         options.limit = limit;
     }
     const results = await client.executeKw(model, 'read_group', [domain, fields || [], groupby], options);
+    // Post-process to maximize data density, strip __domain, and normalize __count to count
+    const formattedResults = results.map((r) => {
+        const { __domain, __count, ...rest } = r;
+        const formatted = { ...rest };
+        if (__count !== undefined) {
+            formatted.count = __count;
+        }
+        return formatted;
+    });
     return {
         model,
         groupby,
-        count: results.length,
+        count: formattedResults.length,
         offset: offset || 0,
         limit: limit || undefined,
-        results
+        results: formattedResults
     };
 }
 //# sourceMappingURL=aggregate_records.js.map
