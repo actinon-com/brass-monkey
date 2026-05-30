@@ -20,12 +20,11 @@ describe('UX & Navigation Tools', () => {
   describe('getMenu', () => {
     it('should return a list of formatted menus inside a structured metadata envelope', async () => {
       mockClient.executeKw.mockResolvedValue([
-        { id: 1, name: 'Orders', complete_name: 'Sales / Orders', action: '123,ir.actions.act_window', parent_id: [10, 'Sales'], child_id: [] },
+        { id: 1, name: 'Orders', complete_name: 'Sales / Orders', action: 'ir.actions.act_window,123', parent_id: false, child_id: [] },
       ]);
       const result = await getMenu(mockManager, { search_term: 'Sales' });
       
       expect(result).toEqual({
-        parent_id: undefined,
         search_term: 'Sales',
         count: 1,
         results: [
@@ -34,9 +33,9 @@ describe('UX & Navigation Tools', () => {
             name: 'Orders',
             complete_name: 'Sales / Orders',
             action: { id: 123, type: 'ir.actions.act_window' },
-            parent_id: 10,
-            has_children: false,
-            children_count: 0
+            parent_id: null,
+            children_count: 0,
+            children: []
           }
         ]
       });

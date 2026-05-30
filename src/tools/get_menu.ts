@@ -8,75 +8,147 @@ export const GetMenuSchema = z.object({
   parent_id: z.preprocess((val) => {
     if (val === 'false' || val === 'False') return null;
     return val;
-  }, z.coerce.number().nullable().optional()).describe('Optional parent menu ID. If omitted and search_term is blank, returns top-level apps.'),
+  }, z.coerce.number().nullable().optional()).describe('Optional parent menu ID to drill down hierarchically.'),
   search_term: z.preprocess((val) => {
     if (Array.isArray(val) && val.length === 1 && typeof val[0] === 'string') {
       return val[0];
     }
     return val;
-  }, z.string().optional()).describe('Optional semantic filter for menu name (e.g., "Sales").'),
+  }, z.string().optional()).describe('Optional semantic filter (e.g., "Currencies"). Returns a highly pruned, clean ancestral tree path directly to the match.'),
   instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 
 export type GetMenuInput = z.infer<typeof GetMenuSchema>;
 
+interface MenuNode {
+  id: number;
+  name: string;
+  complete_name?: string;
+  action: { id: number; type: string } | null;
+  parent_id: number | null;
+  children: MenuNode[];
+  children_count?: number;
+}
+
+/**
+ * Helper to parse Odoo's reference-type action field ("model,id" format)
+ */
+function parseOdooAction(actionStr: any): { id: number; type: string } | null {
+  if (actionStr && typeof actionStr === 'string' && actionStr.includes(',')) {
+    const parts = actionStr.split(',');
+    // Odoo's reference field format is "ir.actions.act_window,66" (model first, then ID)
+    const type = parts[0].trim();
+    const id = parseInt(parts[1].trim(), 10);
+    if (!isNaN(id)) {
+      return { id, type };
+    }
+  }
+  return null;
+}
+
+/**
+ * Build a recursive tree from a flat list of nodes
+ */
+function buildTree(nodes: any[], parentId: number | null = null, maxDepth: number = 99, currentDepth: number = 0): MenuNode[] {
+  if (currentDepth > maxDepth) return [];
+  
+  const tree: MenuNode[] = [];
+  const levelNodes = nodes.filter(n => n.parent_id === parentId);
+
+  // Sort by sequence or complete_name
+  levelNodes.sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+
+  for (const n of levelNodes) {
+    const children = buildTree(nodes, n.id, maxDepth, currentDepth + 1);
+    tree.push({
+      id: n.id,
+      name: n.name,
+      complete_name: n.complete_name || undefined,
+      action: parseOdooAction(n.action),
+      parent_id: n.parent_id,
+      children_count: n.children_count || children.length,
+      children
+    });
+  }
+
+  return tree;
+}
+
 /**
  * Tool to retrieve Odoo menu hierarchy.
- * Supports hierarchical parent drilling and full ancestral path search.
+ * Generates an extremely dense, pruned recursive JSON tree for both search and navigation.
  */
 export async function getMenu(manager: InstanceManager, input: GetMenuInput = {}) {
   // Enforce schema parsing to apply defaults and preprocessors
   const parsedInput = GetMenuSchema.parse(input);
   const { parent_id, search_term, instance_alias } = parsedInput;
   const client = await manager.getClient(instance_alias);
-  
-  const domain: any[] = [];
-  
-  // 1. Core Logic: Breadth-First Gated Routing
-  if (search_term) {
-    // Mode A: Semantic Search
-    domain.push('|', ['name', 'ilike', search_term], ['complete_name', 'ilike', search_term]);
-  } else {
-    // Mode B: Hierarchical drilling
-    if (parent_id !== undefined && parent_id !== null) {
-      domain.push(['parent_id', '=', parent_id]);
-    } else {
-      domain.push(['parent_id', '=', false]); // Top-level apps only (prevents 1,000+ item dump)
-    }
-  }
 
-  const menus = await client.executeKw('ir.ui.menu', 'search_read', [domain], {
-    fields: ['id', 'name', 'complete_name', 'action', 'parent_id', 'child_id'],
+  // Fetch all active menus to build the in-memory tree (lightweight columns only)
+  const menus = await client.executeKw('ir.ui.menu', 'search_read', [[]], {
+    fields: ['id', 'name', 'complete_name', 'action', 'parent_id', 'sequence', 'child_id'],
   });
 
-  const results = menus.map((m: any) => {
-    let act = null;
-    if (m.action && typeof m.action === 'string' && m.action.includes(',')) {
-      const parts = m.action.split(',');
-      act = {
-        id: parseInt(parts[0]),
-        type: parts[1],
+  // Map to simple nodes
+  const flatNodes = menus.map((m: any) => ({
+    id: m.id,
+    name: m.name,
+    complete_name: m.complete_name,
+    action: m.action,
+    parent_id: m.parent_id ? m.parent_id[0] : null,
+    sequence: m.sequence || 0,
+    children_count: Array.isArray(m.child_id) ? m.child_id.length : 0,
+  }));
+
+  let filteredNodes = flatNodes;
+
+  if (search_term) {
+    // Mode A: Pruned Search Tree
+    // 1. Find matches for the search term
+    const term = search_term.toLowerCase();
+    const matches = flatNodes.filter((n: any) => 
+      (n.name || '').toLowerCase().includes(term) || 
+      (n.complete_name || '').toLowerCase().includes(term)
+    );
+
+    // 2. Resolve full ancestral lineage for each match to prune unrelated sibling noise
+    const keepIds = new Set<number>();
+    for (const m of matches) {
+      let current: any = m;
+      while (current) {
+        keepIds.add(current.id);
+        current = flatNodes.find((n: any) => n.id === current.parent_id);
+      }
+    }
+
+    // 3. Keep ONLY the matching lineage nodes
+    filteredNodes = flatNodes.filter((n: any) => keepIds.has(n.id));
+    
+    // Build tree starting from root (parent_id = null)
+    const prunedTree = buildTree(filteredNodes, null);
+    
+    return {
+      search_term,
+      count: matches.length,
+      results: prunedTree
+    };
+  } else {
+    // Mode B: Hierarchical Drilling
+    if (parent_id !== undefined && parent_id !== null) {
+      // Return 2-level subtree of selected parent
+      const subTree = buildTree(flatNodes, parent_id, 1);
+      return {
+        parent_id,
+        count: subTree.length,
+        results: subTree
+      };
+    } else {
+      // Default: Return root App folders with their 1st-level children (extremely clean root dashboard)
+      const rootTree = buildTree(flatNodes, null, 1);
+      return {
+        count: rootTree.length,
+        results: rootTree
       };
     }
-
-    return {
-      id: m.id,
-      name: m.name,
-      complete_name: m.complete_name || m.name, // Ancestor path (e.g., "Sales / Orders / Quotations")
-      action: act,
-      parent_id: m.parent_id ? m.parent_id[0] : null,
-      has_children: Array.isArray(m.child_id) && m.child_id.length > 0,
-      children_count: Array.isArray(m.child_id) ? m.child_id.length : 0,
-    };
-  });
-
-  // Sort by complete name in memory for clean presentation
-  results.sort((a: any, b: any) => a.complete_name.localeCompare(b.complete_name));
-
-  return {
-    parent_id: parent_id || undefined,
-    search_term: search_term || undefined,
-    count: results.length,
-    results
-  };
+  }
 }
