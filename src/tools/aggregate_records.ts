@@ -34,7 +34,9 @@ export type AggregateRecordsInput = z.infer<typeof AggregateRecordsSchema>;
  * Wraps the 'read_group' RPC method to provide summarized data.
  */
 export async function aggregateRecords(manager: InstanceManager, input: AggregateRecordsInput) {
-  const { model, domain, groupby, fields, limit, offset, instance_alias } = input;
+  // Enforce schema parsing to apply defaults and preprocessors (prevents undefined domain/fields crashes)
+  const parsedInput = AggregateRecordsSchema.parse(input);
+  const { model, domain, groupby, fields, limit, offset, instance_alias } = parsedInput;
   const client = await manager.getClient(instance_alias);
 
   // Odoo read_group signature: (domain, fields, groupby, offset=0, limit=None, orderby=False, lazy=True)

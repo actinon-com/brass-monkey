@@ -39629,7 +39629,9 @@ const SearchRecordsSchema = schemas_object({
  * Returns a pagination envelope containing total matching count and display display-name mapping.
  */
 async function searchRecords(manager, input) {
-    const { model, domain = [], fields, limit, offset, order, with_translations, instance_alias } = input;
+    // Enforce schema parsing to apply defaults and preprocessors
+    const parsedInput = SearchRecordsSchema.parse(input);
+    const { model, domain, fields, limit, offset, order, with_translations, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     const alias = instance_alias || 'default';
     let readFields = fields;
@@ -39925,7 +39927,9 @@ async function fetchSingleRecordDetail(client, instanceAlias, model, resId, flag
  * Resolve single record details.
  */
 async function getRecord(manager, input) {
-    const { model, res_id, xml_id, instance_alias, ...flags } = input;
+    // Enforce schema parsing to apply default boolean flags and preprocessors
+    const parsedInput = GetRecordSchema.parse(input);
+    const { model, res_id, xml_id, instance_alias, ...flags } = parsedInput;
     const client = await manager.getClient(instance_alias);
     const alias = instance_alias || 'default';
     let targetModel = model;
@@ -40529,7 +40533,9 @@ const AggregateRecordsSchema = schemas_object({
  * Wraps the 'read_group' RPC method to provide summarized data.
  */
 async function aggregateRecords(manager, input) {
-    const { model, domain, groupby, fields, limit, offset, instance_alias } = input;
+    // Enforce schema parsing to apply defaults and preprocessors (prevents undefined domain/fields crashes)
+    const parsedInput = AggregateRecordsSchema.parse(input);
+    const { model, domain, groupby, fields, limit, offset, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     // Odoo read_group signature: (domain, fields, groupby, offset=0, limit=None, orderby=False, lazy=True)
     // We use lazy: false to get a flattened result set of all groupby levels.

@@ -217,7 +217,9 @@ async function fetchSingleRecordDetail(client: any, instanceAlias: string, model
  * Resolve single record details.
  */
 export async function getRecord(manager: InstanceManager, input: GetRecordInput) {
-  const { model, res_id, xml_id, instance_alias, ...flags } = input;
+  // Enforce schema parsing to apply default boolean flags and preprocessors
+  const parsedInput = GetRecordSchema.parse(input);
+  const { model, res_id, xml_id, instance_alias, ...flags } = parsedInput;
   const client = await manager.getClient(instance_alias);
   const alias = instance_alias || 'default';
 
@@ -303,3 +305,4 @@ export async function getRecords(manager: InstanceManager, input: GetRecordsInpu
 
   return batchResults;
 }
+

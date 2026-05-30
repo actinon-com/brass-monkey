@@ -39,7 +39,9 @@ export const AggregateRecordsSchema = z.object({
  * Wraps the 'read_group' RPC method to provide summarized data.
  */
 export async function aggregateRecords(manager, input) {
-    const { model, domain, groupby, fields, limit, offset, instance_alias } = input;
+    // Enforce schema parsing to apply defaults and preprocessors (prevents undefined domain/fields crashes)
+    const parsedInput = AggregateRecordsSchema.parse(input);
+    const { model, domain, groupby, fields, limit, offset, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     // Odoo read_group signature: (domain, fields, groupby, offset=0, limit=None, orderby=False, lazy=True)
     // We use lazy: false to get a flattened result set of all groupby levels.

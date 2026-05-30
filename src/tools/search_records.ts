@@ -39,7 +39,9 @@ export type SearchRecordsInput = z.infer<typeof SearchRecordsSchema>;
  * Returns a pagination envelope containing total matching count and display display-name mapping.
  */
 export async function searchRecords(manager: InstanceManager, input: SearchRecordsInput) {
-  const { model, domain = [], fields, limit, offset, order, with_translations, instance_alias } = input;
+  // Enforce schema parsing to apply defaults and preprocessors
+  const parsedInput = SearchRecordsSchema.parse(input);
+  const { model, domain, fields, limit, offset, order, with_translations, instance_alias } = parsedInput;
   const client = await manager.getClient(instance_alias);
   const alias = instance_alias || 'default';
 
