@@ -103,7 +103,7 @@ export async function getMenu(manager: InstanceManager, input: GetMenuInput = {}
   let filteredNodes = flatNodes;
 
   if (search_term) {
-    // Mode A: Pruned Search Tree
+    // Mode A: Pruned Search Tree with Local Neighborhood Context (Ancestors + Siblings + Children)
     // 1. Find matches for the search term
     const term = search_term.toLowerCase();
     const matches = flatNodes.filter((n: any) => 
@@ -111,17 +111,33 @@ export async function getMenu(manager: InstanceManager, input: GetMenuInput = {}
       (n.complete_name || '').toLowerCase().includes(term)
     );
 
-    // 2. Resolve full ancestral lineage for each match to prune unrelated sibling noise
+    // 2. Resolve Ancestors, Siblings, and Children IDs for each match to build a rich Local Map
     const keepIds = new Set<number>();
     for (const m of matches) {
-      let current: any = m;
+      // A. Add match itself
+      keepIds.add(m.id);
+
+      // B. Add direct siblings of the match (sharing the same parent_id)
+      const siblings = flatNodes.filter((n: any) => n.parent_id === m.parent_id);
+      for (const sib of siblings) {
+        keepIds.add(sib.id);
+      }
+
+      // C. Add direct children of the match (sub-menus)
+      const children = flatNodes.filter((n: any) => n.parent_id === m.id);
+      for (const child of children) {
+        keepIds.add(child.id);
+      }
+
+      // D. Walk up parent chain to resolve ancestors breadcrumb path (grandparent branches remain tightly pruned)
+      let current = flatNodes.find((n: any) => n.id === m.parent_id);
       while (current) {
         keepIds.add(current.id);
         current = flatNodes.find((n: any) => n.id === current.parent_id);
       }
     }
 
-    // 3. Keep ONLY the matching lineage nodes
+    // 3. Keep ONLY the matching lineage, sibling, and child nodes
     filteredNodes = flatNodes.filter((n: any) => keepIds.has(n.id));
     
     // Build tree starting from root (parent_id = null)
