@@ -100,15 +100,14 @@ export const GET_VIEW_SCHEMA = {
   required: ["model"],
 };
 
-export const SEARCH_READ_SCHEMA = {
+export const SEARCH_RECORDS_SCHEMA = {
   type: "object",
   properties: {
-    model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
+    model: { type: "string", description: 'Technical name of the model (e.g., "res.partner", "project.task").' },
     domain: { type: "array", items: {}, description: 'Odoo domain filter. A list of triplets: [["field", "operator", value]]. Example: [["is_company", "=", true]]. Use empty list [] for all records.' },
-    fields: { type: "array", items: { type: "string" }, description: "List of field names to retrieve. PRO TIP: Use inspect_model first to find valid field names. If omitted, returns 'Base' fields." },
-    include_extended: { type: "boolean", description: "If 'fields' is empty, include fields from extension modules." },
-    include_computed: { type: "boolean", description: "If 'fields' is empty, include non-stored/calculated fields." },
+    fields: { type: "array", items: { type: "string" }, description: "Optional explicit list of field names to retrieve. If omitted, returns lightweight Breadth fields." },
     limit: { type: "number", description: "Maximum number of records to return. Keep low for performance unless batching." },
+    offset: { type: "number", description: "Number of records to skip (for pagination)." },
     order: { type: "string", description: 'Order by clause (e.g., "name asc", "create_date desc").' },
     with_translations: { type: "boolean", description: "If True, translatable fields are enriched with their 'Forgiving' format (Matrix)." },
     instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
@@ -116,11 +115,48 @@ export const SEARCH_READ_SCHEMA = {
   required: ["model"],
 };
 
-export const SEARCH_COUNT_SCHEMA = {
+export const GET_RECORD_SCHEMA = {
   type: "object",
   properties: {
-    model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
-    domain: { type: "array", items: {}, description: 'Odoo domain filter. Example: [["is_company", "=", true]]. Use this for simple record tallies instead of search_read.' },
+    model: { type: "string", description: 'Technical name of the model (e.g., "res.partner"). Required if xml_id is not provided.' },
+    res_id: { type: "number", description: "Database ID of the record. Required if xml_id is not provided." },
+    xml_id: { type: "string", description: 'Technical XML ID (e.g., "base.user_admin"). Resolves model and ID.' },
+    show_meta: { type: "boolean", description: "Include system metadata (creation/write dates and users)." },
+    show_security: { type: "boolean", description: "Perform real-time access checks for the current user." },
+    show_relationships: { type: "boolean", description: "Resolve display names for relational many2one fields." },
+    show_extended: { type: "boolean", description: "Include fields from extension modules." },
+    show_computed: { type: "boolean", description: "Include dynamically calculated fields." },
+    show_related: { type: "boolean", description: "Include mirror fields from related models." },
+    show_lines: { type: "boolean", description: "Resolve and include full data for x2many sub-line fields." },
+    show_chatter: { type: "boolean", description: "Include message threads from Odoo Chatter." },
+    include_binary: { type: "boolean", description: "Include raw base64 data for binary fields." },
+    show_all_fields: { type: "boolean", description: "Force inclusion of EVERY field defined on the model." },
+    for_user_id: { type: "number", description: "Evaluate security and data as a specific user ID." },
+    rel_limit: { type: "number", description: "Limit the number of sub-lines or linked records resolved." },
+    with_translations: { type: "boolean", description: "If True, translatable fields are returned in translation matrix." },
+    instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
+  },
+};
+
+export const GET_RECORDS_SCHEMA = {
+  type: "object",
+  properties: {
+    model: { type: "string", description: 'Technical name of the model (used for all res_ids).' },
+    res_ids: { type: "array", items: { type: "number" }, description: 'JSON list of database IDs (e.g., "[1, 2]").' },
+    xml_ids: { type: "array", items: { type: "string" }, description: 'JSON list of XML IDs (e.g., \'["base.user_admin"]\').' },
+    show_meta: { type: "boolean", description: "Include system metadata." },
+    show_security: { type: "boolean", description: "Perform real-time access checks." },
+    show_relationships: { type: "boolean", description: "Resolve relational display names." },
+    show_extended: { type: "boolean", description: "Include fields from extension modules." },
+    show_computed: { type: "boolean", description: "Include dynamically calculated fields." },
+    show_related: { type: "boolean", description: "Include mirror fields from related models." },
+    show_lines: { type: "boolean", description: "Resolve and include full data for x2many sub-line fields." },
+    show_chatter: { type: "boolean", description: "Include message threads from Odoo Chatter." },
+    include_binary: { type: "boolean", description: "Include raw base64 data for binary fields." },
+    show_all_fields: { type: "boolean", description: "Force inclusion of EVERY field defined on the model." },
+    for_user_id: { type: "number", description: "Evaluate security and data as a specific user ID." },
+    rel_limit: { type: "number", description: "Limit the number of sub-lines or linked records resolved." },
+    with_translations: { type: "boolean", description: "If True, translatable fields are returned in translation matrix." },
     instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
   },
   required: ["model"],

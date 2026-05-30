@@ -113,16 +113,22 @@ const toolRegistry: Record<string, { handler: Function; schema: any; description
     description: "Fetch view XML/definitions. Use inspect_model (show_ui=true) to find view IDs first.",
     deps: 'manager'
   },
-  search_read: {
-    handler: tools.searchRead,
-    schema: schemas.SEARCH_READ_SCHEMA,
-    description: "Search and read records. MANDATORY: Run get_environment and/or inspect_model first to verify fields and context.",
+  search_records: {
+    handler: tools.searchRecords,
+    schema: schemas.SEARCH_RECORDS_SCHEMA,
+    description: "Search for Odoo records. Returns a pagination envelope containing total matching count and display display-name mapping.",
     deps: 'manager'
   },
-  search_count: {
-    handler: tools.searchCount,
-    schema: schemas.SEARCH_COUNT_SCHEMA,
-    description: "Get the total number of records matching a domain. Use this for simple record tallies.",
+  get_record: {
+    handler: tools.getRecord,
+    schema: schemas.GET_RECORD_SCHEMA,
+    description: "Retrieve a highly detailed 360-degree dashboard report for a single Odoo record, including sub-lines and chatter.",
+    deps: 'manager'
+  },
+  get_records: {
+    handler: tools.getRecords,
+    schema: schemas.GET_RECORDS_SCHEMA,
+    description: "Retrieve detailed reports for multiple Odoo records in batch.",
     deps: 'manager'
   },
   create_record: {

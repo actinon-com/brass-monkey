@@ -38565,26 +38565,61 @@ const GET_VIEW_SCHEMA = {
     },
     required: ["model"],
 };
-const SEARCH_READ_SCHEMA = {
+const SEARCH_RECORDS_SCHEMA = {
     type: "object",
     properties: {
-        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
+        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner", "project.task").' },
         domain: { type: "array", items: {}, description: 'Odoo domain filter. A list of triplets: [["field", "operator", value]]. Example: [["is_company", "=", true]]. Use empty list [] for all records.' },
-        fields: { type: "array", items: { type: "string" }, description: "List of field names to retrieve. PRO TIP: Use inspect_model first to find valid field names. If omitted, returns 'Base' fields." },
-        include_extended: { type: "boolean", description: "If 'fields' is empty, include fields from extension modules." },
-        include_computed: { type: "boolean", description: "If 'fields' is empty, include non-stored/calculated fields." },
+        fields: { type: "array", items: { type: "string" }, description: "Optional explicit list of field names to retrieve. If omitted, returns lightweight Breadth fields." },
         limit: { type: "number", description: "Maximum number of records to return. Keep low for performance unless batching." },
+        offset: { type: "number", description: "Number of records to skip (for pagination)." },
         order: { type: "string", description: 'Order by clause (e.g., "name asc", "create_date desc").' },
         with_translations: { type: "boolean", description: "If True, translatable fields are enriched with their 'Forgiving' format (Matrix)." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model"],
 };
-const SEARCH_COUNT_SCHEMA = {
+const GET_RECORD_SCHEMA = {
     type: "object",
     properties: {
-        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
-        domain: { type: "array", items: {}, description: 'Odoo domain filter. Example: [["is_company", "=", true]]. Use this for simple record tallies instead of search_read.' },
+        model: { type: "string", description: 'Technical name of the model (e.g., "res.partner"). Required if xml_id is not provided.' },
+        res_id: { type: "number", description: "Database ID of the record. Required if xml_id is not provided." },
+        xml_id: { type: "string", description: 'Technical XML ID (e.g., "base.user_admin"). Resolves model and ID.' },
+        show_meta: { type: "boolean", description: "Include system metadata (creation/write dates and users)." },
+        show_security: { type: "boolean", description: "Perform real-time access checks for the current user." },
+        show_relationships: { type: "boolean", description: "Resolve display names for relational many2one fields." },
+        show_extended: { type: "boolean", description: "Include fields from extension modules." },
+        show_computed: { type: "boolean", description: "Include dynamically calculated fields." },
+        show_related: { type: "boolean", description: "Include mirror fields from related models." },
+        show_lines: { type: "boolean", description: "Resolve and include full data for x2many sub-line fields." },
+        show_chatter: { type: "boolean", description: "Include message threads from Odoo Chatter." },
+        include_binary: { type: "boolean", description: "Include raw base64 data for binary fields." },
+        show_all_fields: { type: "boolean", description: "Force inclusion of EVERY field defined on the model." },
+        for_user_id: { type: "number", description: "Evaluate security and data as a specific user ID." },
+        rel_limit: { type: "number", description: "Limit the number of sub-lines or linked records resolved." },
+        with_translations: { type: "boolean", description: "If True, translatable fields are returned in translation matrix." },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
+    },
+};
+const GET_RECORDS_SCHEMA = {
+    type: "object",
+    properties: {
+        model: { type: "string", description: 'Technical name of the model (used for all res_ids).' },
+        res_ids: { type: "array", items: { type: "number" }, description: 'JSON list of database IDs (e.g., "[1, 2]").' },
+        xml_ids: { type: "array", items: { type: "string" }, description: 'JSON list of XML IDs (e.g., \'["base.user_admin"]\').' },
+        show_meta: { type: "boolean", description: "Include system metadata." },
+        show_security: { type: "boolean", description: "Perform real-time access checks." },
+        show_relationships: { type: "boolean", description: "Resolve relational display names." },
+        show_extended: { type: "boolean", description: "Include fields from extension modules." },
+        show_computed: { type: "boolean", description: "Include dynamically calculated fields." },
+        show_related: { type: "boolean", description: "Include mirror fields from related models." },
+        show_lines: { type: "boolean", description: "Resolve and include full data for x2many sub-line fields." },
+        show_chatter: { type: "boolean", description: "Include message threads from Odoo Chatter." },
+        include_binary: { type: "boolean", description: "Include raw base64 data for binary fields." },
+        show_all_fields: { type: "boolean", description: "Force inclusion of EVERY field defined on the model." },
+        for_user_id: { type: "number", description: "Evaluate security and data as a specific user ID." },
+        rel_limit: { type: "number", description: "Limit the number of sub-lines or linked records resolved." },
+        with_translations: { type: "boolean", description: "If True, translatable fields are returned in translation matrix." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model"],
@@ -38889,7 +38924,201 @@ async function listModels(manager, input = {}) {
     });
 }
 
+;// CONCATENATED MODULE: ./src/services/metadata-cache.ts
+/**
+ * Service to cache Odoo model layouts in memory during the active session.
+ * Cuts N+1 query latency down to 0ms for default searches and model inspections.
+ */
+class MetadataCache {
+    static instance = null;
+    cache = new Map();
+    constructor() { }
+    static getInstance() {
+        if (!MetadataCache.instance) {
+            MetadataCache.instance = new MetadataCache();
+        }
+        return MetadataCache.instance;
+    }
+    getKey(instanceAlias, model) {
+        return `${instanceAlias || 'default'}:${model}`;
+    }
+    get(instanceAlias, model) {
+        return this.cache.get(this.getKey(instanceAlias, model)) || null;
+    }
+    set(instanceAlias, model, metadata) {
+        this.cache.set(this.getKey(instanceAlias, model), metadata);
+    }
+    clear() {
+        this.cache.clear();
+    }
+}
+
+;// CONCATENATED MODULE: ./src/services/metadata-resolver.ts
+
+/**
+ * Definitively identifies the origin module of a Odoo model using ir.model.data (XML ID).
+ */
+async function resolveBaseModule(client, modelId, moduleListStr) {
+    const moduleList = moduleListStr.split(',').map(m => m.trim());
+    try {
+        const mDatas = await client.executeKw('ir.model.data', 'search_read', [
+            [['model', '=', 'ir.model'], ['res_id', '=', modelId]]
+        ], {
+            fields: ['module']
+        });
+        const allOriginMods = mDatas.map((m) => m.module);
+        if (allOriginMods.includes('base')) {
+            return 'base';
+        }
+        else if (allOriginMods.length > 0) {
+            // Return the shortest module name (e.g., 'sale' vs 'sale_management')
+            const sorted = [...allOriginMods].sort((a, b) => a.length - b.length);
+            return sorted[0];
+        }
+        else {
+            return moduleList[0];
+        }
+    }
+    catch (error) {
+        return moduleList[0];
+    }
+}
+/**
+ * Builds, categorizes, and resolves complete metadata layout for a model,
+ * including auto-detecting the "Belonging Relation" and background warming parent modules.
+ */
+async function buildModelMetadata(client, model, instanceAlias = 'default') {
+    // 1. Resolve Model metadata
+    const modelInfo = await client.executeKw('ir.model', 'search_read', [[['model', '=', model]]], {
+        fields: ['id', 'name', 'modules', 'transient'],
+        limit: 1
+    });
+    if (!modelInfo || modelInfo.length === 0)
+        throw new Error(`Model not found: ${model}`);
+    const m = modelInfo[0];
+    const baseModule = await resolveBaseModule(client, m.id, m.modules || '');
+    // 2. Fetch Fields and Filter
+    const fRecords = await client.executeKw('ir.model.fields', 'search_read', [[['model_id.model', '=', model]]], {
+        fields: ['name', 'field_description', 'ttype', 'relation', 'required', 'readonly', 'store', 'translate', 'company_dependent', 'help', 'domain', 'modules', 'compute', 'related']
+    });
+    const buckets = { base: {}, extended: {}, computed: {}, related: {}, relational: {}, lines: {} };
+    const baseFields = ['id'];
+    for (const f of fRecords) {
+        // A. Exclude chatter and activity system fields (aligning with Python chatter category bypass)
+        if (f.name.startsWith('message_') || f.name.startsWith('activity_')) {
+            continue;
+        }
+        const isBase = f.modules.split(',').map((mod) => mod.trim()).includes(baseModule);
+        const props = [];
+        if (f.required)
+            props.push('required');
+        if (f.readonly)
+            props.push('readonly');
+        if (!f.store)
+            props.push('not-stored');
+        if (f.translate)
+            props.push('translatable');
+        if (f.company_dependent)
+            props.push('company-dependent');
+        const fieldData = {
+            type: f.ttype,
+            string: f.field_description,
+            relation: f.relation || undefined,
+            properties: props.length > 0 ? props : undefined,
+            help: f.help || undefined,
+        };
+        if (f.domain && f.domain !== '[]') {
+            fieldData.hint = `Search Filter: ${f.domain}`;
+        }
+        // B. Strict if/else-if categorization cascade
+        if (f.related) {
+            buckets.related[f.name] = fieldData;
+        }
+        else if (!f.store) {
+            buckets.computed[f.name] = fieldData;
+        }
+        else if (f.ttype === 'one2many') {
+            buckets.lines[f.name] = fieldData;
+        }
+        else if (['many2one', 'many2many', 'reference'].includes(f.ttype)) {
+            buckets.relational[f.name] = fieldData;
+        }
+        else if (!isBase) {
+            buckets.extended[f.name] = fieldData;
+        }
+        else {
+            buckets.base[f.name] = fieldData;
+        }
+    }
+    // 3. Assemble High-Signal Default Search Fields (Breadth Layout)
+    // Essential baseline fields
+    const hasDisplayName = fRecords.some((f) => f.name === 'display_name');
+    const hasName = fRecords.some((f) => f.name === 'name');
+    if (hasDisplayName)
+        baseFields.push('display_name');
+    if (hasName && !baseFields.includes('name'))
+        baseFields.push('name');
+    // Add state/lifecycle fields if they exist
+    const stateFields = ['state', 'active', 'stage_id', 'status'];
+    for (const sf of stateFields) {
+        if (fRecords.some((f) => f.name === sf)) {
+            baseFields.push(sf);
+        }
+    }
+    // Add freshness fields if they exist
+    const freshnessFields = ['write_date', 'create_date'];
+    for (const ff of freshnessFields) {
+        if (fRecords.some((f) => f.name === ff)) {
+            baseFields.push(ff);
+        }
+    }
+    // 4. Dynamically Identify the Hierarchical "Belonging Relation" parent (M2O)
+    // Check for many2one fields that link this record to its parent namespace or compositional parent
+    const m2oFields = fRecords.filter((f) => f.ttype === 'many2one');
+    const namespacePrefix = model.split('.')[0]; // e.g. 'project' from 'project.task'
+    let belongingRelation = null;
+    // Step 1: Look for exact relation with parent namespace (e.g. project_id on project.task)
+    const prefixMatch = m2oFields.find((f) => f.name === `${namespacePrefix}_id`);
+    if (prefixMatch) {
+        belongingRelation = prefixMatch.name;
+    }
+    else {
+        // Step 2: Fallback to standard composition names
+        const compMatch = m2oFields.find((f) => ['parent_id', 'order_id', 'move_id', 'invoice_id', 'group_id'].includes(f.name));
+        if (compMatch) {
+            belongingRelation = compMatch.name;
+        }
+    }
+    if (belongingRelation) {
+        baseFields.push(belongingRelation);
+        // 5. Related Model Warming: silently warm parent metadata asynchronously
+        const parentField = m2oFields.find((f) => f.name === belongingRelation);
+        if (parentField && parentField.relation) {
+            const parentModel = parentField.relation;
+            // We spawn this asynchronously in the background so it warms up for future queries
+            buildModelMetadata(client, parentModel, instanceAlias)
+                .then((parentMeta) => {
+                MetadataCache.getInstance().set(instanceAlias, parentModel, parentMeta);
+            })
+                .catch(() => { });
+        }
+    }
+    // Deduplicate
+    const deduplicatedFields = Array.from(new Set(baseFields));
+    return {
+        baseModule,
+        id: m.id,
+        name: m.name,
+        transient: m.transient,
+        modules: m.modules || '',
+        baseFields: deduplicatedFields,
+        categorized: buckets
+    };
+}
+
 ;// CONCATENATED MODULE: ./src/tools/inspect_model.ts
+
+
 
 /**
  * Zod schema for inspect_model tool input.
@@ -38911,130 +39140,45 @@ const InspectModelSchema = schemas_object({
     instance_alias: classic_schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
- * Definitively identifies the origin module of a model using ir.model.data (XML ID).
- */
-async function resolveBaseModule(client, modelId, moduleListStr) {
-    const moduleList = moduleListStr.split(',').map(m => m.trim());
-    const mDatas = await client.executeKw('ir.model.data', 'search_read', [
-        [['model', '=', 'ir.model'], ['res_id', '=', modelId]]
-    ], {
-        fields: ['module']
-    });
-    const allOriginMods = mDatas.map((m) => m.module);
-    if (allOriginMods.includes('base')) {
-        return 'base';
-    }
-    else if (allOriginMods.length > 0) {
-        // Return the shortest module name (e.g., 'sale' vs 'sale_management' or 'helpdesk_sale_timesheet')
-        const sorted = [...allOriginMods].sort((a, b) => a.length - b.length);
-        return sorted[0];
-    }
-    else {
-        return moduleList[0];
-    }
-}
-/**
  * Tool to perform a deep architectural audit of an Odoo model's definition.
  * Dynamically categorizes fields and discovers execution/UI entry points.
+ * Fully optimized via in-memory MetadataCache.
  */
 async function inspectModel(manager, input) {
     const { model, instance_alias, ...flags } = input;
     const client = await manager.getClient(instance_alias);
-    // 1. Resolve Model Metadata
-    const modelInfo = await client.executeKw('ir.model', 'search_read', [[['model', '=', model]]], {
-        fields: ['id', 'name', 'modules', 'transient'],
-        limit: 1
-    });
-    if (!modelInfo || modelInfo.length === 0)
-        throw new Error(`Model not found: ${model}`);
-    const m = modelInfo[0];
-    let baseModule = '';
-    let debugErr = null;
-    try {
-        baseModule = await resolveBaseModule(client, m.id, m.modules || '');
-    }
-    catch (e) {
-        debugErr = e.message || String(e);
+    const alias = instance_alias || 'default';
+    // 1. Resolve and cache metadata (or load from cache)
+    const cache = MetadataCache.getInstance();
+    let metadata = cache.get(alias, model);
+    if (!metadata) {
+        metadata = await buildModelMetadata(client, model, alias);
+        cache.set(alias, model, metadata);
     }
     const res = {
         identity: {
             model: model,
-            description: m.name,
-            base_module: baseModule,
-            is_transient: m.transient,
-            _debug_error: debugErr
+            description: metadata.name,
+            base_module: metadata.baseModule,
+            is_transient: metadata.transient,
         }
     };
-    // 2. Fetch Field Metadata if any field flag is set
-    const anyFieldFlag = flags.show_base || flags.show_extended || flags.show_computed || flags.show_related || flags.show_lines || flags.show_relationships;
-    if (anyFieldFlag) {
-        const fRecords = await client.executeKw('ir.model.fields', 'search_read', [[['model_id', '=', m.id]]], {
-            fields: ['name', 'field_description', 'ttype', 'relation', 'store', 'compute', 'related', 'modules', 'readonly', 'required', 'selection', 'help', 'translate', 'company_dependent', 'domain']
-        });
-        const buckets = { base: {}, extended: {}, computed: {}, related: {}, relational: {}, lines: {} };
-        for (const f of fRecords) {
-            // 1. Exclude chatter and activity system fields (aligning with Python chatter category bypass)
-            if (f.name.startsWith('message_') || f.name.startsWith('activity_')) {
-                continue;
-            }
-            // Split the comma-separated modules and check for exact module matching (prevents substring matching like sale_stock matching sale)
-            const isBase = f.modules.split(',').map((mod) => mod.trim()).includes(baseModule);
-            const props = [];
-            if (f.required)
-                props.push('required');
-            if (f.readonly)
-                props.push('readonly');
-            if (!f.store)
-                props.push('not-stored');
-            if (f.translate)
-                props.push('translatable');
-            if (f.company_dependent)
-                props.push('company-dependent');
-            const fieldData = {
-                type: f.ttype,
-                string: f.field_description,
-                relation: f.relation || undefined,
-                properties: props.length > 0 ? props : undefined,
-                help: f.help || undefined,
-            };
-            if (f.domain && f.domain !== '[]') {
-                fieldData.hint = `Search Filter: ${f.domain}`;
-            }
-            // 2. Strict if/else-if categorization cascade (exactly matching Python categorize_fields priority)
-            if (f.related) {
-                buckets.related[f.name] = fieldData;
-            }
-            else if (!f.store) {
-                buckets.computed[f.name] = fieldData;
-            }
-            else if (f.ttype === 'one2many') {
-                buckets.lines[f.name] = fieldData;
-            }
-            else if (['many2one', 'many2many', 'reference'].includes(f.ttype)) {
-                buckets.relational[f.name] = fieldData;
-            }
-            else if (!isBase) {
-                buckets.extended[f.name] = fieldData;
-            }
-            else {
-                buckets.base[f.name] = fieldData;
-            }
-        }
-        res.fields = {};
-        if (flags.show_base)
-            res.fields.base = buckets.base;
-        if (flags.show_extended)
-            res.fields.extended = buckets.extended;
-        if (flags.show_computed)
-            res.fields.computed = buckets.computed;
-        if (flags.show_related)
-            res.fields.related = buckets.related;
-        if (flags.show_relationships)
-            res.fields.relationships = buckets.relational;
-        if (flags.show_lines)
-            res.fields.lines = buckets.lines;
-    }
-    // 3. Stats
+    // Compile buckets based on requested flags
+    const buckets = metadata.categorized;
+    res.fields = {};
+    if (flags.show_base)
+        res.fields.base = buckets.base;
+    if (flags.show_extended)
+        res.fields.extended = buckets.extended;
+    if (flags.show_computed)
+        res.fields.computed = buckets.computed;
+    if (flags.show_related)
+        res.fields.related = buckets.related;
+    if (flags.show_relationships)
+        res.fields.relationships = buckets.relational;
+    if (flags.show_lines)
+        res.fields.lines = buckets.lines;
+    // 3. Stats (if requested)
     if (flags.show_stats) {
         const total = await client.executeKw(model, 'search_count', [[]]);
         res.stats = { records: { total } };
@@ -39044,9 +39188,9 @@ async function inspectModel(manager, input) {
         }
         catch (e) { }
     }
-    // 4. Methods
+    // 4. Methods (if requested)
     if (flags.show_methods) {
-        const serverActions = await client.executeKw('ir.actions.server', 'search_read', [[['model_id', '=', m.id]]], {
+        const serverActions = await client.executeKw('ir.actions.server', 'search_read', [[['model_id', '=', metadata.id]]], {
             fields: ['name', 'state', 'usage']
         });
         res.execution_points = {
@@ -39055,47 +39199,67 @@ async function inspectModel(manager, input) {
                 return acc;
             }, {})
         };
-        // Try to find methods from view buttons
         try {
-            const views = await client.executeKw('ir.ui.view', 'search_read', [[['model', '=', model], ['type', '=', 'form']]], {
+            const vRecs = await client.executeKw('ir.ui.view', 'search_read', [[['model', '=', model], ['type', '=', 'form']]], {
                 fields: ['arch_db'],
                 limit: 5
             });
             const buttonMethods = new Set();
-            const btnRegex = /<button[^>]+name="([^"]+)"[^>]+type="object"/g;
-            for (const v of views) {
-                let match;
-                while ((match = btnRegex.exec(v.arch_db)) !== null) {
+            for (const v of vRecs) {
+                const matches = (v.arch_db || '').matchAll(/<button[^>]+name="([^"]+)"[^>]+type="object"/g);
+                for (const match of matches) {
                     buttonMethods.add(match[1]);
                 }
             }
-            res.execution_points.view_methods = Array.from(buttonMethods).sort();
+            res.execution_points.button_methods = Array.from(buttonMethods).sort();
         }
         catch (e) { }
     }
-    // 5. UI Entry Points
-    if (flags.show_ui) {
-        const views = await client.executeKw('ir.ui.view', 'search_read', [[['model', '=', model], ['inherit_id', '=', false]]], {
-            fields: ['name', 'type', 'xml_id']
-        });
-        res.ui = { views: {} };
-        for (const v of views) {
-            if (!res.ui.views[v.type])
-                res.ui.views[v.type] = {};
-            res.ui.views[v.type][v.xml_id || v.id] = v.name;
-        }
-    }
-    // 6. Security
+    // 5. Access Control Lists (if requested)
     if (flags.show_access) {
-        const acls = await client.executeKw('ir.model.access', 'search_read', [[['model_id', '=', m.id]]], {
-            fields: ['group_id', 'perm_read', 'perm_write', 'perm_create', 'perm_unlink']
-        });
-        res.security = {
-            acls: acls.map((a) => ({
-                group: a.group_id ? a.group_id[1] : 'Global',
-                read: a.perm_read, write: a.perm_write, create: a.perm_create, unlink: a.perm_unlink
-            }))
-        };
+        try {
+            const acls = await client.executeKw('ir.model.access', 'search_read', [[['model_id', '=', metadata.id]]], {
+                fields: ['group_id', 'perm_read', 'perm_write', 'perm_create', 'perm_unlink']
+            });
+            res.security = {
+                acls: acls.map((a) => ({
+                    group: a.group_id ? a.group_id[1] : 'Global',
+                    read: a.perm_read, write: a.perm_write, create: a.perm_create, unlink: a.perm_unlink
+                }))
+            };
+        }
+        catch (e) { }
+    }
+    // 6. UI views and actions (if requested)
+    if (flags.show_ui) {
+        try {
+            const views = await client.executeKw('ir.ui.view', 'search_read', [[['model', '=', model], ['inherit_id', '=', false]]], {
+                fields: ['name', 'type', 'xml_id']
+            });
+            res.ui = {
+                views: views.reduce((acc, v) => {
+                    if (!acc[v.type])
+                        acc[v.type] = {};
+                    if (v.xml_id)
+                        acc[v.type][v.xml_id] = v.name;
+                    return acc;
+                }, {})
+            };
+            const actions = await client.executeKw('ir.actions.act_window', 'search_read', [[['res_model', '=', model]]], {
+                fields: ['name', 'xml_id', 'view_mode', 'domain']
+            });
+            res.ui.actions = actions.reduce((acc, a) => {
+                if (a.xml_id) {
+                    acc[a.xml_id] = { name: a.name, modes: a.view_mode, domain: a.domain || undefined };
+                }
+                return acc;
+            }, {});
+        }
+        catch (e) { }
+    }
+    // 7. Inheritance lineage (if requested)
+    if (flags.show_modules) {
+        res.inheritance = { base_module: metadata.baseModule, lineage: (metadata.modules || '').split(',').map((mod) => mod.trim()) };
     }
     return res;
 }
@@ -39417,15 +39581,17 @@ class OdooOrchestrator {
     }
 }
 
-;// CONCATENATED MODULE: ./src/tools/search_read.ts
+;// CONCATENATED MODULE: ./src/tools/search_records.ts
+
+
 
 
 /**
- * Zod schema for search_read tool input.
- * Includes pre-processing to be more forgiving of agent formatting errors.
+ * Zod schema for search_records tool input.
+ * Fully pre-processed and optimized.
  */
-const SearchReadSchema = schemas_object({
-    model: classic_schemas_string().describe('Technical model name (e.g., "res.partner")'),
+const SearchRecordsSchema = schemas_object({
+    model: classic_schemas_string().describe('Technical model name (e.g., "res.partner", "project.task")'),
     domain: preprocess((val) => {
         if (typeof val === 'string') {
             try {
@@ -39436,7 +39602,7 @@ const SearchReadSchema = schemas_object({
             }
         }
         return val;
-    }, schemas_array(schemas_any()).default([])).describe('Odoo domain filter (e.g., [["state", "=", "sale"]])'),
+    }, schemas_array(schemas_any()).default([])).describe('Odoo domain filter array'),
     fields: preprocess((val) => {
         if (typeof val === 'string') {
             if (val.startsWith('[')) {
@@ -39450,84 +39616,70 @@ const SearchReadSchema = schemas_object({
             return [val];
         }
         return val;
-    }, schemas_array(classic_schemas_string()).optional()).describe('Fields to retrieve (empty = default fields)'),
-    include_extended: classic_schemas_boolean().optional().default(false).describe("Include fields from extension modules if 'fields' is empty."),
-    include_computed: classic_schemas_boolean().optional().default(false).describe("Include non-stored/calculated fields if 'fields' is empty."),
-    limit: classic_coerce_number().optional().describe('Maximum number of records to return'),
+    }, schemas_array(classic_schemas_string()).optional()).describe('Optional explicit list of fields to retrieve.'),
+    limit: classic_coerce_number().optional().describe('Maximum number of records to return (defaults to 10)'),
     offset: classic_coerce_number().optional().describe('Number of records to skip (for pagination)'),
-    order: classic_schemas_string().optional().describe('Sort order (e.g., "id desc", "create_date asc")'),
-    with_translations: classic_schemas_boolean().optional().default(false).describe("If True, translatable fields are enriched with their 'Forgiving' format (Matrix)."),
+    order: classic_schemas_string().optional().describe('Sort order (e.g., "id desc", "write_date desc")'),
+    with_translations: classic_schemas_boolean().optional().default(false).describe("If True, translatable fields are enriched with their 'Forgiving' format."),
     instance_alias: classic_schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
- * Tool to search and read Odoo records.
- * Automatically handles field categorization to prevent context window flooding.
+ * Tool to search for Odoo records.
+ * Returns a pagination envelope containing total matching count and display display-name mapping.
  */
-async function searchRead(manager, input) {
-    const { model, domain = [], fields, include_extended, include_computed, limit, offset, order, with_translations, instance_alias } = input;
+async function searchRecords(manager, input) {
+    const { model, domain = [], fields, limit, offset, order, with_translations, instance_alias } = input;
     const client = await manager.getClient(instance_alias);
+    const alias = instance_alias || 'default';
     let readFields = fields;
-    // If no fields specified, perform auto-categorization
+    // 1. Resolve and cache metadata if fields are not specified (Breadth Default)
     if (!readFields || readFields.length === 0) {
-        // 1. Resolve Model and its Base Module
-        const modelInfo = await client.executeKw('ir.model', 'search_read', [[['model', '=', model]]], {
-            fields: ['modules'],
-            limit: 1
-        });
-        if (modelInfo && modelInfo.length > 0) {
-            const baseModule = modelInfo[0].modules.split(',')[0].trim();
-            // 2. Fetch Fields and Filter
-            const fRecords = await client.executeKw('ir.model.fields', 'search_read', [[['model_id.model', '=', model]]], {
-                fields: ['name', 'modules', 'compute']
-            });
-            const categorizedFields = fRecords.filter((f) => {
-                const isBase = f.modules.includes(baseModule);
-                if (isBase)
-                    return true;
-                if (include_extended)
-                    return true; // Include non-base if requested
-                if (include_computed && f.compute)
-                    return true; // Include computed if requested
-                return false;
-            }).map((f) => f.name);
-            // Ensure essential fields are present
-            if (!categorizedFields.includes('id'))
-                categorizedFields.push('id');
-            if (!categorizedFields.includes('display_name')) {
-                // Try to add display_name if it exists in the model
-                const hasDisplayName = fRecords.some((f) => f.name === 'display_name');
-                if (hasDisplayName)
-                    categorizedFields.push('display_name');
-            }
-            readFields = categorizedFields;
+        const cache = MetadataCache.getInstance();
+        let metadata = cache.get(alias, model);
+        if (!metadata) {
+            metadata = await buildModelMetadata(client, model, alias);
+            cache.set(alias, model, metadata);
         }
+        readFields = metadata.baseFields;
     }
-    const records = await client.executeKw(model, 'search_read', [domain], {
-        fields: readFields,
-        limit,
-        offset,
-        order,
-    });
+    // 2. Perform parallel search_read and search_count queries for zero N+1 latency
+    const targetLimit = limit || 10;
+    const targetOffset = offset || 0;
+    const [records, totalCount] = await Promise.all([
+        client.executeKw(model, 'search_read', [domain], {
+            fields: readFields,
+            limit: targetLimit,
+            offset: targetOffset,
+            order,
+        }),
+        client.executeKw(model, 'search_count', [domain])
+    ]);
     // Intent-Based Search Expansion: If zero results and domain has a name filter, retry with ilike
-    if (records.length === 0 && domain.length > 0) {
+    let activeRecords = records;
+    let activeTotalCount = totalCount;
+    if (activeRecords.length === 0 && domain.length > 0) {
         const nameFilterIndex = domain.findIndex((d) => Array.isArray(d) && d[0] === 'name' && d[1] === '=');
         if (nameFilterIndex !== -1) {
             const expandedDomain = [...domain];
             expandedDomain[nameFilterIndex] = ['name', 'ilike', domain[nameFilterIndex][2]];
-            const expandedRecords = await client.executeKw(model, 'search_read', [expandedDomain], {
-                fields: readFields,
-                limit,
-                offset,
-                order,
-            });
+            const [expandedRecords, expandedCount] = await Promise.all([
+                client.executeKw(model, 'search_read', [expandedDomain], {
+                    fields: readFields,
+                    limit: targetLimit,
+                    offset: targetOffset,
+                    order,
+                }),
+                client.executeKw(model, 'search_count', [expandedDomain])
+            ]);
             if (expandedRecords.length > 0) {
-                return expandedRecords;
+                activeRecords = expandedRecords;
+                activeTotalCount = expandedCount;
             }
         }
     }
-    if (with_translations && records.length > 0) {
+    // 3. Translate if requested
+    if (with_translations && activeRecords.length > 0) {
         const orchestrator = new OdooOrchestrator(client);
-        // Identify which fields are translatable
         const transFieldRecs = await client.executeKw('ir.model.fields', 'search_read', [[
                 ['model_id.model', '=', model],
                 ['name', 'in', readFields],
@@ -39535,16 +39687,314 @@ async function searchRead(manager, input) {
             ]], { fields: ['name'] });
         const transFieldNames = transFieldRecs.map((f) => f.name);
         if (transFieldNames.length > 0) {
-            const resIds = records.map((r) => r.id);
+            const resIds = activeRecords.map((r) => r.id);
             const matrix = await orchestrator.fetchTranslationMatrix(model, resIds, transFieldNames);
-            for (const rec of records) {
+            for (const rec of activeRecords) {
                 if (matrix[rec.id]) {
                     Object.assign(rec, matrix[rec.id]);
                 }
             }
         }
     }
-    return records;
+    // 4. Construct high-signal Breadth Envelope
+    return {
+        model,
+        count: activeRecords.length,
+        total_count: activeTotalCount,
+        offset: targetOffset,
+        limit: targetLimit,
+        leads: activeRecords.reduce((acc, r) => {
+            acc[String(r.id)] = r.display_name || r.name || `ID ${r.id}`;
+            return acc;
+        }, {}),
+        results: activeRecords
+    };
+}
+
+;// CONCATENATED MODULE: ./src/tools/get_record.ts
+
+
+
+
+/**
+ * Zod schemas for get_record and get_records tool inputs.
+ */
+const GetRecordSchema = schemas_object({
+    model: classic_schemas_string().optional().describe('Technical model name (required if xml_id is not provided)'),
+    res_id: classic_coerce_number().optional().describe('Database ID of the record (required if xml_id is not provided)'),
+    xml_id: classic_schemas_string().optional().describe('Technical XML ID (e.g., "base.user_admin"). Resolves model and ID.'),
+    show_meta: classic_schemas_boolean().optional().default(false).describe('Include system metadata (creation/write dates and users).'),
+    show_security: classic_schemas_boolean().optional().default(false).describe('Perform real-time access checks for the current user.'),
+    show_relationships: classic_schemas_boolean().optional().default(false).describe('Resolve display names for relational many2one fields.'),
+    show_extended: classic_schemas_boolean().optional().default(false).describe('Include fields from extension modules.'),
+    show_computed: classic_schemas_boolean().optional().default(false).describe('Include dynamically calculated fields.'),
+    show_related: classic_schemas_boolean().optional().default(false).describe('Include mirror fields from related models.'),
+    show_lines: classic_schemas_boolean().optional().default(false).describe('Resolve and include full data for x2many sub-line fields.'),
+    show_chatter: classic_schemas_boolean().optional().default(false).describe('Include message threads from Odoo Chatter.'),
+    include_binary: classic_schemas_boolean().optional().default(false).describe('Include raw base64 data for binary fields.'),
+    show_all_fields: classic_schemas_boolean().optional().default(false).describe('Force inclusion of EVERY field defined on the model.'),
+    for_user_id: classic_coerce_number().optional().describe('Evaluate security and data as a specific user ID.'),
+    rel_limit: classic_coerce_number().optional().default(20).describe('Limit the number of sub-lines or linked records resolved.'),
+    with_translations: classic_schemas_boolean().optional().default(false).describe('If True, translatable fields are returned in translation dictionary matrix.'),
+    instance_alias: classic_schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
+});
+const GetRecordsSchema = schemas_object({
+    model: classic_schemas_string().describe('Technical model name (used for all res_ids)'),
+    res_ids: preprocess((val) => {
+        if (typeof val === 'string') {
+            try {
+                return JSON.parse(val);
+            }
+            catch {
+                return [val];
+            }
+        }
+        return val;
+    }, schemas_array(classic_coerce_number()).default([])).describe('JSON list of database IDs (e.g., "[1, 2]")'),
+    xml_ids: preprocess((val) => {
+        if (typeof val === 'string') {
+            try {
+                return JSON.parse(val);
+            }
+            catch {
+                return [val];
+            }
+        }
+        return val;
+    }, schemas_array(classic_schemas_string()).default([])).describe('JSON list of XML IDs (e.g., \'["base.user_admin"]\')'),
+    show_meta: classic_schemas_boolean().optional().default(false).describe('Include system metadata.'),
+    show_security: classic_schemas_boolean().optional().default(false).describe('Perform real-time access checks.'),
+    show_relationships: classic_schemas_boolean().optional().default(false).describe('Resolve relational display names.'),
+    show_extended: classic_schemas_boolean().optional().default(false).describe('Include extension fields.'),
+    show_computed: classic_schemas_boolean().optional().default(false).describe('Include computed fields.'),
+    show_related: classic_schemas_boolean().optional().default(false).describe('Include related fields.'),
+    show_lines: classic_schemas_boolean().optional().default(false).describe('Resolve and include sub-line records.'),
+    show_chatter: classic_schemas_boolean().optional().default(false).describe('Include Odoo Chatter messages.'),
+    include_binary: classic_schemas_boolean().optional().default(false).describe('Include binary base64 data.'),
+    show_all_fields: classic_schemas_boolean().optional().default(false).describe('Force inclusion of EVERY field.'),
+    for_user_id: classic_coerce_number().optional().describe('Evaluate as a specific user ID.'),
+    rel_limit: classic_coerce_number().optional().default(20).describe('Limit the number of sub-lines/links resolved.'),
+    with_translations: classic_schemas_boolean().optional().default(false).describe('If True, translatable fields are returned in translation matrix.'),
+    instance_alias: classic_schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
+});
+/**
+ * Shared detail fetch orchestrator (equivalent to Python's _fetch_record).
+ */
+async function fetchSingleRecordDetail(client, instanceAlias, model, resId, flags) {
+    // 1. Resolve and cache metadata
+    const cache = MetadataCache.getInstance();
+    let metadata = cache.get(instanceAlias, model);
+    if (!metadata) {
+        metadata = await buildModelMetadata(client, model, instanceAlias);
+        cache.set(instanceAlias, model, metadata);
+    }
+    // Compile active columns to fetch
+    const buckets = metadata.categorized;
+    let activeFields = [...metadata.baseFields];
+    if (flags.show_extended)
+        activeFields.push(...Object.keys(buckets.extended));
+    if (flags.show_computed)
+        activeFields.push(...Object.keys(buckets.computed));
+    if (flags.show_related)
+        activeFields.push(...Object.keys(buckets.related));
+    if (flags.show_relationships)
+        activeFields.push(...Object.keys(buckets.relational));
+    if (flags.show_lines)
+        activeFields.push(...Object.keys(buckets.lines));
+    if (flags.show_all_fields) {
+        activeFields.push(...Object.keys(buckets.extended), ...Object.keys(buckets.computed), ...Object.keys(buckets.related), ...Object.keys(buckets.relational), ...Object.keys(buckets.lines));
+    }
+    // Deduplicate
+    activeFields = Array.from(new Set(activeFields));
+    // 2. Fetch Base Record
+    const records = await client.executeKw(model, 'search_read', [[['id', '=', resId]]], {
+        fields: activeFields,
+        limit: 1
+    });
+    if (!records || records.length === 0)
+        throw new Error(`Record ID ${resId} not found on ${model}`);
+    const record = records[0];
+    // 3. Resolve Translations if requested
+    if (flags.with_translations) {
+        const orchestrator = new OdooOrchestrator(client);
+        const transFieldRecs = await client.executeKw('ir.model.fields', 'search_read', [[
+                ['model_id.model', '=', model],
+                ['name', 'in', activeFields],
+                ['translate', '=', true]
+            ]], { fields: ['name'] });
+        const transFieldNames = transFieldRecs.map((f) => f.name);
+        if (transFieldNames.length > 0) {
+            const matrix = await orchestrator.fetchTranslationMatrix(model, [resId], transFieldNames);
+            if (matrix[resId]) {
+                Object.assign(record, matrix[resId]);
+            }
+        }
+    }
+    // 4. Resolve sub-line records (One2many / Many2many full sub-rows)
+    if (flags.show_lines) {
+        const lineFields = Object.keys(buckets.lines);
+        for (const lf of lineFields) {
+            const lineIds = record[lf];
+            if (Array.isArray(lineIds) && lineIds.length > 0) {
+                // Resolve lines metadata to get their baseFields
+                const relationModel = buckets.lines[lf].relation || buckets.lines[lf].target;
+                if (relationModel) {
+                    let relMetadata = cache.get(instanceAlias, relationModel);
+                    if (!relMetadata) {
+                        relMetadata = await buildModelMetadata(client, relationModel, instanceAlias);
+                        cache.set(instanceAlias, relationModel, relMetadata);
+                    }
+                    // Fetch full child data for lines
+                    const childRecords = await client.executeKw(relationModel, 'search_read', [[['id', 'in', lineIds.slice(0, flags.rel_limit)]]], {
+                        fields: relMetadata.baseFields
+                    });
+                    record[lf] = childRecords;
+                }
+            }
+        }
+    }
+    // 5. Fetch Odoo Chatter messages
+    if (flags.show_chatter) {
+        try {
+            const messages = await client.executeKw('mail.message', 'search_read', [[
+                    ['model', '=', model],
+                    ['res_id', '=', resId]
+                ]], {
+                fields: ['body', 'date', 'author_id', 'subtype_id'],
+                limit: 5,
+                order: 'date desc'
+            });
+            record._chatter = messages.map((m) => ({
+                date: m.date,
+                author: m.author_id ? m.author_id[1] : 'System',
+                body: (m.body || '').replace(/<[^>]*>/g, '').trim() // Clean HTML tags
+            }));
+        }
+        catch (e) {
+            // Mail thread might not be inherited by this model
+        }
+    }
+    // 6. Access Checks
+    if (flags.show_security) {
+        try {
+            const access = await client.executeKw('ir.model.access', 'search_read', [[
+                    ['model_id.model', '=', model]
+                ]], {
+                fields: ['perm_read', 'perm_write', 'perm_create', 'perm_unlink']
+            });
+            record._security = access.reduce((acc, a) => {
+                acc.can_read = acc.can_read || a.perm_read;
+                acc.can_write = acc.can_write || a.perm_write;
+                acc.can_create = acc.can_create || a.perm_create;
+                acc.can_unlink = acc.can_unlink || a.perm_unlink;
+                return acc;
+            }, { can_read: false, can_write: false, can_create: false, can_unlink: false });
+        }
+        catch (e) { }
+    }
+    // 7. Metadata (Creation/Write logs)
+    if (flags.show_meta) {
+        try {
+            const meta = await client.executeKw(model, 'read', [[resId]], {
+                fields: ['create_uid', 'create_date', 'write_uid', 'write_date']
+            });
+            if (meta && meta.length > 0) {
+                record._metadata = {
+                    created_by: meta[0].create_uid ? meta[0].create_uid[1] : 'Unknown',
+                    created_on: meta[0].create_date,
+                    modified_by: meta[0].write_uid ? meta[0].write_uid[1] : 'Unknown',
+                    modified_on: meta[0].write_date,
+                };
+            }
+        }
+        catch (e) { }
+    }
+    // Scrub large binary payload placeholders if not include_binary
+    if (!flags.include_binary) {
+        for (const f of activeFields) {
+            const fieldMeta = buckets.base[f] || buckets.extended[f] || buckets.computed[f] || buckets.related[f] || buckets.relational[f] || buckets.lines[f];
+            if (fieldMeta && fieldMeta.type === 'binary' && record[f]) {
+                record[f] = `<BINARY_DATA_HIDDEN>`;
+            }
+        }
+    }
+    return record;
+}
+/**
+ * Resolve single record details.
+ */
+async function getRecord(manager, input) {
+    const { model, res_id, xml_id, instance_alias, ...flags } = input;
+    const client = await manager.getClient(instance_alias);
+    const alias = instance_alias || 'default';
+    let targetModel = model;
+    let targetId = res_id;
+    // Resolve XML ID if provided
+    if (xml_id) {
+        const parts = xml_id.split('.');
+        const modName = parts[0];
+        const xmlName = parts[1] || '';
+        const modelData = await client.executeKw('ir.model.data', 'search_read', [[
+                ['module', '=', modName],
+                ['name', '=', xmlName]
+            ]], {
+            fields: ['model', 'res_id'],
+            limit: 1
+        });
+        if (!modelData || modelData.length === 0) {
+            throw new Error(`XML ID not found: ${xml_id}`);
+        }
+        targetModel = modelData[0].model;
+        targetId = modelData[0].res_id;
+    }
+    if (!targetModel || !targetId) {
+        throw new Error('Must provide either model and res_id, or a valid xml_id.');
+    }
+    return await fetchSingleRecordDetail(client, alias, targetModel, targetId, flags);
+}
+/**
+ * Resolve batch records details.
+ */
+async function getRecords(manager, input) {
+    const { model, res_ids = [], xml_ids = [], instance_alias, ...flags } = input;
+    const client = await manager.getClient(instance_alias);
+    const alias = instance_alias || 'default';
+    const resolvedIds = [];
+    // Gather database IDs
+    for (const rid of res_ids) {
+        resolvedIds.push({ id: rid });
+    }
+    // Resolve XML IDs in parallel
+    if (xml_ids.length > 0) {
+        for (const xid of xml_ids) {
+            const parts = xid.split('.');
+            const modName = parts[0];
+            const xmlName = parts[1] || '';
+            const modelData = await client.executeKw('ir.model.data', 'search_read', [[
+                    ['module', '=', modName],
+                    ['name', '=', xmlName]
+                ]], {
+                fields: ['res_id'],
+                limit: 1
+            });
+            if (modelData && modelData.length > 0) {
+                resolvedIds.push({ id: modelData[0].res_id, xmlId: xid });
+            }
+        }
+    }
+    // Fetch full details in parallel
+    const batchResults = await Promise.all(resolvedIds.map(async (item) => {
+        try {
+            const detail = await fetchSingleRecordDetail(client, alias, model, item.id, flags);
+            if (item.xmlId)
+                detail._xml_id = item.xmlId;
+            return detail;
+        }
+        catch (e) {
+            return { id: item.id, _error: e.message || String(e) };
+        }
+    }));
+    return batchResults;
 }
 
 ;// CONCATENATED MODULE: ./src/tools/create_record.ts
@@ -40074,36 +40524,6 @@ async function aggregateRecords(manager, input) {
     });
 }
 
-;// CONCATENATED MODULE: ./src/tools/search_count.ts
-
-/**
- * Zod schema for search_count tool input.
- */
-const SearchCountSchema = schemas_object({
-    model: classic_schemas_string().describe('Technical model name (e.g., "res.partner")'),
-    domain: preprocess((val) => {
-        if (typeof val === 'string') {
-            try {
-                return JSON.parse(val);
-            }
-            catch {
-                return val;
-            }
-        }
-        return val;
-    }, schemas_array(schemas_any()).default([])).describe('Odoo domain filter (e.g., [["is_company", "=", true]])'),
-    instance_alias: classic_schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
-});
-/**
- * Tool to get the total number of records matching a domain.
- * Lightweight alternative to search_read when only the count is needed.
- */
-async function searchCount(manager, input) {
-    const { model, domain, instance_alias } = input;
-    const client = await manager.getClient(instance_alias);
-    return await client.executeKw(model, 'search_count', [domain]);
-}
-
 ;// CONCATENATED MODULE: ./src/tools/get_audit_log.ts
 
 /**
@@ -40289,16 +40709,22 @@ const toolRegistry = {
         description: "Fetch view XML/definitions. Use inspect_model (show_ui=true) to find view IDs first.",
         deps: 'manager'
     },
-    search_read: {
-        handler: searchRead,
-        schema: SEARCH_READ_SCHEMA,
-        description: "Search and read records. MANDATORY: Run get_environment and/or inspect_model first to verify fields and context.",
+    search_records: {
+        handler: searchRecords,
+        schema: SEARCH_RECORDS_SCHEMA,
+        description: "Search for Odoo records. Returns a pagination envelope containing total matching count and display display-name mapping.",
         deps: 'manager'
     },
-    search_count: {
-        handler: searchCount,
-        schema: SEARCH_COUNT_SCHEMA,
-        description: "Get the total number of records matching a domain. Use this for simple record tallies.",
+    get_record: {
+        handler: getRecord,
+        schema: GET_RECORD_SCHEMA,
+        description: "Retrieve a highly detailed 360-degree dashboard report for a single Odoo record, including sub-lines and chatter.",
+        deps: 'manager'
+    },
+    get_records: {
+        handler: getRecords,
+        schema: GET_RECORDS_SCHEMA,
+        description: "Retrieve detailed reports for multiple Odoo records in batch.",
         deps: 'manager'
     },
     create_record: {
