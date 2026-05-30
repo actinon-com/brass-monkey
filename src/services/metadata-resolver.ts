@@ -1,6 +1,26 @@
 import { ModelMetadata, MetadataCache } from './metadata-cache.js';
 
 /**
+ * Registry of Expert Domains and their associated Odoo model prefixes
+ * used to resolve skill gate breadcrumbs for model listings.
+ */
+export const SKILL_DOMAIN_MAP: Record<string, string[]> = {
+  'odoo-sales': ['sale.*', 'crm.*'],
+  'odoo-finance': ['account.*', 'payment.*'],
+  'odoo-inventory': ['stock.*', 'product.*'],
+  'odoo-relations': ['res.partner', 'res.partner.category'],
+  'odoo-projects': ['project.*', 'project.task'],
+  'odoo-mrp': ['mrp.*'],
+  'odoo-plm': ['mrp.eco.*'],
+  'odoo-hr': ['hr.*', 'hr.employee'],
+  'odoo-attendance': ['hr.attendance'],
+  'odoo-helpdesk': ['helpdesk.*'],
+  'odoo-knowledge': ['knowledge.*'],
+  'odoo-documents': ['documents.*'],
+  'odoo-get-started': ['ir.model', 'ir.model.fields', 'ir.module.module'],
+};
+
+/**
  * Definitively identifies the origin module of a Odoo model using ir.model.data (XML ID).
  */
 export async function resolveBaseModule(client: any, modelId: number, moduleListStr: string): Promise<string> {

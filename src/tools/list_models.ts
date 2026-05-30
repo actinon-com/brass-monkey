@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { InstanceManager } from '../services/instance-manager.js';
-import { SKILL_DOMAIN_MAP } from '../services/skill-guard.js';
+import { SKILL_DOMAIN_MAP } from '../services/metadata-resolver.js';
 
 /**
  * Zod schema for list_models tool input.

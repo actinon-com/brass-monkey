@@ -1,5 +1,10 @@
 import { ModelMetadata } from './metadata-cache.js';
 /**
+ * Registry of Expert Domains and their associated Odoo model prefixes
+ * used to resolve skill gate breadcrumbs for model listings.
+ */
+export declare const SKILL_DOMAIN_MAP: Record<string, string[]>;
+/**
  * Definitively identifies the origin module of a Odoo model using ir.model.data (XML ID).
  */
 export declare function resolveBaseModule(client: any, modelId: number, moduleListStr: string): Promise<string>;

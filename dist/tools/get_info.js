@@ -11,7 +11,7 @@ export const GetInfoSchema = z.object({}); // No parameters needed
 /**
  * Tool to get version and environment information for the Brass-Monkey extension.
  */
-export async function getInfo(manager, guard) {
+export async function getInfo(manager) {
     // Try to read version from package.json
     let version = 'unknown';
     try {
@@ -42,7 +42,7 @@ export async function getInfo(manager, guard) {
             active_instance: activeAlias,
             odoo_version: odooVersion,
             configured_instances: instances.length,
-            active_skills: guard.getActivated()
+            active_skills: []
         },
         environment: {
             platform: process.platform,

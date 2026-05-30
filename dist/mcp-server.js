@@ -4,7 +4,6 @@ import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError, } f
 import { InstanceManager } from "./services/instance-manager.js";
 import { ConfigStore } from "./services/config-store.js";
 import { CredentialStore } from "./services/credential-store.js";
-import { SkillGuard } from "./services/skill-guard.js";
 import { ResponsePruner } from "./services/response-pruner.js";
 import * as schemas from "./tools/schemas.js";
 import * as tools from "./index.js";
@@ -40,7 +39,6 @@ const server = new Server({
 const configStore = new ConfigStore();
 const credentialStore = new CredentialStore();
 const instanceManager = new InstanceManager(configStore, credentialStore);
-const skillGuard = new SkillGuard();
 /**
  * Mapping of tool names to their implementation and metadata.
  */
@@ -151,13 +149,13 @@ const toolRegistry = {
         handler: tools.getInfo,
         schema: schemas.GET_INFO_SCHEMA,
         description: "Get version and environment information for the Brass-Monkey extension.",
-        deps: 'manager_guard'
+        deps: 'manager'
     },
     get_environment: {
         handler: tools.getEnvironment,
         schema: schemas.GET_ENVIRONMENT_SCHEMA,
         description: "DENSE TOOL: Mandatory 'World Map' orientation. Provides server, user, company, and app context. Run this FIRST in every session.",
-        deps: 'manager_guard'
+        deps: 'manager'
     },
     trace_ui_path: {
         handler: tools.traceUiPath,
@@ -177,12 +175,6 @@ const toolRegistry = {
         description: "Retrieve recent local audit log entries for transparency.",
         deps: 'manager'
     },
-    activate_skill: {
-        handler: tools.activateSkill,
-        schema: schemas.ACTIVATE_SKILL_SCHEMA,
-        description: "Activate a domain-specific skill to unlock access to associated Odoo models.",
-        deps: 'guard'
-    },
 };
 server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
@@ -200,8 +192,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         throw new McpError(ErrorCode.MethodNotFound, `Tool not found: ${name}`);
     }
     try {
-        // 1. Enforce Skill Gate (Temporarily disabled for interim unblocked testing)
-        // skillGuard.validateAccess(name, args);
         // 2. Execute Tool
         let result;
         switch (tool.deps) {
@@ -213,12 +203,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 break;
             case 'manager':
                 result = await tool.handler(instanceManager, args);
-                break;
-            case 'guard':
-                result = await tool.handler(skillGuard, args);
-                break;
-            case 'manager_guard':
-                result = await tool.handler(instanceManager, skillGuard, args);
                 break;
             default:
                 throw new Error(`Internal error: unknown dependency pattern for tool ${name}`);

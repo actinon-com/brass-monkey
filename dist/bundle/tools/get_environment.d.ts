@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { InstanceManager } from '../services/instance-manager.js';
-import { SkillGuard } from '../services/skill-guard.js';
 /**
  * Zod schema for get_environment tool input.
  */
@@ -14,7 +13,7 @@ export type GetEnvironmentInput = z.infer<typeof GetEnvironmentSchema>;
  * Dense Tool: Get a global 'World Map' of the current Odoo environment.
  * Provides server, user, and organization context in one call.
  */
-export declare function getEnvironment(manager: InstanceManager, guard: SkillGuard, input: GetEnvironmentInput): Promise<{
+export declare function getEnvironment(manager: InstanceManager, input: GetEnvironmentInput): Promise<{
     summary: string;
     environment: any;
 }>;

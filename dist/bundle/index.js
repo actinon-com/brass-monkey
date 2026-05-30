@@ -38315,98 +38315,6 @@ class ConfigStore {
 
 // EXTERNAL MODULE: ./src/services/credential-store.ts
 var credential_store = __nccwpck_require__(7639);
-;// CONCATENATED MODULE: ./src/services/skill-guard.ts
-/**
- * Registry of Expert Domains and their associated Odoo model prefixes.
- * Derived from the Brass-Monkey Skill Gate Specification.
- */
-const SKILL_DOMAIN_MAP = {
-    'odoo-sales': ['sale.*', 'crm.team', 'res.partner', 'product.pricelist'],
-    'odoo-finance': ['account.*', 'res.currency', 'payment.*', 'res.bank', 'res.partner.bank'],
-    'odoo-inventory': ['stock.*', 'product.*', 'uom.*', 'delivery.*'],
-    'odoo-mrp': ['mrp.*'],
-    'odoo-projects': ['project.*', 'account.analytic.line', 'fsm.*'],
-    'odoo-crm': ['crm.lead', 'crm.stage', 'crm.tag', 'crm.lost.reason'],
-    'odoo-hr': ['hr.*', 'resource.*'],
-    'odoo-helpdesk': ['helpdesk.*'],
-    'odoo-attendance': ['hr.attendance'],
-    'odoo-documents': ['documents.*'],
-    'odoo-knowledge': ['knowledge.*'],
-    'odoo-quality': ['quality.*'],
-    'odoo-purchasing': ['purchase.*'],
-    'odoo-plm': ['mrp.eco.*', 'mrp.bom.*'],
-    'odoo-field-service': ['project.task', 'fsm.*'],
-    'odoo-website': ['website.*'],
-    'odoo-worksheets': ['worksheet.template', 'x_custom.worksheet.*'],
-    'odoo-spreadsheets': ['documents_spreadsheet.*', 'spreadsheet.*'],
-    'odoo-security': ['res.groups', 'res.users', 'ir.model.access', 'ir.rule'],
-    'odoo-ux': ['ir.ui.view', 'ir.ui.menu', 'ir.actions.*'],
-    'odoo-relations': ['res.partner', 'res.partner.category', 'res.partner.title'],
-    'odoo-products': ['product.template', 'product.product', 'product.category', 'product.attribute.*'],
-};
-/**
- * Tools that are exempted from the Skill Gate to allow for discovery.
- */
-const EXEMPT_TOOLS = [
-    'setup_instance',
-    'list_instances',
-    'switch_instance',
-    'remove_instance',
-    'list_models',
-    'get_info',
-    'get_environment',
-    'get_audit_log',
-    'activate_skill' // The key that unlocks the gate
-];
-/**
- * Service to manage and enforce domain-specific skill activation.
- */
-class SkillGuard {
-    activatedSkills = new Set();
-    /**
-     * Activates a skill for the current session.
-     */
-    activate(skillName) {
-        this.activatedSkills.add(skillName);
-    }
-    /**
-     * Returns the set of currently activated skills.
-     */
-    getActivated() {
-        return Array.from(this.activatedSkills);
-    }
-    /**
-     * Resolves which skill is required for a given Odoo model.
-     * Uses regex matching against the domain map.
-     */
-    getRequiredSkill(model) {
-        for (const [skill, prefixes] of Object.entries(SKILL_DOMAIN_MAP)) {
-            for (const prefix of prefixes) {
-                const regex = new RegExp('^' + prefix.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$');
-                if (regex.test(model)) {
-                    return skill;
-                }
-            }
-        }
-        return null;
-    }
-    /**
-     * Validates if the required skill for a model is active.
-     * @throws Error if the domain is locked.
-     */
-    validateAccess(toolName, args) {
-        if (EXEMPT_TOOLS.includes(toolName))
-            return;
-        const model = args?.model;
-        if (!model)
-            return;
-        const requiredSkill = this.getRequiredSkill(model);
-        if (requiredSkill && !this.activatedSkills.has(requiredSkill)) {
-            throw new Error(`DOMAIN_LOCKED: Access to model '${model}' is locked. You must first activate the '${requiredSkill}' skill to internalize the expert domain rules for this operation.`);
-        }
-    }
-}
-
 ;// CONCATENATED MODULE: ./src/services/response-pruner.ts
 /**
  * Utility to prune and compress Odoo responses for context efficiency.
@@ -38724,6 +38632,217 @@ const ACTIVATE_SKILL_SCHEMA = {
     required: ["skill_name"],
 };
 
+;// CONCATENATED MODULE: ./src/services/metadata-cache.ts
+/**
+ * Service to cache Odoo model layouts in memory during the active session.
+ * Cuts N+1 query latency down to 0ms for default searches and model inspections.
+ */
+class MetadataCache {
+    static instance = null;
+    cache = new Map();
+    constructor() { }
+    static getInstance() {
+        if (!MetadataCache.instance) {
+            MetadataCache.instance = new MetadataCache();
+        }
+        return MetadataCache.instance;
+    }
+    getKey(instanceAlias, model) {
+        return `${instanceAlias || 'default'}:${model}`;
+    }
+    get(instanceAlias, model) {
+        return this.cache.get(this.getKey(instanceAlias, model)) || null;
+    }
+    set(instanceAlias, model, metadata) {
+        this.cache.set(this.getKey(instanceAlias, model), metadata);
+    }
+    clear() {
+        this.cache.clear();
+    }
+}
+
+;// CONCATENATED MODULE: ./src/services/metadata-resolver.ts
+
+/**
+ * Registry of Expert Domains and their associated Odoo model prefixes
+ * used to resolve skill gate breadcrumbs for model listings.
+ */
+const SKILL_DOMAIN_MAP = {
+    'odoo-sales': ['sale.*', 'crm.*'],
+    'odoo-finance': ['account.*', 'payment.*'],
+    'odoo-inventory': ['stock.*', 'product.*'],
+    'odoo-relations': ['res.partner', 'res.partner.category'],
+    'odoo-projects': ['project.*', 'project.task'],
+    'odoo-mrp': ['mrp.*'],
+    'odoo-plm': ['mrp.eco.*'],
+    'odoo-hr': ['hr.*', 'hr.employee'],
+    'odoo-attendance': ['hr.attendance'],
+    'odoo-helpdesk': ['helpdesk.*'],
+    'odoo-knowledge': ['knowledge.*'],
+    'odoo-documents': ['documents.*'],
+    'odoo-get-started': ['ir.model', 'ir.model.fields', 'ir.module.module'],
+};
+/**
+ * Definitively identifies the origin module of a Odoo model using ir.model.data (XML ID).
+ */
+async function resolveBaseModule(client, modelId, moduleListStr) {
+    const moduleList = moduleListStr.split(',').map(m => m.trim());
+    try {
+        const mDatas = await client.executeKw('ir.model.data', 'search_read', [
+            [['model', '=', 'ir.model'], ['res_id', '=', modelId]]
+        ], {
+            fields: ['module']
+        });
+        const allOriginMods = mDatas.map((m) => m.module);
+        if (allOriginMods.includes('base')) {
+            return 'base';
+        }
+        else if (allOriginMods.length > 0) {
+            // Return the shortest module name (e.g., 'sale' vs 'sale_management')
+            const sorted = [...allOriginMods].sort((a, b) => a.length - b.length);
+            return sorted[0];
+        }
+        else {
+            return moduleList[0];
+        }
+    }
+    catch (error) {
+        return moduleList[0];
+    }
+}
+/**
+ * Builds, categorizes, and resolves complete metadata layout for a model,
+ * including auto-detecting the "Belonging Relation" and background warming parent modules.
+ */
+async function buildModelMetadata(client, model, instanceAlias = 'default') {
+    // 1. Resolve Model metadata
+    const modelInfo = await client.executeKw('ir.model', 'search_read', [[['model', '=', model]]], {
+        fields: ['id', 'name', 'modules', 'transient'],
+        limit: 1
+    });
+    if (!modelInfo || modelInfo.length === 0)
+        throw new Error(`Model not found: ${model}`);
+    const m = modelInfo[0];
+    const baseModule = await resolveBaseModule(client, m.id, m.modules || '');
+    // 2. Fetch Fields and Filter
+    const fRecords = await client.executeKw('ir.model.fields', 'search_read', [[['model_id.model', '=', model]]], {
+        fields: ['name', 'field_description', 'ttype', 'relation', 'required', 'readonly', 'store', 'translate', 'company_dependent', 'help', 'domain', 'modules', 'compute', 'related']
+    });
+    const buckets = { base: {}, extended: {}, computed: {}, related: {}, relational: {}, lines: {} };
+    const baseFields = ['id'];
+    for (const f of fRecords) {
+        // A. Exclude chatter and activity system fields (aligning with Python chatter category bypass)
+        if (f.name.startsWith('message_') || f.name.startsWith('activity_')) {
+            continue;
+        }
+        const isBase = f.modules.split(',').map((mod) => mod.trim()).includes(baseModule);
+        const props = [];
+        if (f.required)
+            props.push('required');
+        if (f.readonly)
+            props.push('readonly');
+        if (!f.store)
+            props.push('not-stored');
+        if (f.translate)
+            props.push('translatable');
+        if (f.company_dependent)
+            props.push('company-dependent');
+        const fieldData = {
+            type: f.ttype,
+            string: f.field_description,
+            relation: f.relation || undefined,
+            properties: props.length > 0 ? props : undefined,
+            help: f.help || undefined,
+        };
+        if (f.domain && f.domain !== '[]') {
+            fieldData.hint = `Search Filter: ${f.domain}`;
+        }
+        // B. Strict if/else-if categorization cascade
+        if (f.related) {
+            buckets.related[f.name] = fieldData;
+        }
+        else if (!f.store) {
+            buckets.computed[f.name] = fieldData;
+        }
+        else if (f.ttype === 'one2many') {
+            buckets.lines[f.name] = fieldData;
+        }
+        else if (['many2one', 'many2many', 'reference'].includes(f.ttype)) {
+            buckets.relational[f.name] = fieldData;
+        }
+        else if (!isBase) {
+            buckets.extended[f.name] = fieldData;
+        }
+        else {
+            buckets.base[f.name] = fieldData;
+        }
+    }
+    // 3. Assemble High-Signal Default Search Fields (Breadth Layout)
+    // Essential baseline fields
+    const hasDisplayName = fRecords.some((f) => f.name === 'display_name');
+    const hasName = fRecords.some((f) => f.name === 'name');
+    if (hasDisplayName)
+        baseFields.push('display_name');
+    if (hasName && !baseFields.includes('name'))
+        baseFields.push('name');
+    // Add state/lifecycle fields if they exist
+    const stateFields = ['state', 'active', 'stage_id', 'status'];
+    for (const sf of stateFields) {
+        if (fRecords.some((f) => f.name === sf)) {
+            baseFields.push(sf);
+        }
+    }
+    // Add freshness fields if they exist
+    const freshnessFields = ['write_date', 'create_date'];
+    for (const ff of freshnessFields) {
+        if (fRecords.some((f) => f.name === ff)) {
+            baseFields.push(ff);
+        }
+    }
+    // 4. Dynamically Identify the Hierarchical "Belonging Relation" parent (M2O)
+    // Check for many2one fields that link this record to its parent namespace or compositional parent
+    const m2oFields = fRecords.filter((f) => f.ttype === 'many2one');
+    const namespacePrefix = model.split('.')[0]; // e.g. 'project' from 'project.task'
+    let belongingRelation = null;
+    // Step 1: Look for exact relation with parent namespace (e.g. project_id on project.task)
+    const prefixMatch = m2oFields.find((f) => f.name === `${namespacePrefix}_id`);
+    if (prefixMatch) {
+        belongingRelation = prefixMatch.name;
+    }
+    else {
+        // Step 2: Fallback to standard composition names
+        const compMatch = m2oFields.find((f) => ['parent_id', 'order_id', 'move_id', 'invoice_id', 'group_id'].includes(f.name));
+        if (compMatch) {
+            belongingRelation = compMatch.name;
+        }
+    }
+    if (belongingRelation) {
+        baseFields.push(belongingRelation);
+        // 5. Related Model Warming: silently warm parent metadata asynchronously
+        const parentField = m2oFields.find((f) => f.name === belongingRelation);
+        if (parentField && parentField.relation) {
+            const parentModel = parentField.relation;
+            // We spawn this asynchronously in the background so it warms up for future queries
+            buildModelMetadata(client, parentModel, instanceAlias)
+                .then((parentMeta) => {
+                MetadataCache.getInstance().set(instanceAlias, parentModel, parentMeta);
+            })
+                .catch(() => { });
+        }
+    }
+    // Deduplicate
+    const deduplicatedFields = Array.from(new Set(baseFields));
+    return {
+        baseModule,
+        id: m.id,
+        name: m.name,
+        transient: m.transient,
+        modules: m.modules || '',
+        baseFields: deduplicatedFields,
+        categorized: buckets
+    };
+}
+
 ;// CONCATENATED MODULE: ./src/tools/setup_instance.ts
 
 
@@ -38940,198 +39059,6 @@ async function listModels(manager, input = { limit: 50, offset: 0 }) {
         offset,
         limit,
         results: paginatedResults
-    };
-}
-
-;// CONCATENATED MODULE: ./src/services/metadata-cache.ts
-/**
- * Service to cache Odoo model layouts in memory during the active session.
- * Cuts N+1 query latency down to 0ms for default searches and model inspections.
- */
-class MetadataCache {
-    static instance = null;
-    cache = new Map();
-    constructor() { }
-    static getInstance() {
-        if (!MetadataCache.instance) {
-            MetadataCache.instance = new MetadataCache();
-        }
-        return MetadataCache.instance;
-    }
-    getKey(instanceAlias, model) {
-        return `${instanceAlias || 'default'}:${model}`;
-    }
-    get(instanceAlias, model) {
-        return this.cache.get(this.getKey(instanceAlias, model)) || null;
-    }
-    set(instanceAlias, model, metadata) {
-        this.cache.set(this.getKey(instanceAlias, model), metadata);
-    }
-    clear() {
-        this.cache.clear();
-    }
-}
-
-;// CONCATENATED MODULE: ./src/services/metadata-resolver.ts
-
-/**
- * Definitively identifies the origin module of a Odoo model using ir.model.data (XML ID).
- */
-async function resolveBaseModule(client, modelId, moduleListStr) {
-    const moduleList = moduleListStr.split(',').map(m => m.trim());
-    try {
-        const mDatas = await client.executeKw('ir.model.data', 'search_read', [
-            [['model', '=', 'ir.model'], ['res_id', '=', modelId]]
-        ], {
-            fields: ['module']
-        });
-        const allOriginMods = mDatas.map((m) => m.module);
-        if (allOriginMods.includes('base')) {
-            return 'base';
-        }
-        else if (allOriginMods.length > 0) {
-            // Return the shortest module name (e.g., 'sale' vs 'sale_management')
-            const sorted = [...allOriginMods].sort((a, b) => a.length - b.length);
-            return sorted[0];
-        }
-        else {
-            return moduleList[0];
-        }
-    }
-    catch (error) {
-        return moduleList[0];
-    }
-}
-/**
- * Builds, categorizes, and resolves complete metadata layout for a model,
- * including auto-detecting the "Belonging Relation" and background warming parent modules.
- */
-async function buildModelMetadata(client, model, instanceAlias = 'default') {
-    // 1. Resolve Model metadata
-    const modelInfo = await client.executeKw('ir.model', 'search_read', [[['model', '=', model]]], {
-        fields: ['id', 'name', 'modules', 'transient'],
-        limit: 1
-    });
-    if (!modelInfo || modelInfo.length === 0)
-        throw new Error(`Model not found: ${model}`);
-    const m = modelInfo[0];
-    const baseModule = await resolveBaseModule(client, m.id, m.modules || '');
-    // 2. Fetch Fields and Filter
-    const fRecords = await client.executeKw('ir.model.fields', 'search_read', [[['model_id.model', '=', model]]], {
-        fields: ['name', 'field_description', 'ttype', 'relation', 'required', 'readonly', 'store', 'translate', 'company_dependent', 'help', 'domain', 'modules', 'compute', 'related']
-    });
-    const buckets = { base: {}, extended: {}, computed: {}, related: {}, relational: {}, lines: {} };
-    const baseFields = ['id'];
-    for (const f of fRecords) {
-        // A. Exclude chatter and activity system fields (aligning with Python chatter category bypass)
-        if (f.name.startsWith('message_') || f.name.startsWith('activity_')) {
-            continue;
-        }
-        const isBase = f.modules.split(',').map((mod) => mod.trim()).includes(baseModule);
-        const props = [];
-        if (f.required)
-            props.push('required');
-        if (f.readonly)
-            props.push('readonly');
-        if (!f.store)
-            props.push('not-stored');
-        if (f.translate)
-            props.push('translatable');
-        if (f.company_dependent)
-            props.push('company-dependent');
-        const fieldData = {
-            type: f.ttype,
-            string: f.field_description,
-            relation: f.relation || undefined,
-            properties: props.length > 0 ? props : undefined,
-            help: f.help || undefined,
-        };
-        if (f.domain && f.domain !== '[]') {
-            fieldData.hint = `Search Filter: ${f.domain}`;
-        }
-        // B. Strict if/else-if categorization cascade
-        if (f.related) {
-            buckets.related[f.name] = fieldData;
-        }
-        else if (!f.store) {
-            buckets.computed[f.name] = fieldData;
-        }
-        else if (f.ttype === 'one2many') {
-            buckets.lines[f.name] = fieldData;
-        }
-        else if (['many2one', 'many2many', 'reference'].includes(f.ttype)) {
-            buckets.relational[f.name] = fieldData;
-        }
-        else if (!isBase) {
-            buckets.extended[f.name] = fieldData;
-        }
-        else {
-            buckets.base[f.name] = fieldData;
-        }
-    }
-    // 3. Assemble High-Signal Default Search Fields (Breadth Layout)
-    // Essential baseline fields
-    const hasDisplayName = fRecords.some((f) => f.name === 'display_name');
-    const hasName = fRecords.some((f) => f.name === 'name');
-    if (hasDisplayName)
-        baseFields.push('display_name');
-    if (hasName && !baseFields.includes('name'))
-        baseFields.push('name');
-    // Add state/lifecycle fields if they exist
-    const stateFields = ['state', 'active', 'stage_id', 'status'];
-    for (const sf of stateFields) {
-        if (fRecords.some((f) => f.name === sf)) {
-            baseFields.push(sf);
-        }
-    }
-    // Add freshness fields if they exist
-    const freshnessFields = ['write_date', 'create_date'];
-    for (const ff of freshnessFields) {
-        if (fRecords.some((f) => f.name === ff)) {
-            baseFields.push(ff);
-        }
-    }
-    // 4. Dynamically Identify the Hierarchical "Belonging Relation" parent (M2O)
-    // Check for many2one fields that link this record to its parent namespace or compositional parent
-    const m2oFields = fRecords.filter((f) => f.ttype === 'many2one');
-    const namespacePrefix = model.split('.')[0]; // e.g. 'project' from 'project.task'
-    let belongingRelation = null;
-    // Step 1: Look for exact relation with parent namespace (e.g. project_id on project.task)
-    const prefixMatch = m2oFields.find((f) => f.name === `${namespacePrefix}_id`);
-    if (prefixMatch) {
-        belongingRelation = prefixMatch.name;
-    }
-    else {
-        // Step 2: Fallback to standard composition names
-        const compMatch = m2oFields.find((f) => ['parent_id', 'order_id', 'move_id', 'invoice_id', 'group_id'].includes(f.name));
-        if (compMatch) {
-            belongingRelation = compMatch.name;
-        }
-    }
-    if (belongingRelation) {
-        baseFields.push(belongingRelation);
-        // 5. Related Model Warming: silently warm parent metadata asynchronously
-        const parentField = m2oFields.find((f) => f.name === belongingRelation);
-        if (parentField && parentField.relation) {
-            const parentModel = parentField.relation;
-            // We spawn this asynchronously in the background so it warms up for future queries
-            buildModelMetadata(client, parentModel, instanceAlias)
-                .then((parentMeta) => {
-                MetadataCache.getInstance().set(instanceAlias, parentModel, parentMeta);
-            })
-                .catch(() => { });
-        }
-    }
-    // Deduplicate
-    const deduplicatedFields = Array.from(new Set(baseFields));
-    return {
-        baseModule,
-        id: m.id,
-        name: m.name,
-        transient: m.transient,
-        modules: m.modules || '',
-        baseFields: deduplicatedFields,
-        categorized: buckets
     };
 }
 
@@ -40446,7 +40373,7 @@ const GetInfoSchema = schemas_object({}); // No parameters needed
 /**
  * Tool to get version and environment information for the Brass-Monkey extension.
  */
-async function getInfo(manager, guard) {
+async function getInfo(manager) {
     // Try to read version from package.json
     let version = 'unknown';
     try {
@@ -40477,7 +40404,7 @@ async function getInfo(manager, guard) {
             active_instance: activeAlias,
             odoo_version: odooVersion,
             configured_instances: instances.length,
-            active_skills: guard.getActivated()
+            active_skills: []
         },
         environment: {
             platform: process.platform,
@@ -40502,7 +40429,7 @@ const GetEnvironmentSchema = schemas_object({
  * Dense Tool: Get a global 'World Map' of the current Odoo environment.
  * Provides server, user, and organization context in one call.
  */
-async function getEnvironment(manager, guard, input) {
+async function getEnvironment(manager, input) {
     const { show_security, show_manifest, instance_alias } = input;
     const client = await manager.getClient(instance_alias);
     // Ensure authenticated
@@ -40563,7 +40490,7 @@ async function getEnvironment(manager, guard, input) {
             }, {}),
         },
         session: {
-            active_skills: guard.getActivated()
+            active_skills: []
         }
     };
     if (show_security) {
@@ -40753,30 +40680,9 @@ async function getAuditLog(manager, input) {
     };
 }
 
-;// CONCATENATED MODULE: ./src/tools/activate_skill.ts
-
-/**
- * Zod schema for activate_skill tool input.
- */
-const ActivateSkillSchema = schemas_object({
-    skill_name: classic_schemas_string().describe('The name of the domain skill to activate (e.g., "odoo-sales").'),
-});
-/**
- * Tool to activate a domain-specific skill within the MCP session.
- * This unlocks access to the associated Odoo models.
- */
-async function activateSkill(guard, input) {
-    const { skill_name } = input;
-    guard.activate(skill_name);
-    return {
-        status: 'success',
-        message: `Skill '${skill_name}' activated. Access to associated Odoo models is now unlocked.`,
-        active_skills: guard.getActivated()
-    };
-}
-
 ;// CONCATENATED MODULE: ./src/index.ts
 // Services
+
 
 
 
@@ -40806,12 +40712,10 @@ async function activateSkill(guard, input) {
 
 
 
-
 // The extension manifest will typically be handled by the Gemini CLI 
 // by scanning the exported tools and the src/skills directory.
 
 ;// CONCATENATED MODULE: ./src/mcp-server.ts
-
 
 
 
@@ -40853,7 +40757,6 @@ const server = new Server({
 const configStore = new ConfigStore();
 const credentialStore = new credential_store/* CredentialStore */.L();
 const instanceManager = new InstanceManager(configStore, credentialStore);
-const skillGuard = new SkillGuard();
 /**
  * Mapping of tool names to their implementation and metadata.
  */
@@ -40964,13 +40867,13 @@ const toolRegistry = {
         handler: getInfo,
         schema: GET_INFO_SCHEMA,
         description: "Get version and environment information for the Brass-Monkey extension.",
-        deps: 'manager_guard'
+        deps: 'manager'
     },
     get_environment: {
         handler: getEnvironment,
         schema: GET_ENVIRONMENT_SCHEMA,
         description: "DENSE TOOL: Mandatory 'World Map' orientation. Provides server, user, company, and app context. Run this FIRST in every session.",
-        deps: 'manager_guard'
+        deps: 'manager'
     },
     trace_ui_path: {
         handler: traceUiPath,
@@ -40990,12 +40893,6 @@ const toolRegistry = {
         description: "Retrieve recent local audit log entries for transparency.",
         deps: 'manager'
     },
-    activate_skill: {
-        handler: activateSkill,
-        schema: ACTIVATE_SKILL_SCHEMA,
-        description: "Activate a domain-specific skill to unlock access to associated Odoo models.",
-        deps: 'guard'
-    },
 };
 server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
@@ -41013,8 +40910,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         throw new McpError(ErrorCode.MethodNotFound, `Tool not found: ${name}`);
     }
     try {
-        // 1. Enforce Skill Gate (Temporarily disabled for interim unblocked testing)
-        // skillGuard.validateAccess(name, args);
         // 2. Execute Tool
         let result;
         switch (tool.deps) {
@@ -41026,12 +40921,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 break;
             case 'manager':
                 result = await tool.handler(instanceManager, args);
-                break;
-            case 'guard':
-                result = await tool.handler(skillGuard, args);
-                break;
-            case 'manager_guard':
-                result = await tool.handler(instanceManager, skillGuard, args);
                 break;
             default:
                 throw new Error(`Internal error: unknown dependency pattern for tool ${name}`);
