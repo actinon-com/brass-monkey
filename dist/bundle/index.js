@@ -40505,7 +40505,20 @@ const AggregateRecordsSchema = schemas_object({
         }
         return val;
     }, schemas_array(schemas_any()).default([])).describe('Odoo domain filter'),
-    groupby: schemas_array(classic_schemas_string()).describe("Fields to group by. Use 'field:interval' for dates (e.g., 'date:month')."),
+    groupby: preprocess((val) => {
+        if (typeof val === 'string') {
+            if (val.startsWith('[')) {
+                try {
+                    return JSON.parse(val);
+                }
+                catch {
+                    return [val];
+                }
+            }
+            return [val];
+        }
+        return val;
+    }, schemas_array(classic_schemas_string())).describe("Fields to group by. Use 'field:interval' for dates (e.g., 'date:month')."),
     fields: schemas_array(classic_schemas_string()).optional().describe("Numeric/Monetary fields to aggregate (sum). Defaults to '__count'."),
     limit: classic_coerce_number().optional().describe('Maximum number of groups to return'),
     offset: classic_coerce_number().optional().describe('Number of groups to skip (for pagination)'),

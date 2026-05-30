@@ -12,7 +12,15 @@ export const AggregateRecordsSchema = z.object({
     }
     return val;
   }, z.array(z.any()).default([])).describe('Odoo domain filter'),
-  groupby: z.array(z.string()).describe("Fields to group by. Use 'field:interval' for dates (e.g., 'date:month')."),
+  groupby: z.preprocess((val) => {
+    if (typeof val === 'string') {
+      if (val.startsWith('[')) {
+        try { return JSON.parse(val); } catch { return [val]; }
+      }
+      return [val];
+    }
+    return val;
+  }, z.array(z.string())).describe("Fields to group by. Use 'field:interval' for dates (e.g., 'date:month')."),
   fields: z.array(z.string()).optional().describe("Numeric/Monetary fields to aggregate (sum). Defaults to '__count'."),
   limit: z.coerce.number().optional().describe('Maximum number of groups to return'),
   offset: z.coerce.number().optional().describe('Number of groups to skip (for pagination)'),
