@@ -182,9 +182,9 @@ describe('Orchestrated Introspection', () => {
         }
       ]); // field info
 
-    const result = await inspectModel(mockManager, { model: 'res.partner', show_base: true });
+    const result = await inspectModel(mockManager, { model: 'res.partner', show_base: true, show_relationships: true });
     
     expect(result.fields.base.name.properties).toContain('translatable');
-    expect(result.fields.base.parent_id.hint).toBe("Search Filter: [('is_company', '=', True)]");
+    expect(result.fields.relationships.parent_id.hint).toBe("Search Filter: [('is_company', '=', True)]");
   });
 });

@@ -38973,6 +38973,10 @@ async function inspectModel(manager, input) {
         });
         const buckets = { base: {}, extended: {}, computed: {}, related: {}, relational: {}, lines: {} };
         for (const f of fRecords) {
+            // 1. Exclude chatter and activity system fields (aligning with Python chatter category bypass)
+            if (f.name.startsWith('message_') || f.name.startsWith('activity_')) {
+                continue;
+            }
             // Split the comma-separated modules and check for exact module matching (prevents substring matching like sale_stock matching sale)
             const isBase = f.modules.split(',').map((mod) => mod.trim()).includes(baseModule);
             const props = [];
@@ -38996,18 +39000,25 @@ async function inspectModel(manager, input) {
             if (f.domain && f.domain !== '[]') {
                 fieldData.hint = `Search Filter: ${f.domain}`;
             }
-            if (f.compute)
-                buckets.computed[f.name] = fieldData;
-            if (f.related)
+            // 2. Strict if/else-if categorization cascade (exactly matching Python categorize_fields priority)
+            if (f.related) {
                 buckets.related[f.name] = fieldData;
-            if (['many2one', 'reference'].includes(f.ttype))
-                buckets.relational[f.name] = fieldData;
-            if (['one2many', 'many2many'].includes(f.ttype))
+            }
+            else if (!f.store) {
+                buckets.computed[f.name] = fieldData;
+            }
+            else if (f.ttype === 'one2many') {
                 buckets.lines[f.name] = fieldData;
-            if (isBase)
-                buckets.base[f.name] = fieldData;
-            else
+            }
+            else if (['many2one', 'many2many', 'reference'].includes(f.ttype)) {
+                buckets.relational[f.name] = fieldData;
+            }
+            else if (!isBase) {
                 buckets.extended[f.name] = fieldData;
+            }
+            else {
+                buckets.base[f.name] = fieldData;
+            }
         }
         res.fields = {};
         if (flags.show_base)
