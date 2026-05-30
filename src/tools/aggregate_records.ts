@@ -31,11 +31,15 @@ export async function aggregateRecords(manager: InstanceManager, input: Aggregat
 
   // Odoo read_group signature: (domain, fields, groupby, offset=0, limit=None, orderby=False, lazy=True)
   // We use lazy: false to get a flattened result set of all groupby levels.
-  const results = await client.executeKw(model, 'read_group', [domain, fields || [], groupby], {
-    limit,
-    offset: offset || 0,
-    lazy: false
-  });
+  const options: any = {
+    lazy: false,
+    offset: offset || 0
+  };
+  if (limit !== undefined) {
+    options.limit = limit;
+  }
+
+  const results = await client.executeKw(model, 'read_group', [domain, fields || [], groupby], options);
 
   return {
     model,
