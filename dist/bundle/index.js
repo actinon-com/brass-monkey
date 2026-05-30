@@ -38576,8 +38576,8 @@ const SEARCH_RECORDS_SCHEMA = {
         model: { type: "string", description: 'Technical name of the model (e.g., "res.partner", "project.task").' },
         domain: { type: "array", items: {}, description: 'Odoo domain filter. A list of triplets: [["field", "operator", value]]. Example: [["is_company", "=", true]]. Use empty list [] for all records.' },
         fields: { type: "array", items: { type: "string" }, description: "Optional explicit list of field names to retrieve. If omitted, returns lightweight Breadth fields." },
-        limit: { type: "number", description: "Maximum number of records to return. Keep low for performance unless batching." },
-        offset: { type: "number", description: "Number of records to skip (for pagination)." },
+        limit: { type: "number", description: "Maximum number of records to return (defaults to 10)." },
+        offset: { type: "number", description: "Number of records to skip (for pagination, defaults to 0)." },
         order: { type: "string", description: 'Order by clause (e.g., "name asc", "create_date desc").' },
         with_translations: { type: "boolean", description: "If True, translatable fields are enriched with their 'Forgiving' format (Matrix)." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
@@ -39293,7 +39293,7 @@ const GetMenuSchema = schemas_object({
         if (val === 'false' || val === 'False')
             return null;
         return val;
-    }, classic_coerce_number().nullable().optional()).describe('Optional parent menu ID to drill down hierarchically.'),
+    }, classic_coerce_number().nullable().optional()).describe('Optional parent menu ID. If omitted and search_term is blank, returns top-level apps.'),
     search_term: preprocess((val) => {
         if (Array.isArray(val) && val.length === 1 && typeof val[0] === 'string') {
             return val[0];

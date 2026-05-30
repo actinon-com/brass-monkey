@@ -7,7 +7,7 @@ export const GetMenuSchema = z.object({
         if (val === 'false' || val === 'False')
             return null;
         return val;
-    }, z.coerce.number().nullable().optional()).describe('Optional parent menu ID to drill down hierarchically.'),
+    }, z.coerce.number().nullable().optional()).describe('Optional parent menu ID. If omitted and search_term is blank, returns top-level apps.'),
     search_term: z.preprocess((val) => {
         if (Array.isArray(val) && val.length === 1 && typeof val[0] === 'string') {
             return val[0];
