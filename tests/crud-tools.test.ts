@@ -69,7 +69,7 @@ describe('CRUD Tools', () => {
   });
 
   describe('aggregateRecords', () => {
-    it('should call read_group with expected arguments', async () => {
+    it('should call read_group with expected arguments and return structured metadata', async () => {
       mockClient.executeKw.mockResolvedValue([{ __count: 5, state: 'draft' }]);
       
       const result = await aggregateRecords(mockManager, {
@@ -81,7 +81,14 @@ describe('CRUD Tools', () => {
       expect(mockClient.executeKw).toHaveBeenCalledWith('sale.order', 'read_group', [[], [], ['state']], expect.objectContaining({
         lazy: false
       }));
-      expect(result[0].__count).toBe(5);
+      expect(result).toEqual({
+        model: 'sale.order',
+        groupby: ['state'],
+        count: 1,
+        offset: 0,
+        limit: undefined,
+        results: [{ __count: 5, state: 'draft' }]
+      });
     });
   });
 

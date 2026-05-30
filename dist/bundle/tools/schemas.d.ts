@@ -407,6 +407,10 @@ export declare const AGGREGATE_RECORDS_SCHEMA: {
             type: string;
             description: string;
         };
+        offset: {
+            type: string;
+            description: string;
+        };
         instance_alias: {
             type: string;
             description: string;

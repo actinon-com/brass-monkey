@@ -38632,6 +38632,7 @@ const AGGREGATE_RECORDS_SCHEMA = {
         groupby: { type: "array", items: { type: "string" }, description: "Fields to group by. Use 'field:interval' for dates (e.g., 'date:month'). REQUIRED for aggregation." },
         fields: { type: "array", items: { type: "string" }, description: "Numeric/Monetary fields to sum (e.g., ['price_total']). Defaults to '__count' (record count per group)." },
         limit: { type: "number", description: "Maximum number of groups to return." },
+        offset: { type: "number", description: "Number of groups to skip (for pagination)." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "groupby"],
@@ -40507,6 +40508,7 @@ const AggregateRecordsSchema = schemas_object({
     groupby: schemas_array(classic_schemas_string()).describe("Fields to group by. Use 'field:interval' for dates (e.g., 'date:month')."),
     fields: schemas_array(classic_schemas_string()).optional().describe("Numeric/Monetary fields to aggregate (sum). Defaults to '__count'."),
     limit: classic_coerce_number().optional().describe('Maximum number of groups to return'),
+    offset: classic_coerce_number().optional().describe('Number of groups to skip (for pagination)'),
     instance_alias: classic_schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -40514,14 +40516,23 @@ const AggregateRecordsSchema = schemas_object({
  * Wraps the 'read_group' RPC method to provide summarized data.
  */
 async function aggregateRecords(manager, input) {
-    const { model, domain, groupby, fields, limit, instance_alias } = input;
+    const { model, domain, groupby, fields, limit, offset, instance_alias } = input;
     const client = await manager.getClient(instance_alias);
     // Odoo read_group signature: (domain, fields, groupby, offset=0, limit=None, orderby=False, lazy=True)
     // We use lazy: false to get a flattened result set of all groupby levels.
-    return await client.executeKw(model, 'read_group', [domain, fields || [], groupby], {
+    const results = await client.executeKw(model, 'read_group', [domain, fields || [], groupby], {
         limit,
+        offset: offset || 0,
         lazy: false
     });
+    return {
+        model,
+        groupby,
+        count: results.length,
+        offset: offset || 0,
+        limit: limit || undefined,
+        results
+    };
 }
 
 ;// CONCATENATED MODULE: ./src/tools/get_audit_log.ts

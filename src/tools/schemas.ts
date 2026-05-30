@@ -170,6 +170,7 @@ export const AGGREGATE_RECORDS_SCHEMA = {
     groupby: { type: "array", items: { type: "string" }, description: "Fields to group by. Use 'field:interval' for dates (e.g., 'date:month'). REQUIRED for aggregation." },
     fields: { type: "array", items: { type: "string" }, description: "Numeric/Monetary fields to sum (e.g., ['price_total']). Defaults to '__count' (record count per group)." },
     limit: { type: "number", description: "Maximum number of groups to return." },
+    offset: { type: "number", description: "Number of groups to skip (for pagination)." },
     instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
   },
   required: ["model", "groupby"],
