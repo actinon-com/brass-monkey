@@ -93,6 +93,9 @@ describe('Discovery Tools', () => {
       expect(result).toEqual({
         search_term: 'sale',
         count: 1,
+        total_count: 1,
+        offset: 0,
+        limit: 50,
         results: [
           { model: 'sale.order', name: 'Sales Order', transient: false, required_skill: 'odoo-sales' }
         ]
@@ -104,20 +107,19 @@ describe('Discovery Tools', () => {
     it('should dynamically auto-resolve action model and read correctly', async () => {
       mockClient.executeKw
         .mockResolvedValueOnce([{ type: 'ir.actions.act_window' }]) // ir.actions.actions type lookup
-        .mockResolvedValueOnce([{ name: 'All tasks', res_model: 'project.task', view_mode: 'kanban' }]); // act_window read
+        .mockResolvedValueOnce([{ name: 'All tasks', res_model: 'project.task', view_mode: 'kanban' }]) // act_window read
+        .mockResolvedValueOnce([{ complete_name: 'Project / Tasks / All' }]); // parent menus search
 
       const result = await getAction(mockManager, { action_id: 123 });
 
       expect(mockClient.executeKw).toHaveBeenNthCalledWith(1, 'ir.actions.actions', 'read', [[123]], { fields: ['type'] });
-      expect(mockClient.executeKw).toHaveBeenNthCalledWith(2, 'ir.actions.act_window', 'read', [[123]], expect.objectContaining({
-        fields: expect.arrayContaining(['name', 'res_model', 'view_mode'])
-      }));
       expect(result).toEqual({
         id: 123,
         type: 'ir.actions.act_window',
         name: 'All tasks',
         res_model: 'project.task',
-        view_mode: 'kanban'
+        view_mode: 'kanban',
+        menus: ['Project / Tasks / All']
       });
     });
   });
