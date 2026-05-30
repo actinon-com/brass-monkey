@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SKILL_DOMAIN_MAP } from '../services/skill-guard.js';
+import { SKILL_DOMAIN_MAP } from '../services/metadata-resolver.js';
 /**
  * Zod schema for list_models tool input.
  * Includes pre-processing to handle single-item arrays.
@@ -11,14 +11,18 @@ export const ListModelsSchema = z.object({
         }
         return val;
     }, z.string().optional()).describe('Optional filter for model name or description (e.g., "sale")'),
+    limit: z.coerce.number().optional().default(50).describe('Maximum number of models to return (defaults to 50)'),
+    offset: z.coerce.number().optional().default(0).describe('Number of models to skip (for pagination)'),
     instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
  * Tool to list Odoo technical models.
  * Enhances the output with Skill Gate breadcrumbs to guide the agent.
  */
-export async function listModels(manager, input = {}) {
-    const { search_term, instance_alias } = input;
+export async function listModels(manager, input = { limit: 50, offset: 0 }) {
+    // Enforce schema parsing to apply defaults and preprocessors
+    const parsedInput = ListModelsSchema.parse(input);
+    const { search_term, limit, offset, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     const domain = [];
     if (search_term) {
@@ -28,7 +32,7 @@ export async function listModels(manager, input = {}) {
         fields: ['model', 'name', 'transient'],
         order: 'model asc',
     });
-    return models.map((m) => {
+    const results = models.map((m) => {
         // Resolve required skill for breadcrumb
         let requiredSkill = null;
         for (const [skill, prefixes] of Object.entries(SKILL_DOMAIN_MAP)) {
@@ -49,5 +53,14 @@ export async function listModels(manager, input = {}) {
             required_skill: requiredSkill
         };
     });
+    const paginatedResults = results.slice(offset, offset + limit);
+    return {
+        search_term: search_term || undefined,
+        count: paginatedResults.length,
+        total_count: results.length,
+        offset,
+        limit,
+        results: paginatedResults
+    };
 }
 //# sourceMappingURL=list_models.js.map

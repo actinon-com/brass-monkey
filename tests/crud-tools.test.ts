@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { searchRead } from '../src/tools/search_read.js';
+import { searchRecords } from '../src/tools/search_records.js';
 import { createRecord } from '../src/tools/create_record.js';
 import { writeRecord } from '../src/tools/write_record.js';
 import { unlinkRecord } from '../src/tools/unlink_record.js';
 import { aggregateRecords } from '../src/tools/aggregate_records.js';
-import { searchCount } from '../src/tools/search_count.js';
 
 describe('CRUD Tools', () => {
   let mockClient: any;
@@ -27,36 +26,50 @@ describe('CRUD Tools', () => {
     };
   });
 
-  describe('searchRead', () => {
-    it('should query Odoo and return records', async () => {
-      mockClient.executeKw.mockResolvedValue([{ id: 1, name: 'Test' }]);
-      const result = await searchRead(mockManager, { 
+  describe('searchRecords', () => {
+    it('should query Odoo in parallel and return the breadth envelope', async () => {
+      // search_read returns records list, search_count returns count number
+      mockClient.executeKw
+        .mockResolvedValueOnce([{ id: 1, name: 'Test', write_date: '2026-05-28 12:00:00' }])
+        .mockResolvedValueOnce(1); // search_count
+
+      const result = await searchRecords(mockManager, { 
         model: 'res.partner', 
         domain: [['name', '=', 'Test']],
-        fields: ['name']
+        fields: ['name', 'write_date']
       });
-      expect(result).toEqual([{ id: 1, name: 'Test' }]);
+
+      expect(result).toEqual({
+        model: 'res.partner',
+        count: 1,
+        total_count: 1,
+        offset: 0,
+        limit: 10,
+        leads: { '1': 'Test' },
+        results: [{ id: 1, name: 'Test', write_date: '2026-05-28 12:00:00' }]
+      });
     });
 
-    it('should handle auto-categorization when fields is empty', async () => {
+    it('should handle background cache warming when fields is empty', async () => {
       mockClient.executeKw
-        .mockResolvedValueOnce([{ modules: 'base' }]) // model info
+        .mockResolvedValueOnce([{ id: 10, name: 'Partner', modules: 'base', transient: false }]) // buildModelMetadata (ir.model)
+        .mockResolvedValueOnce([{ module: 'base' }]) // buildModelMetadata (ir.model.data)
         .mockResolvedValueOnce([
-          { name: 'name', modules: 'base', compute: false },
-          { name: 'x_custom', modules: 'studio', compute: false }
-        ]) // fields info
-        .mockResolvedValueOnce([{ id: 1, name: 'Test' }]); // search_read
+          { name: 'name', field_description: 'Name', ttype: 'char', required: false, readonly: false, store: true, translate: false, company_dependent: false, modules: 'base' },
+          { name: 'write_date', field_description: 'Modified', ttype: 'datetime', required: false, readonly: false, store: true, translate: false, company_dependent: false, modules: 'base' }
+        ]) // buildModelMetadata (ir.model.fields)
+        .mockResolvedValueOnce([{ id: 1, name: 'Test' }]) // actual search_read
+        .mockResolvedValueOnce(1); // actual search_count
 
-      const result = await searchRead(mockManager, { model: 'res.partner' });
+      const result = await searchRecords(mockManager, { model: 'res.partner' });
       
-      expect(mockClient.executeKw).toHaveBeenNthCalledWith(3, 'res.partner', 'search_read', [[]], expect.objectContaining({
-        fields: expect.arrayContaining(['name', 'id'])
-      }));
+      expect(result.results).toEqual([{ id: 1, name: 'Test' }]);
+      expect(result.total_count).toBe(1);
     });
   });
 
   describe('aggregateRecords', () => {
-    it('should call read_group with expected arguments', async () => {
+    it('should call read_group with expected arguments and return structured metadata', async () => {
       mockClient.executeKw.mockResolvedValue([{ __count: 5, state: 'draft' }]);
       
       const result = await aggregateRecords(mockManager, {
@@ -68,19 +81,14 @@ describe('CRUD Tools', () => {
       expect(mockClient.executeKw).toHaveBeenCalledWith('sale.order', 'read_group', [[], [], ['state']], expect.objectContaining({
         lazy: false
       }));
-      expect(result[0].__count).toBe(5);
-    });
-  });
-
-  describe('searchCount', () => {
-    it('should return the record count', async () => {
-      mockClient.executeKw.mockResolvedValue(42);
-      const result = await searchCount(mockManager, {
-        model: 'res.partner',
-        domain: [['is_company', '=', true]]
+      expect(result).toEqual({
+        model: 'sale.order',
+        groupby: ['state'],
+        count: 1,
+        offset: 0,
+        limit: undefined,
+        results: [{ count: 5, state: 'draft' }]
       });
-      expect(result).toBe(42);
-      expect(mockClient.executeKw).toHaveBeenCalledWith('res.partner', 'search_count', [[['is_company', '=', true]]]);
     });
   });
 

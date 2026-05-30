@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { InstanceManager } from '../services/instance-manager.js';
-import { SKILL_DOMAIN_MAP } from '../services/skill-guard.js';
+import { SKILL_DOMAIN_MAP } from '../services/metadata-resolver.js';
 
 /**
  * Zod schema for list_models tool input.
@@ -13,6 +13,8 @@ export const ListModelsSchema = z.object({
     }
     return val;
   }, z.string().optional()).describe('Optional filter for model name or description (e.g., "sale")'),
+  limit: z.coerce.number().optional().default(50).describe('Maximum number of models to return (defaults to 50)'),
+  offset: z.coerce.number().optional().default(0).describe('Number of models to skip (for pagination)'),
   instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 
@@ -22,8 +24,10 @@ export type ListModelsInput = z.infer<typeof ListModelsSchema>;
  * Tool to list Odoo technical models.
  * Enhances the output with Skill Gate breadcrumbs to guide the agent.
  */
-export async function listModels(manager: InstanceManager, input: ListModelsInput = {}) {
-  const { search_term, instance_alias } = input;
+export async function listModels(manager: InstanceManager, input: ListModelsInput = { limit: 50, offset: 0 }) {
+  // Enforce schema parsing to apply defaults and preprocessors
+  const parsedInput = ListModelsSchema.parse(input);
+  const { search_term, limit, offset, instance_alias } = parsedInput;
   const client = await manager.getClient(instance_alias);
   
   const domain: any[] = [];
@@ -36,7 +40,7 @@ export async function listModels(manager: InstanceManager, input: ListModelsInpu
     order: 'model asc',
   });
 
-  return models.map((m: any) => {
+  const results = models.map((m: any) => {
     // Resolve required skill for breadcrumb
     let requiredSkill = null;
     for (const [skill, prefixes] of Object.entries(SKILL_DOMAIN_MAP)) {
@@ -57,4 +61,15 @@ export async function listModels(manager: InstanceManager, input: ListModelsInpu
       required_skill: requiredSkill
     };
   });
+
+  const paginatedResults = results.slice(offset, offset + limit);
+
+  return {
+    search_term: search_term || undefined,
+    count: paginatedResults.length,
+    total_count: results.length,
+    offset,
+    limit,
+    results: paginatedResults
+  };
 }

@@ -23,5 +23,6 @@ export type InspectModelInput = z.infer<typeof InspectModelSchema>;
 /**
  * Tool to perform a deep architectural audit of an Odoo model's definition.
  * Dynamically categorizes fields and discovers execution/UI entry points.
+ * Fully optimized via in-memory MetadataCache.
  */
 export declare function inspectModel(manager: InstanceManager, input: InspectModelInput): Promise<any>;

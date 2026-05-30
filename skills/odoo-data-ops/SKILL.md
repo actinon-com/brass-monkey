@@ -8,36 +8,45 @@ This skill provides the Gemini agent with the expertise required to safely query
 
 ## Core Mandates
 
-### 1. Odoo Domain Syntax (Prefix-based)
-Odoo uses a prefix-based polish notation for domain filters. You must follow this syntax when using `search_read`:
+### 1. The "Breadth vs. Depth" Search Paradigm (Golden Rule)
+To prevent massive token-context inflation and optimize database execution, you must strictly follow this two-step data retrieval flow:
+1.  **Breadth (`search_records`):** ALWAYS use `search_records` first to discover data and locate specific IDs. 
+    - **Safe Defaults:** Leave `fields` blank/empty to fetch our optimized, low-token "Breadth Layout" (ID, Display Name, State, Freshness, and the hierarchical "Belonging Relation"). 
+    - **Exclusions:** This tool strictly excludes heavy relational arrays or child lines to keep the response microscopic and scanable.
+    - **Pagination:** It returns a metadata envelope (`total_count`, `leads` map of ID to display names) to assist your pagination.
+2.  **Depth (`get_record` / `get_records`):** Once you find a target ID, use `get_record` to fetch its 360-degree detailed "Record Dashboard".
+    - Turn on flags like **`show_lines`** (resolves full child rows for line tables, e.g., sales lines) and **`show_chatter`** (fetches the last 5 Odoo Chatter comments) to get a complete picture in a single turn.
+
+### 2. Odoo Domain Syntax (Prefix-based)
+Odoo uses a prefix-based polish notation for domain filters. You must follow this syntax when using `search_records`:
 - **AND (`&`):** Default behavior. `['&', (A), (B)]` means A and B.
 - **OR (`|`):** `['|', (A), (B)]` means A or B.
 - **NOT (`!`):** `['!', (A)]` means not A.
 - **Example:** `['&', ('is_company', '=', True), '|', ('city', '=', 'New York'), ('city', '=', 'London')]`
 
-### 2. Mandatory Justification
+### 3. Mandatory Justification
 All state-changing operations (`create_record`, `write_record`, `unlink_record`) require a `justification` parameter. 
 - **Requirement:** This must be a clear, business-focused reason for the change.
 - **Persistence:** This reason is permanently recorded in Odoo's Chatter (`mail.message`) and `ir.logging`.
 
-### 3. Instance Awareness
+### 4. Instance Awareness
 Every CRUD tool supports an `instance_alias` parameter.
 - **Default:** If omitted, the tool uses the current session's default instance.
 - **Cross-Instance:** You can read from one environment and write to another by explicitly specifying different aliases in separate tool calls.
 
-### 4. Efficient Data Retrieval
-- **Field Categorization:** By default, `search_read` only returns "Base" fields to save context. If you need more, use `include_extended: true` (for extra modules) or `include_computed: true` (for calculated fields).
+### 5. Efficient Data Retrieval
+- **Fields Overrides:** If you need specific extra fields in `search_records`, pass them explicitly in the `fields` array.
 - **Aggregations:** Use `aggregate_records` for BI-style queries (grouping, counting, summing). This is much more context-efficient than reading thousands of records to perform local math.
 
-### 5. Schema Strictness & Error Recovery
-Odoo v18+ is strict about field lists in `search_read`. 
+### 6. Schema Strictness & Error Recovery
+Odoo v18+ is strict about field lists. 
 - **The Trigger:** If you receive a `ValueError` or `KeyError` stating a field does not exist.
 - **The Mandate:** You must STOP and call `inspect_model` to verify the current live schema. Do NOT guess field names.
 - **Action:** After finding the correct field, retry the operation with the updated field list.
 
-### 6. Agent-Driven Undo Workflow
+### 7. Agent-Driven Undo Workflow
 If you make a mistake or are asked to "undo" a change:
-1. **Locate:** Use `search_read` on the `mail.message` model for the target record to find the "Before Snapshot" you previously posted.
+1. **Locate:** Use `get_record` (with `show_chatter: true`) on the target record to find the "Before Snapshot" you previously posted.
 2. **Analyze:** Verify the current record state. Do not attempt a rollback if it violates Odoo's business logic (e.g., trying to revert an invoice that has since been paid).
 3. **Revert:** Use `write_record` to re-apply the old values from the snapshot, providing a justification like `"Reverting previous AI action: [Original Reason]"`.
 
@@ -59,7 +68,7 @@ Odoo is a multi-company environment. By default, Brass-Monkey enables cross-comp
 
 ### 9. Orchestrated Translations (Forgiving Format)
 Odoo supports multi-language fields (marked as `translatable` in `inspect_model`). Brass-Monkey handles the complexity of these fields for you:
-- **Enabling Matrix:** Set `with_translations: true` in `search_read` to see all translations.
+- **Enabling Matrix:** Set `with_translations: true` in `search_records` to see all translations.
 - **The Matrix Format:** Translatable fields will return an array of objects if values diverge: `[{"value": "My Product", "langs": []}, {"value": "Mon Produit", "langs": ["fr_FR"]}]`.
 - **Broadcast Writing:** If you provide a simple string to a translatable field (e.g., `"name": "New Name"`), the server automatically syncs it across ALL active languages.
 - **Targeted Writing:** You can provide the expanded array format to `write_record` to update specific languages.

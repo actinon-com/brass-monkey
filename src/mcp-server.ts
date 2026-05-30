@@ -9,7 +9,6 @@ import {
 import { InstanceManager } from "./services/instance-manager.js";
 import { ConfigStore } from "./services/config-store.js";
 import { CredentialStore } from "./services/credential-store.js";
-import { SkillGuard } from "./services/skill-guard.js";
 import { ResponsePruner } from "./services/response-pruner.js";
 import * as schemas from "./tools/schemas.js";
 
@@ -21,7 +20,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Read package.json for metadata
-let version = "1.4.1";
+let version = "1.5.0";
 try {
   // Try both possible locations (source vs bundled)
   const pkgPaths = [
@@ -53,12 +52,11 @@ const server = new Server(
 const configStore = new ConfigStore();
 const credentialStore = new CredentialStore();
 const instanceManager = new InstanceManager(configStore, credentialStore);
-const skillGuard = new SkillGuard();
 
 /**
  * Mapping of tool names to their implementation and metadata.
  */
-const toolRegistry: Record<string, { handler: Function; schema: any; description: string; deps: ('manager' | 'config' | 'both' | 'guard' | 'manager_guard') }> = {
+const toolRegistry: Record<string, { handler: Function; schema: any; description: string; deps: ('manager' | 'config' | 'both') }> = {
   setup_instance: {
     handler: tools.setupInstance,
     schema: schemas.SETUP_INSTANCE_SCHEMA,
@@ -113,16 +111,22 @@ const toolRegistry: Record<string, { handler: Function; schema: any; description
     description: "Fetch view XML/definitions. Use inspect_model (show_ui=true) to find view IDs first.",
     deps: 'manager'
   },
-  search_read: {
-    handler: tools.searchRead,
-    schema: schemas.SEARCH_READ_SCHEMA,
-    description: "Search and read records. MANDATORY: Run get_environment and/or inspect_model first to verify fields and context.",
+  search_records: {
+    handler: tools.searchRecords,
+    schema: schemas.SEARCH_RECORDS_SCHEMA,
+    description: "Search for Odoo records. Returns a pagination envelope containing total matching count and display display-name mapping.",
     deps: 'manager'
   },
-  search_count: {
-    handler: tools.searchCount,
-    schema: schemas.SEARCH_COUNT_SCHEMA,
-    description: "Get the total number of records matching a domain. Use this for simple record tallies.",
+  get_record: {
+    handler: tools.getRecord,
+    schema: schemas.GET_RECORD_SCHEMA,
+    description: "Retrieve a highly detailed 360-degree dashboard report for a single Odoo record, including sub-lines and chatter.",
+    deps: 'manager'
+  },
+  get_records: {
+    handler: tools.getRecords,
+    schema: schemas.GET_RECORDS_SCHEMA,
+    description: "Retrieve detailed reports for multiple Odoo records in batch.",
     deps: 'manager'
   },
   create_record: {
@@ -159,13 +163,13 @@ const toolRegistry: Record<string, { handler: Function; schema: any; description
     handler: tools.getInfo,
     schema: schemas.GET_INFO_SCHEMA,
     description: "Get version and environment information for the Brass-Monkey extension.",
-    deps: 'manager_guard'
+    deps: 'manager'
   },
   get_environment: {
     handler: tools.getEnvironment,
     schema: schemas.GET_ENVIRONMENT_SCHEMA,
     description: "DENSE TOOL: Mandatory 'World Map' orientation. Provides server, user, company, and app context. Run this FIRST in every session.",
-    deps: 'manager_guard'
+    deps: 'manager'
   },
   trace_ui_path: {
     handler: tools.traceUiPath,
@@ -184,12 +188,6 @@ const toolRegistry: Record<string, { handler: Function; schema: any; description
     schema: schemas.GET_AUDIT_LOG_SCHEMA,
     description: "Retrieve recent local audit log entries for transparency.",
     deps: 'manager'
-  },
-  activate_skill: {
-    handler: tools.activateSkill,
-    schema: schemas.ACTIVATE_SKILL_SCHEMA,
-    description: "Activate a domain-specific skill to unlock access to associated Odoo models.",
-    deps: 'guard'
   },
 };
 
@@ -212,9 +210,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 
   try {
-    // 1. Enforce Skill Gate
-    skillGuard.validateAccess(name, args);
-
     // 2. Execute Tool
     let result;
     switch (tool.deps) {
@@ -226,12 +221,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       case 'manager':
         result = await tool.handler(instanceManager, args);
-        break;
-      case 'guard':
-        result = await tool.handler(skillGuard, args);
-        break;
-      case 'manager_guard':
-        result = await tool.handler(instanceManager, skillGuard, args);
         break;
       default:
         throw new Error(`Internal error: unknown dependency pattern for tool ${name}`);

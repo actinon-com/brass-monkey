@@ -4,6 +4,7 @@ import { inspectModel } from '../src/tools/inspect_model.js';
 import { getEnvironment } from '../src/tools/get_environment.js';
 import { traceUiPath } from '../src/tools/trace_ui_path.js';
 import { getAuditLog } from '../src/tools/get_audit_log.js';
+import { getAction } from '../src/tools/get_action.js';
 
 describe('Discovery Tools', () => {
   let mockClient: any;
@@ -38,8 +39,7 @@ describe('Discovery Tools', () => {
         .mockResolvedValueOnce([{ id: 1, name: 'MyCompany', currency_id: [2, 'USD'], country_id: [3, 'US'] }]) // companies
         .mockResolvedValueOnce([{ name: 'English', code: 'en_US' }]); // languages
 
-      const mockGuard = { getActivated: vi.fn().mockReturnValue([]) };
-      const result = await getEnvironment(mockManager, mockGuard as any, { show_security: false, show_manifest: false });
+      const result = await getEnvironment(mockManager, { show_security: false, show_manifest: false });
       
       expect(result.summary).toContain('WORLD MAP');
       expect(result.environment.server.database).toBe('test-db');
@@ -54,6 +54,7 @@ describe('Discovery Tools', () => {
     it('should retrieve model identity and categorized fields', async () => {
       mockClient.executeKw
         .mockResolvedValueOnce([{ id: 1, name: 'Contact', modules: 'base', transient: false }]) // model
+        .mockResolvedValueOnce([{ module: 'base' }]) // resolveBaseModule (ir.model.data)
         .mockResolvedValueOnce([
           { name: 'name', field_description: 'Name', ttype: 'char', modules: 'base', store: true, required: true },
           { name: 'x_custom', field_description: 'Custom', ttype: 'char', modules: 'studio_custom', store: true },
@@ -77,6 +78,48 @@ describe('Discovery Tools', () => {
 
       expect(result.summary).toContain('Found 1 UI path');
       expect(result.paths[0].menu_path).toBe('Contacts / Contacts');
+    });
+  });
+
+  describe('listModels', () => {
+    it('should retrieve list of models in a structured metadata envelope', async () => {
+      mockClient.executeKw.mockResolvedValueOnce([
+        { model: 'sale.order', name: 'Sales Order', transient: false }
+      ]);
+
+      const result = await listModels(mockManager, { search_term: 'sale' });
+
+      expect(result).toEqual({
+        search_term: 'sale',
+        count: 1,
+        total_count: 1,
+        offset: 0,
+        limit: 50,
+        results: [
+          { model: 'sale.order', name: 'Sales Order', transient: false, required_skill: 'odoo-sales' }
+        ]
+      });
+    });
+  });
+
+  describe('getAction', () => {
+    it('should dynamically auto-resolve action model and read correctly', async () => {
+      mockClient.executeKw
+        .mockResolvedValueOnce([{ type: 'ir.actions.act_window' }]) // ir.actions.actions type lookup
+        .mockResolvedValueOnce([{ name: 'All tasks', res_model: 'project.task', view_mode: 'kanban' }]) // act_window read
+        .mockResolvedValueOnce([{ complete_name: 'Project / Tasks / All' }]); // parent menus search
+
+      const result = await getAction(mockManager, { action_id: 123 });
+
+      expect(mockClient.executeKw).toHaveBeenNthCalledWith(1, 'ir.actions.actions', 'read', [[123]], { fields: ['type'] });
+      expect(result).toEqual({
+        id: 123,
+        type: 'ir.actions.act_window',
+        name: 'All tasks',
+        res_model: 'project.task',
+        view_mode: 'kanban',
+        menus: ['Project / Tasks / All']
+      });
     });
   });
 

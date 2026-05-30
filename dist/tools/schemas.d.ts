@@ -59,6 +59,14 @@ export declare const LIST_MODELS_SCHEMA: {
             type: string;
             description: string;
         };
+        limit: {
+            type: string;
+            description: string;
+        };
+        offset: {
+            type: string;
+            description: string;
+        };
         instance_alias: {
             type: string;
             description: string;
@@ -140,6 +148,14 @@ export declare const TRACE_UI_PATH_SCHEMA: {
 export declare const GET_MENU_SCHEMA: {
     type: string;
     properties: {
+        parent_id: {
+            type: string;
+            description: string;
+        };
+        search_term: {
+            type: string;
+            description: string;
+        };
         instance_alias: {
             type: string;
             description: string;
@@ -150,6 +166,10 @@ export declare const GET_ACTION_SCHEMA: {
     type: string;
     properties: {
         action_id: {
+            type: string;
+            description: string;
+        };
+        action_type: {
             type: string;
             description: string;
         };
@@ -182,7 +202,7 @@ export declare const GET_VIEW_SCHEMA: {
     };
     required: string[];
 };
-export declare const SEARCH_READ_SCHEMA: {
+export declare const SEARCH_RECORDS_SCHEMA: {
     type: string;
     properties: {
         model: {
@@ -201,15 +221,11 @@ export declare const SEARCH_READ_SCHEMA: {
             };
             description: string;
         };
-        include_extended: {
-            type: string;
-            description: string;
-        };
-        include_computed: {
-            type: string;
-            description: string;
-        };
         limit: {
+            type: string;
+            description: string;
+        };
+        offset: {
             type: string;
             description: string;
         };
@@ -228,16 +244,150 @@ export declare const SEARCH_READ_SCHEMA: {
     };
     required: string[];
 };
-export declare const SEARCH_COUNT_SCHEMA: {
+export declare const GET_RECORD_SCHEMA: {
     type: string;
     properties: {
         model: {
             type: string;
             description: string;
         };
-        domain: {
+        res_id: {
             type: string;
-            items: {};
+            description: string;
+        };
+        xml_id: {
+            type: string;
+            description: string;
+        };
+        show_meta: {
+            type: string;
+            description: string;
+        };
+        show_security: {
+            type: string;
+            description: string;
+        };
+        show_relationships: {
+            type: string;
+            description: string;
+        };
+        show_extended: {
+            type: string;
+            description: string;
+        };
+        show_computed: {
+            type: string;
+            description: string;
+        };
+        show_related: {
+            type: string;
+            description: string;
+        };
+        show_lines: {
+            type: string;
+            description: string;
+        };
+        show_chatter: {
+            type: string;
+            description: string;
+        };
+        include_binary: {
+            type: string;
+            description: string;
+        };
+        show_all_fields: {
+            type: string;
+            description: string;
+        };
+        for_user_id: {
+            type: string;
+            description: string;
+        };
+        rel_limit: {
+            type: string;
+            description: string;
+        };
+        with_translations: {
+            type: string;
+            description: string;
+        };
+        instance_alias: {
+            type: string;
+            description: string;
+        };
+    };
+};
+export declare const GET_RECORDS_SCHEMA: {
+    type: string;
+    properties: {
+        model: {
+            type: string;
+            description: string;
+        };
+        res_ids: {
+            type: string;
+            items: {
+                type: string;
+            };
+            description: string;
+        };
+        xml_ids: {
+            type: string;
+            items: {
+                type: string;
+            };
+            description: string;
+        };
+        show_meta: {
+            type: string;
+            description: string;
+        };
+        show_security: {
+            type: string;
+            description: string;
+        };
+        show_relationships: {
+            type: string;
+            description: string;
+        };
+        show_extended: {
+            type: string;
+            description: string;
+        };
+        show_computed: {
+            type: string;
+            description: string;
+        };
+        show_related: {
+            type: string;
+            description: string;
+        };
+        show_lines: {
+            type: string;
+            description: string;
+        };
+        show_chatter: {
+            type: string;
+            description: string;
+        };
+        include_binary: {
+            type: string;
+            description: string;
+        };
+        show_all_fields: {
+            type: string;
+            description: string;
+        };
+        for_user_id: {
+            type: string;
+            description: string;
+        };
+        rel_limit: {
+            type: string;
+            description: string;
+        };
+        with_translations: {
+            type: string;
             description: string;
         };
         instance_alias: {
@@ -274,6 +424,10 @@ export declare const AGGREGATE_RECORDS_SCHEMA: {
             description: string;
         };
         limit: {
+            type: string;
+            description: string;
+        };
+        offset: {
             type: string;
             description: string;
         };
