@@ -249,6 +249,19 @@ export const DOWNLOAD_REPORT_SCHEMA = {
   required: ["model", "id", "report_name"],
 };
 
+export const DOWNLOAD_FILE_SCHEMA = {
+  type: "object",
+  properties: {
+    model: { type: "string", description: "Technical name of the Odoo model containing the binary field (defaults to 'ir.attachment')." },
+    res_id: { type: "number", description: "Database ID of the record containing the file field." },
+    field: { type: "string", description: "The technical name of the binary field (e.g., 'datas' or 'raw', defaults to 'datas')." },
+    destination_path: { type: "string", description: "Absolute local file path where the file should be saved." },
+    justification: { type: "string", description: "Business justification for downloading this file." },
+    instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
+  },
+  required: ["res_id", "destination_path", "justification"],
+};
+
 export const GET_INFO_SCHEMA = {
   type: "object",
   properties: {},

@@ -12,7 +12,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Read package.json for metadata
-let version = "1.5.0";
+let version = "1.5.1";
 try {
     // Try both possible locations (source vs bundled)
     const pkgPaths = [
@@ -143,6 +143,12 @@ const toolRegistry = {
         handler: tools.downloadReport,
         schema: schemas.DOWNLOAD_REPORT_SCHEMA,
         description: "Generate and retrieve report data (e.g., PDFs).",
+        deps: 'manager'
+    },
+    download_file: {
+        handler: tools.downloadFile,
+        schema: schemas.DOWNLOAD_FILE_SCHEMA,
+        description: "Download any file or attachment from an Odoo database to the local workspace.",
         deps: 'manager'
     },
     get_info: {

@@ -572,6 +572,36 @@ export declare const DOWNLOAD_REPORT_SCHEMA: {
     };
     required: string[];
 };
+export declare const DOWNLOAD_FILE_SCHEMA: {
+    type: string;
+    properties: {
+        model: {
+            type: string;
+            description: string;
+        };
+        res_id: {
+            type: string;
+            description: string;
+        };
+        field: {
+            type: string;
+            description: string;
+        };
+        destination_path: {
+            type: string;
+            description: string;
+        };
+        justification: {
+            type: string;
+            description: string;
+        };
+        instance_alias: {
+            type: string;
+            description: string;
+        };
+    };
+    required: string[];
+};
 export declare const GET_INFO_SCHEMA: {
     type: string;
     properties: {};
