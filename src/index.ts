@@ -26,6 +26,7 @@ export * from './tools/write_record.js';
 export * from './tools/unlink_record.js';
 export * from './tools/list_reports.js';
 export * from './tools/download_report.js';
+export * from './tools/download_file.js';
 export * from './tools/get_info.js';
 export * from './tools/get_environment.js';
 export * from './tools/trace_ui_path.js';
