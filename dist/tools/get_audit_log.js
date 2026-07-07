@@ -11,7 +11,8 @@ export const GetAuditLogSchema = z.object({
  * Allows the agent to verify its own history and provide transparency.
  */
 export async function getAuditLog(manager, input) {
-    const { limit, instance_alias } = input;
+    const parsedInput = GetAuditLogSchema.parse(input);
+    const { limit, instance_alias } = parsedInput;
     const audit = await manager.getAudit(instance_alias);
     const logs = await audit.getLocalLogs(limit);
     if (logs.length === 0) {

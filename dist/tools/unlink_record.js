@@ -16,7 +16,8 @@ export const UnlinkRecordSchema = z.object({
  * @returns Boolean true on success.
  */
 export async function unlinkRecord(manager, input) {
-    const { model, id, justification, instance_alias } = input;
+    const parsedInput = UnlinkRecordSchema.parse(input);
+    const { model, id, justification, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     const audit = await manager.getAudit(instance_alias);
     const success = await client.executeKw(model, 'unlink', [[id]]);

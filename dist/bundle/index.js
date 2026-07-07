@@ -38886,16 +38886,17 @@ const SetupInstanceSchema = schemas_object({
  * @returns Success message with Odoo version detected.
  */
 async function setupInstance(configStore, credentialStore, input) {
-    const { alias } = input;
+    const parsedInput = SetupInstanceSchema.parse(input);
+    const { alias } = parsedInput;
     // 1. Load existing state for surgical updates
     const existingMetadata = await configStore.getByAlias(alias);
     const existingApiKey = await credentialStore.getApiKey(alias);
     // 2. Merge inputs with existing data
     const finalConfig = {
-        url: input.url || existingMetadata?.url,
-        db: input.db || existingMetadata?.db,
-        username: input.username || existingMetadata?.username,
-        api_key: input.api_key || existingApiKey,
+        url: parsedInput.url || existingMetadata?.url,
+        db: parsedInput.db || existingMetadata?.db,
+        username: parsedInput.username || existingMetadata?.username,
+        api_key: parsedInput.api_key || existingApiKey,
     };
     // 3. Validation: Ensure we have a complete set of credentials
     if (!finalConfig.url || !finalConfig.db || !finalConfig.username || !finalConfig.api_key) {
@@ -39106,7 +39107,8 @@ const InspectModelSchema = schemas_object({
  * Fully optimized via in-memory MetadataCache.
  */
 async function inspectModel(manager, input) {
-    const { model, instance_alias, ...flags } = input;
+    const parsedInput = InspectModelSchema.parse(input);
+    const { model, instance_alias, ...flags } = parsedInput;
     const client = await manager.getClient(instance_alias);
     const alias = instance_alias || 'default';
     // 1. Resolve and cache metadata (or load from cache)
@@ -39474,7 +39476,8 @@ const GetViewSchema = schemas_object({
  * @returns The view architecture (XML) and metadata.
  */
 async function getView(manager, input) {
-    const { model, view_type, view_id, instance_alias } = input;
+    const parsedInput = GetViewSchema.parse(input);
+    const { model, view_type, view_id, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     // Odoo 16+ uses get_view, earlier versions use fields_view_get
     const method = (client.majorVersion || 0) >= 16 ? 'get_view' : 'fields_view_get';
@@ -40385,7 +40388,8 @@ const CreateRecordSchema = schemas_object({
  * @returns The database ID of the newly created record.
  */
 async function createRecord(manager, input) {
-    const { model, values, justification, with_translations, instance_alias } = input;
+    const parsedInput = CreateRecordSchema.parse(input);
+    const { model, values, justification, with_translations, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     const audit = await manager.getAudit(instance_alias);
     const orchestrator = new OdooOrchestrator(client);
@@ -40443,7 +40447,8 @@ const WriteRecordSchema = schemas_object({
  * @returns Boolean true on success.
  */
 async function writeRecord(manager, input) {
-    const { model, id, values, justification, with_translations, instance_alias } = input;
+    const parsedInput = WriteRecordSchema.parse(input);
+    const { model, id, values, justification, with_translations, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     const audit = await manager.getAudit(instance_alias);
     const orchestrator = new OdooOrchestrator(client);
@@ -40509,7 +40514,8 @@ const UnlinkRecordSchema = schemas_object({
  * @returns Boolean true on success.
  */
 async function unlinkRecord(manager, input) {
-    const { model, id, justification, instance_alias } = input;
+    const parsedInput = UnlinkRecordSchema.parse(input);
+    const { model, id, justification, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     const audit = await manager.getAudit(instance_alias);
     const success = await client.executeKw(model, 'unlink', [[id]]);
@@ -40744,7 +40750,8 @@ const GetEnvironmentSchema = schemas_object({
  * Provides server, user, and organization context in one call.
  */
 async function getEnvironment(manager, input) {
-    const { show_security, show_manifest, instance_alias } = input;
+    const parsedInput = GetEnvironmentSchema.parse(input);
+    const { show_security, show_manifest, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     // Ensure authenticated
     await client.authenticate();
@@ -40864,7 +40871,8 @@ const TraceUiPathSchema = schemas_object({
  * Helps the agent understand how a user visually accesses specific data.
  */
 async function traceUiPath(manager, input) {
-    const { model, instance_alias } = input;
+    const parsedInput = TraceUiPathSchema.parse(input);
+    const { model, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     // 1. Find Window Actions for this model
     const actions = await client.executeKw('ir.actions.act_window', 'search_read', [[['res_model', '=', model]]], {
@@ -40987,7 +40995,8 @@ const GetAuditLogSchema = schemas_object({
  * Allows the agent to verify its own history and provide transparency.
  */
 async function getAuditLog(manager, input) {
-    const { limit, instance_alias } = input;
+    const parsedInput = GetAuditLogSchema.parse(input);
+    const { limit, instance_alias } = parsedInput;
     const audit = await manager.getAudit(instance_alias);
     const logs = await audit.getLocalLogs(limit);
     if (logs.length === 0) {
@@ -41050,7 +41059,7 @@ async function getAuditLog(manager, input) {
 
 const mcp_server_dirname = external_path_default().dirname((0,external_url_.fileURLToPath)(import.meta.url));
 // Read package.json for metadata
-let mcp_server_version = "1.6.0";
+let mcp_server_version = "1.6.1";
 try {
     // Try both possible locations (source vs bundled)
     const pkgPaths = [

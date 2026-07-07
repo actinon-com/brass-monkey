@@ -17,7 +17,8 @@ export type GetEnvironmentInput = z.infer<typeof GetEnvironmentSchema>;
  * Provides server, user, and organization context in one call.
  */
 export async function getEnvironment(manager: InstanceManager, input: GetEnvironmentInput) {
-  const { show_security, show_manifest, instance_alias } = input;
+  const parsedInput = GetEnvironmentSchema.parse(input);
+  const { show_security, show_manifest, instance_alias } = parsedInput;
   const client = await manager.getClient(instance_alias);
 
   // Ensure authenticated

@@ -25,16 +25,17 @@ export const SetupInstanceSchema = z.object({
  * @returns Success message with Odoo version detected.
  */
 export async function setupInstance(configStore, credentialStore, input) {
-    const { alias } = input;
+    const parsedInput = SetupInstanceSchema.parse(input);
+    const { alias } = parsedInput;
     // 1. Load existing state for surgical updates
     const existingMetadata = await configStore.getByAlias(alias);
     const existingApiKey = await credentialStore.getApiKey(alias);
     // 2. Merge inputs with existing data
     const finalConfig = {
-        url: input.url || existingMetadata?.url,
-        db: input.db || existingMetadata?.db,
-        username: input.username || existingMetadata?.username,
-        api_key: input.api_key || existingApiKey,
+        url: parsedInput.url || existingMetadata?.url,
+        db: parsedInput.db || existingMetadata?.db,
+        username: parsedInput.username || existingMetadata?.username,
+        api_key: parsedInput.api_key || existingApiKey,
     };
     // 3. Validation: Ensure we have a complete set of credentials
     if (!finalConfig.url || !finalConfig.db || !finalConfig.username || !finalConfig.api_key) {

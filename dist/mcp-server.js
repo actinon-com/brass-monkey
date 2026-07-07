@@ -12,7 +12,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Read package.json for metadata
-let version = "1.6.0";
+let version = "1.6.1";
 try {
     // Try both possible locations (source vs bundled)
     const pkgPaths = [

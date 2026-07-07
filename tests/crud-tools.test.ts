@@ -137,6 +137,27 @@ describe('CRUD Tools', () => {
       expect(result).toBe(101);
       expect(mockAudit.logLocalAction).toHaveBeenCalledWith('create', 'res.partner', 101, expect.any(Object), 'New customer onboarding');
     });
+
+    it('should pre-process stringified JSON values', async () => {
+      mockClient.executeKw
+        .mockResolvedValueOnce([]) // resolveFieldValues: fields search
+        .mockResolvedValueOnce([{ code: 'en_US' }]) // applyBroadcastWrite: langs search
+        .mockResolvedValueOnce(102); // applyBroadcastWrite: main create call
+
+      const result = await createRecord(mockManager, {
+        model: 'res.partner',
+        values: JSON.stringify({ name: 'New Partner via JSON' }) as any,
+        justification: 'New customer onboarding with JSON string',
+      });
+      expect(result).toBe(102);
+      expect(mockAudit.logLocalAction).toHaveBeenCalledWith(
+        'create', 
+        'res.partner', 
+        102, 
+        expect.objectContaining({ name: 'New Partner via JSON' }), 
+        'New customer onboarding with JSON string'
+      );
+    });
   });
 
   describe('writeRecord', () => {
@@ -155,6 +176,28 @@ describe('CRUD Tools', () => {
       });
       expect(mockAudit.logLocalAction).toHaveBeenCalledWith('write', 'res.partner', 1, expect.any(Object), 'Typo correction');
     });
+
+    it('should pre-process stringified JSON values and coerce id from string', async () => {
+      mockClient.executeKw
+        .mockResolvedValueOnce([]) // resolveFieldValues: fields search
+        .mockResolvedValueOnce([{ name: 'Old Name' }]) // writeRecord: before snapshot read
+        .mockResolvedValueOnce([{ code: 'en_US' }]) // applyBroadcastWrite: langs search
+        .mockResolvedValueOnce(true); // applyBroadcastWrite: main write call
+
+      await writeRecord(mockManager, {
+        model: 'res.partner',
+        id: '123' as any,
+        values: JSON.stringify({ name: 'New Name via JSON' }) as any,
+        justification: 'Typo correction with JSON string',
+      });
+      expect(mockAudit.logLocalAction).toHaveBeenCalledWith(
+        'write', 
+        'res.partner', 
+        123, 
+        expect.any(Object), 
+        'Typo correction with JSON string'
+      );
+    });
   });
 
   describe('unlinkRecord', () => {
@@ -168,6 +211,18 @@ describe('CRUD Tools', () => {
 
       expect(success).toBe(true);
       expect(mockAudit.logLocalAction).toHaveBeenCalledWith('unlink', 'res.partner', 1, null, 'Data cleanup');
+    });
+
+    it('should coerce id from string to number', async () => {
+      mockClient.executeKw.mockResolvedValue(true);
+      const success = await unlinkRecord(mockManager, {
+        model: 'res.partner',
+        id: '456' as any,
+        justification: 'Data cleanup with string ID',
+      });
+
+      expect(success).toBe(true);
+      expect(mockAudit.logLocalAction).toHaveBeenCalledWith('unlink', 'res.partner', 456, null, 'Data cleanup with string ID');
     });
   });
 });

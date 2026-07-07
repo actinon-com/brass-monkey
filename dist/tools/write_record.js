@@ -29,7 +29,8 @@ export const WriteRecordSchema = z.object({
  * @returns Boolean true on success.
  */
 export async function writeRecord(manager, input) {
-    const { model, id, values, justification, with_translations, instance_alias } = input;
+    const parsedInput = WriteRecordSchema.parse(input);
+    const { model, id, values, justification, with_translations, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     const audit = await manager.getAudit(instance_alias);
     const orchestrator = new OdooOrchestrator(client);

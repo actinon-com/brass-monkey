@@ -31,7 +31,8 @@ export type InspectModelInput = z.infer<typeof InspectModelSchema>;
  * Fully optimized via in-memory MetadataCache.
  */
 export async function inspectModel(manager: InstanceManager, input: InspectModelInput) {
-  const { model, instance_alias, ...flags } = input;
+  const parsedInput = InspectModelSchema.parse(input);
+  const { model, instance_alias, ...flags } = parsedInput;
   const client = await manager.getClient(instance_alias);
   const alias = instance_alias || 'default';
 

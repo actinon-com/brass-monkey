@@ -11,7 +11,8 @@ export const TraceUiPathSchema = z.object({
  * Helps the agent understand how a user visually accesses specific data.
  */
 export async function traceUiPath(manager, input) {
-    const { model, instance_alias } = input;
+    const parsedInput = TraceUiPathSchema.parse(input);
+    const { model, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     // 1. Find Window Actions for this model
     const actions = await client.executeKw('ir.actions.act_window', 'search_read', [[['res_model', '=', model]]], {

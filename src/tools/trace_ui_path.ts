@@ -16,7 +16,8 @@ export type TraceUiPathInput = z.infer<typeof TraceUiPathSchema>;
  * Helps the agent understand how a user visually accesses specific data.
  */
 export async function traceUiPath(manager: InstanceManager, input: TraceUiPathInput) {
-  const { model, instance_alias } = input;
+  const parsedInput = TraceUiPathSchema.parse(input);
+  const { model, instance_alias } = parsedInput;
   const client = await manager.getClient(instance_alias);
 
   // 1. Find Window Actions for this model
