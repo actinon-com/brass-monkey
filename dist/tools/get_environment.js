@@ -100,7 +100,12 @@ export async function getEnvironment(manager, input) {
     const summary = `🌍 WORLD MAP: Connected to Odoo ${res.server.version} (${res.server.database}) ${res.server.write_guard ? '🔒 WRITE_GUARD ACTIVE' : '🔓 NO GUARD'}.\n👤 USER: ${res.user.name} (${res.user.login})\n🏢 MULTI-COMPANY: Enabled. Accessible Companies: ${companyList}\n🔑 ACTIVE SKILLS: ${res.session.active_skills.join(', ') || 'none'}\n💡 TIP: You have global visibility. To filter for a specific company, use a domain: [('company_id', '=', ID)].`;
     return {
         summary,
-        environment: res
+        environment: res,
+        active_context: {
+            implicit_allowed_company_ids: user.company_ids,
+            visibility_scope: "GLOBAL_CROSS_COMPANY",
+            tip: "Brass-Monkey automatically injects 'allowed_company_ids' representing all your authorized companies into the context of every tool call. You have global read visibility. To filter for a specific company, always use an explicit domain filter, e.g., [['company_id', '=', ID]] or [['company_id', 'in', [ID1, ID2]]]."
+        }
     };
 }
 /**

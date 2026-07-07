@@ -61,8 +61,10 @@ If you make a mistake or are asked to "undo" a change:
 
 ### 8. Multi-Company Logic (Golden Rule)
 Odoo is a multi-company environment. By default, Brass-Monkey enables cross-company visibility, but you must be precise:
-- **Visibility:** You can see records from all allowed companies (retrieved during `get_environment`).
+- **Implicit Context Injection:** Brass-Monkey automatically appends `context: { 'allowed_company_ids': [...] }` containing all of your authorized companies to the headers of every single tool execution. You do NOT need to switch active companies to see all your records.
+- **Visibility:** You can see records from all allowed companies (retrieved via `get_environment` and available programmatically in the root `active_context` object).
 - **Filtering:** To query data for a specific company, ALWAYS include `['company_id', '=', ID]` in your domain.
+- **Write / Relational Integrity:** When creating or writing records, Odoo enforces strict relational isolation. Do not link records belonging to different companies (e.g., a Sales Order in Co A cannot point to a Warehouse in Co B). Always ensure a valid `company_id` is supplied in values and relational targets match that company.
 - **Operational Safety:** NEVER attempt to modify your own `res.users` record to change your active company. This is considered **System Vandalism**. 
 - **Correct Pattern:** If you need to "switch" companies for a query, simply use the `company_id` domain filter.
 
@@ -79,3 +81,16 @@ You are an AI agent with high-level access. You must NEVER:
 - Delete system-critical records to "clean up" your view.
 - Bypass Odoo's business logic by directly modifying internal state fields (e.g., `state`, `move_id`) if a specialized method is available.
 - **Enforcement:** Attempting these actions will trigger tool-level safety blocks and may result in session termination.
+
+## 11. Strict Tool Selection Protocol (Efficiency Mandate)
+
+To prevent severe token/API overhead and extreme latency, you must adhere to the following selection matrix. Attempting to bypass these tool constraints will trigger active runtime advice warnings and is a violation of project architecture standards.
+
+| Business Goal / Task | Mandatory Tool Selection | FORBIDDEN / High-Overhead Pattern |
+| :--- | :--- | :--- |
+| **Discover, list, or filter records** | `search_records` | Querying lists without limit/offset, or looping single-record searches. |
+| **Inspect a single known record ID** | `get_record` (Depth mode) | **CRITICAL FAILURE:** Calling `search_records` with `limit: 1` or filtering on an exact ID. `get_record` resolves sub-lines, relational display names, and chatter threads in one call. |
+| **Calculate sum, count, average, or groups** | `aggregate_records` | **CRITICAL FAILURE:** Querying large pages with `search_records` (e.g., `limit >= 100`) and computing metrics locally. Always delegate calculations to the Odoo database via server-side SQL grouping. |
+| **Audit recent actions or changes** | `get_audit_log` | Iteratively parsing records or the `ir.logging` model manually. |
+| **Fetch specific attachments/binaries** | `download_file` | Attempting to pull large binary buffers through general database queries. |
+

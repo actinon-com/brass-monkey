@@ -115,7 +115,12 @@ export async function getEnvironment(manager: InstanceManager, input: GetEnviron
 
   return {
     summary,
-    environment: res
+    environment: res,
+    active_context: {
+      implicit_allowed_company_ids: user.company_ids,
+      visibility_scope: "GLOBAL_CROSS_COMPANY",
+      tip: "Brass-Monkey automatically injects 'allowed_company_ids' representing all your authorized companies into the context of every tool call. You have global read visibility. To filter for a specific company, always use an explicit domain filter, e.g., [['company_id', '=', ID]] or [['company_id', 'in', [ID1, ID2]]]."
+    }
   };
 }
 

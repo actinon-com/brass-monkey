@@ -13,10 +13,14 @@ This skill ensures the Gemini agent establishes a comprehensive "World Map" of t
 - **Enforcement:** Do NOT attempt `search_read`, `list_models`, or any business logic until `get_environment` has returned.
 - **Reasoning:** Odoo environments vary wildly by version, installed apps, and company structures. Starting "blind" leads to "hallucinated" field names and inefficient tool-chaining.
 
-### 2. Interpreting the Environment
+### 2. Interpreting the Environment & Company Context
 When you receive the `get_environment` response, you must internalize:
 - **Version:** Are you on Odoo v18 (current) or an older legacy version? (Methods and fields change between versions).
 - **User Context:** What is your name and login? (Used for audit trails).
+- **Active Context (`active_context`):**
+  - **Programmatic Scope:** View the root `active_context` payload to see your `implicit_allowed_company_ids`.
+  - **Implicit Injection:** Brass-Monkey automatically injects these company IDs into every query. You have global read visibility across all of them by default.
+  - **Restricting Scope:** To target a single organization, do not alter user settings. Apply an explicit domain filter, e.g., `[['company_id', '=', ID]]`.
 - **Organization:** How many companies exist? Which one is active? What are the local currencies and languages?
 - **Apps Manifest:** (If `show_manifest: true`) What modules are installed? (e.g., if `crm` is not installed, do not attempt to search for leads).
 

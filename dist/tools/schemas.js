@@ -98,7 +98,7 @@ export const SEARCH_RECORDS_SCHEMA = {
     type: "object",
     properties: {
         model: { type: "string", description: 'Technical name of the model (e.g., "res.partner", "project.task").' },
-        domain: { type: "array", items: {}, description: 'Odoo domain filter. A list of triplets: [["field", "operator", value]]. Example: [["is_company", "=", true]]. Use empty list [] for all records.' },
+        domain: { type: "array", items: {}, description: 'Odoo domain filter. A list of triplets: [["field", "operator", value]]. Example: [["is_company", "=", true]]. MULTI-COMPANY TIP: By default, Brass-Monkey automatically injects allowed_company_ids so you see all authorized companies. To search within a specific company, always include [["company_id", "=", COMPANY_ID]].' },
         fields: { type: "array", items: { type: "string" }, description: "Optional explicit list of field names to retrieve. If omitted, returns lightweight Breadth fields." },
         limit: { type: "number", description: "Maximum number of records to return (defaults to 10)." },
         offset: { type: "number", description: "Number of records to skip (for pagination, defaults to 0)." },
@@ -107,6 +107,7 @@ export const SEARCH_RECORDS_SCHEMA = {
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model"],
+    description: "Search for Odoo records. WARNING: DO NOT use this tool to inspect details of a single known record ID (you MUST use 'get_record' for 360-degree dashboards). DO NOT use this tool to sum, group, count, or average numeric fields (you MUST use 'aggregate_records' for server-side SQL-level summaries).",
 };
 export const GET_RECORD_SCHEMA = {
     type: "object",
@@ -129,6 +130,7 @@ export const GET_RECORD_SCHEMA = {
         with_translations: { type: "boolean", description: "If True, translatable fields are returned in translation matrix." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
+    description: "MANDATORY for retrieving a comprehensive 360-degree dashboard report for a single Odoo record. Highly superior to search_records for single record lookups as it resolves sub-lines, relation display names, and chatter threads in one call. Use this immediately once you have a target record ID.",
 };
 export const GET_RECORDS_SCHEMA = {
     type: "object",
@@ -165,6 +167,7 @@ export const AGGREGATE_RECORDS_SCHEMA = {
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "groupby"],
+    description: "Calculate database-level summaries, aggregations, counts, sums, or averages grouped by specified fields. MANDATORY: You MUST use this tool instead of querying lists of records with search_records and computing statistics locally.",
 };
 export const GET_AUDIT_LOG_SCHEMA = {
     type: "object",
@@ -177,26 +180,26 @@ export const CREATE_RECORD_SCHEMA = {
     type: "object",
     properties: {
         model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
-        values: { type: "object", description: "Dictionary of field values: {'field_name': value}. Use inspect_model to find writable fields." },
+        values: { type: "object", description: "Dictionary of field values: {'field_name': value}. Use inspect_model to find writable fields. MULTI-COMPANY CRITICAL: Ensure you specify a valid 'company_id' in values that matches all relational fields (e.g. journals, accounts) to avoid Multi-Company Access/Validation Errors." },
         justification: { type: "string", description: "MANDATORY: Explain WHY this record is being created. This is logged to Odoo Chatter and local audit logs." },
         with_translations: { type: "boolean", description: "If True, translatable fields can be provided as strings (sync to all) or expanded lists." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "values", "justification"],
-    description: "Create new records in a specified model with audit logging. MANDATORY: Describe your intent and the specific values in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
+    description: "Create new records in a specified model with audit logging. MULTI-COMPANY RULE: Ensure a correct 'company_id' is supplied in values. MANDATORY: Describe your intent and the specific values in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
 };
 export const WRITE_RECORD_SCHEMA = {
     type: "object",
     properties: {
         model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
         id: { type: "number", description: "The database ID of the record to update." },
-        values: { type: "object", description: "Dictionary of fields to update. PRO TIP: We take a 'Before Snapshot' automatically for reversibility." },
+        values: { type: "object", description: "Dictionary of fields to update. PRO TIP: We take a 'Before Snapshot' automatically for reversibility. MULTI-COMPANY CRITICAL: Do not mix records from different companies. Ensure any relational values linked match the record's company_id." },
         justification: { type: "string", description: "MANDATORY: Explain WHY this update is necessary. Logged for audit and safety." },
         with_translations: { type: "boolean", description: "If True, translatable fields can be provided as strings (sync to all) or expanded lists." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "id", "values", "justification"],
-    description: "Update existing records with field-level tracking. MANDATORY: Describe your intent and the specific values in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
+    description: "Update existing records with field-level tracking. MULTI-COMPANY RULE: Verify relational safety across companies before writing. MANDATORY: Describe your intent and the specific values in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
 };
 export const UNLINK_RECORD_SCHEMA = {
     type: "object",

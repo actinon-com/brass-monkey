@@ -20,11 +20,23 @@ export type SearchRecordsInput = z.infer<typeof SearchRecordsSchema>;
  * Returns a pagination envelope containing total matching count and display display-name mapping.
  */
 export declare function searchRecords(manager: InstanceManager, input: SearchRecordsInput): Promise<{
+    isError: boolean;
+    message: string;
+    diagnostic_hints: {
+        invalid_field?: string;
+        invalid_operator?: string;
+        target_model: string;
+        did_you_mean_substrings?: string[];
+        action_directives: string[];
+        explanation?: string;
+    };
+} | {
+    leads: any;
+    results: any;
+    optimization_advice?: string[] | undefined;
     model: string;
     count: any;
     total_count: any;
     offset: number;
     limit: number;
-    leads: any;
-    results: any;
 }>;

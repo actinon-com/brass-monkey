@@ -243,6 +243,7 @@ export declare const SEARCH_RECORDS_SCHEMA: {
         };
     };
     required: string[];
+    description: string;
 };
 export declare const GET_RECORD_SCHEMA: {
     type: string;
@@ -316,6 +317,7 @@ export declare const GET_RECORD_SCHEMA: {
             description: string;
         };
     };
+    description: string;
 };
 export declare const GET_RECORDS_SCHEMA: {
     type: string;
@@ -437,6 +439,7 @@ export declare const AGGREGATE_RECORDS_SCHEMA: {
         };
     };
     required: string[];
+    description: string;
 };
 export declare const GET_AUDIT_LOG_SCHEMA: {
     type: string;
