@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { searchRecords } from '../src/tools/search_records.js';
+import { MetadataCache } from '../src/services/metadata-cache.js';
 
 describe('searchRecords Orchestration', () => {
   let mockClient: any;
@@ -12,6 +13,49 @@ describe('searchRecords Orchestration', () => {
     mockManager = {
       getClient: vi.fn().mockResolvedValue(mockClient),
     };
+
+    // Pre-seed MetadataCache to bypass RPC validation metadata discovery
+    const cache = MetadataCache.getInstance();
+    cache.clear();
+    cache.set('default', 'res.partner', {
+      baseModule: 'base',
+      id: 10,
+      name: 'Partner',
+      transient: false,
+      modules: 'base',
+      baseFields: ['id', 'name', 'write_date'],
+      categorized: {
+        base: {
+          name: { type: 'char', string: 'Name' },
+          write_date: { type: 'datetime', string: 'Modified' }
+        },
+        extended: {},
+        computed: {},
+        related: {},
+        relational: {},
+        lines: {}
+      }
+    });
+    cache.set('default', 'sale.order', {
+      baseModule: 'sale',
+      id: 11,
+      name: 'Sales Order',
+      transient: false,
+      modules: 'sale',
+      baseFields: ['id', 'name', 'state', 'write_date'],
+      categorized: {
+        base: {
+          name: { type: 'char', string: 'Order Reference' },
+          state: { type: 'selection', string: 'Status' },
+          write_date: { type: 'datetime', string: 'Modified' }
+        },
+        extended: {},
+        computed: {},
+        related: {},
+        relational: {},
+        lines: {}
+      }
+    });
   });
 
   it('should construct high-signal pagination envelopes and handle parallel count', async () => {

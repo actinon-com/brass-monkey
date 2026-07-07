@@ -4,6 +4,7 @@ import { createRecord } from '../src/tools/create_record.js';
 import { writeRecord } from '../src/tools/write_record.js';
 import { unlinkRecord } from '../src/tools/unlink_record.js';
 import { aggregateRecords } from '../src/tools/aggregate_records.js';
+import { MetadataCache } from '../src/services/metadata-cache.js';
 
 describe('CRUD Tools', () => {
   let mockClient: any;
@@ -24,6 +25,29 @@ describe('CRUD Tools', () => {
       getClient: vi.fn().mockResolvedValue(mockClient),
       getAudit: vi.fn().mockResolvedValue(mockAudit),
     };
+
+    // Pre-seed MetadataCache to avoid any background RPC metadata calls in validateAndHeal
+    const cache = MetadataCache.getInstance();
+    cache.clear();
+    cache.set('default', 'res.partner', {
+      baseModule: 'base',
+      id: 10,
+      name: 'Partner',
+      transient: false,
+      modules: 'base',
+      baseFields: ['id', 'name', 'write_date'],
+      categorized: {
+        base: {
+          name: { type: 'char', string: 'Name' },
+          write_date: { type: 'datetime', string: 'Modified' }
+        },
+        extended: {},
+        computed: {},
+        related: {},
+        relational: {},
+        lines: {}
+      }
+    });
   });
 
   describe('searchRecords', () => {
@@ -45,12 +69,18 @@ describe('CRUD Tools', () => {
         total_count: 1,
         offset: 0,
         limit: 10,
+        optimization_advice: [
+          "SINGLE RECORD DETECTED: You retrieved a single record ID using search_records. This is highly inefficient. For single record lookups, you MUST use the 'get_record' tool, which provides a comprehensive 360-degree dashboard of sub-lines, relationships, display names, and chatter history in a single call."
+        ],
         leads: { '1': 'Test' },
         results: [{ id: 1, name: 'Test', write_date: '2026-05-28 12:00:00' }]
       });
     });
 
     it('should handle background cache warming when fields is empty', async () => {
+      // Clear the MetadataCache to force live metadata discovery
+      MetadataCache.getInstance().clear();
+
       mockClient.executeKw
         .mockResolvedValueOnce([{ id: 10, name: 'Partner', modules: 'base', transient: false }]) // buildModelMetadata (ir.model)
         .mockResolvedValueOnce([{ module: 'base' }]) // buildModelMetadata (ir.model.data)

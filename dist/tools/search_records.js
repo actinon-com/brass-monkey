@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { MetadataCache } from '../services/metadata-cache.js';
 import { buildModelMetadata } from '../services/metadata-resolver.js';
 import { OdooOrchestrator } from '../services/odoo-orchestrator.js';
+import { DomainValidationService } from '../services/domain-validator.js';
 /**
  * Zod schema for search_records tool input.
  * Fully pre-processed and optimized.
@@ -49,6 +50,12 @@ export async function searchRecords(manager, input) {
     const { model, domain, fields, limit, offset, order, with_translations, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     const alias = instance_alias || 'default';
+    // Validate and Heal Domain using decoupled DomainValidationService
+    const validationResult = await DomainValidationService.validateAndHeal(client, model, domain, alias);
+    if (!validationResult.success && validationResult.errorPayload) {
+        return validationResult.errorPayload;
+    }
+    const activeDomain = validationResult.healedDomain || domain;
     let readFields = fields;
     // 1. Resolve and cache metadata if fields are not specified (Breadth Default)
     if (!readFields || readFields.length === 0) {
@@ -64,22 +71,22 @@ export async function searchRecords(manager, input) {
     const targetLimit = limit || 10;
     const targetOffset = offset || 0;
     const [records, totalCount] = await Promise.all([
-        client.executeKw(model, 'search_read', [domain], {
+        client.executeKw(model, 'search_read', [activeDomain], {
             fields: readFields,
             limit: targetLimit,
             offset: targetOffset,
             order,
         }),
-        client.executeKw(model, 'search_count', [domain])
+        client.executeKw(model, 'search_count', [activeDomain])
     ]);
     // Intent-Based Search Expansion: If zero results and domain has a name filter, retry with ilike
     let activeRecords = records;
     let activeTotalCount = totalCount;
-    if (activeRecords.length === 0 && domain.length > 0) {
-        const nameFilterIndex = domain.findIndex((d) => Array.isArray(d) && d[0] === 'name' && d[1] === '=');
+    if (activeRecords.length === 0 && activeDomain.length > 0) {
+        const nameFilterIndex = activeDomain.findIndex((d) => Array.isArray(d) && d[0] === 'name' && d[1] === '=');
         if (nameFilterIndex !== -1) {
-            const expandedDomain = [...domain];
-            expandedDomain[nameFilterIndex] = ['name', 'ilike', domain[nameFilterIndex][2]];
+            const expandedDomain = [...activeDomain];
+            expandedDomain[nameFilterIndex] = ['name', 'ilike', activeDomain[nameFilterIndex][2]];
             const [expandedRecords, expandedCount] = await Promise.all([
                 client.executeKw(model, 'search_read', [expandedDomain], {
                     fields: readFields,
@@ -115,12 +122,20 @@ export async function searchRecords(manager, input) {
         }
     }
     // 4. Construct high-signal Breadth Envelope
+    const advice = [];
+    if (targetLimit === 1 || activeRecords.length === 1) {
+        advice.push("SINGLE RECORD DETECTED: You retrieved a single record ID using search_records. This is highly inefficient. For single record lookups, you MUST use the 'get_record' tool, which provides a comprehensive 360-degree dashboard of sub-lines, relationships, display names, and chatter history in a single call.");
+    }
+    if (targetLimit >= 100) {
+        advice.push("POTENTIAL LOCAL CALCULATION LOOP: You retrieved 100 or more records. If you are calculating sums, averages, grouping, or counting records locally, this is extremely slow and overuses token/API limits. You MUST use 'aggregate_records' for server-side, high-performance database-level calculations instead.");
+    }
     return {
         model,
         count: activeRecords.length,
         total_count: activeTotalCount,
         offset: targetOffset,
         limit: targetLimit,
+        ...(advice.length > 0 ? { optimization_advice: advice } : {}),
         leads: activeRecords.reduce((acc, r) => {
             acc[String(r.id)] = r.display_name || r.name || `ID ${r.id}`;
             return acc;
