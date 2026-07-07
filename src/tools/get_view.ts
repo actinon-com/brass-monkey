@@ -21,7 +21,8 @@ export type GetViewInput = z.infer<typeof GetViewSchema>;
  * @returns The view architecture (XML) and metadata.
  */
 export async function getView(manager: InstanceManager, input: GetViewInput) {
-  const { model, view_type, view_id, instance_alias } = input;
+  const parsedInput = GetViewSchema.parse(input);
+  const { model, view_type, view_id, instance_alias } = parsedInput;
   const client = await manager.getClient(instance_alias);
   
   // Odoo 16+ uses get_view, earlier versions use fields_view_get

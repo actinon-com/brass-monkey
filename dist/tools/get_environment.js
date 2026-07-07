@@ -12,7 +12,8 @@ export const GetEnvironmentSchema = z.object({
  * Provides server, user, and organization context in one call.
  */
 export async function getEnvironment(manager, input) {
-    const { show_security, show_manifest, instance_alias } = input;
+    const parsedInput = GetEnvironmentSchema.parse(input);
+    const { show_security, show_manifest, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     // Ensure authenticated
     await client.authenticate();

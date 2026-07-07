@@ -21,7 +21,8 @@ export type UnlinkRecordInput = z.infer<typeof UnlinkRecordSchema>;
  * @returns Boolean true on success.
  */
 export async function unlinkRecord(manager: InstanceManager, input: UnlinkRecordInput) {
-  const { model, id, justification, instance_alias } = input;
+  const parsedInput = UnlinkRecordSchema.parse(input);
+  const { model, id, justification, instance_alias } = parsedInput;
   const client = await manager.getClient(instance_alias);
   const audit = await manager.getAudit(instance_alias);
   

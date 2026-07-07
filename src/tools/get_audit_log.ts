@@ -16,7 +16,8 @@ export type GetAuditLogInput = z.infer<typeof GetAuditLogSchema>;
  * Allows the agent to verify its own history and provide transparency.
  */
 export async function getAuditLog(manager: InstanceManager, input: GetAuditLogInput) {
-  const { limit, instance_alias } = input;
+  const parsedInput = GetAuditLogSchema.parse(input);
+  const { limit, instance_alias } = parsedInput;
   const audit = await manager.getAudit(instance_alias);
 
   const logs = await audit.getLocalLogs(limit);

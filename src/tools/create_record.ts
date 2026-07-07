@@ -28,7 +28,8 @@ export type CreateRecordInput = z.infer<typeof CreateRecordSchema>;
  * @returns The database ID of the newly created record.
  */
 export async function createRecord(manager: InstanceManager, input: CreateRecordInput) {
-  const { model, values, justification, with_translations, instance_alias } = input;
+  const parsedInput = CreateRecordSchema.parse(input);
+  const { model, values, justification, with_translations, instance_alias } = parsedInput;
   const client = await manager.getClient(instance_alias);
   const audit = await manager.getAudit(instance_alias);
   const orchestrator = new OdooOrchestrator(client);

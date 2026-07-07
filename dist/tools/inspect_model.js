@@ -26,7 +26,8 @@ export const InspectModelSchema = z.object({
  * Fully optimized via in-memory MetadataCache.
  */
 export async function inspectModel(manager, input) {
-    const { model, instance_alias, ...flags } = input;
+    const parsedInput = InspectModelSchema.parse(input);
+    const { model, instance_alias, ...flags } = parsedInput;
     const client = await manager.getClient(instance_alias);
     const alias = instance_alias || 'default';
     // 1. Resolve and cache metadata (or load from cache)
