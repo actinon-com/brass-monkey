@@ -38564,7 +38564,7 @@ const CREATE_RECORD_SCHEMA = {
     type: "object",
     properties: {
         model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
-        values: { type: "object", description: "Dictionary of field values: {'field_name': value}. Use inspect_model to find writable fields. MULTI-COMPANY CRITICAL: Ensure you specify a valid 'company_id' in values that matches all relational fields (e.g. journals, accounts) to avoid Multi-Company Access/Validation Errors." },
+        values: { type: "string", description: "JSON-serialized string of field values: '{\"field_name\": value}'. Use inspect_model to find writable fields. MULTI-COMPANY CRITICAL: Ensure you specify a valid 'company_id' in values that matches all relational fields (e.g. journals, accounts) to avoid Multi-Company Access/Validation Errors." },
         justification: { type: "string", description: "MANDATORY: Explain WHY this record is being created. This is logged to Odoo Chatter and local audit logs." },
         with_translations: { type: "boolean", description: "If True, translatable fields can be provided as strings (sync to all) or expanded lists." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
@@ -38577,7 +38577,7 @@ const WRITE_RECORD_SCHEMA = {
     properties: {
         model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
         id: { type: "number", description: "The database ID of the record to update." },
-        values: { type: "object", description: "Dictionary of fields to update. PRO TIP: We take a 'Before Snapshot' automatically for reversibility. MULTI-COMPANY CRITICAL: Do not mix records from different companies. Ensure any relational values linked match the record's company_id." },
+        values: { type: "string", description: "JSON-serialized string of fields to update: '{\"field_name\": value}'. PRO TIP: We take a 'Before Snapshot' automatically for reversibility. MULTI-COMPANY CRITICAL: Do not mix records from different companies. Ensure any relational values linked match the record's company_id." },
         justification: { type: "string", description: "MANDATORY: Explain WHY this update is necessary. Logged for audit and safety." },
         with_translations: { type: "boolean", description: "If True, translatable fields can be provided as strings (sync to all) or expanded lists." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
@@ -41059,7 +41059,7 @@ async function getAuditLog(manager, input) {
 
 const mcp_server_dirname = external_path_default().dirname((0,external_url_.fileURLToPath)(import.meta.url));
 // Read package.json for metadata
-let mcp_server_version = "1.6.1";
+let mcp_server_version = "1.6.2";
 try {
     // Try both possible locations (source vs bundled)
     const pkgPaths = [
