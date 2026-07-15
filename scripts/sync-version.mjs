@@ -8,12 +8,13 @@
  *   - .claude-plugin/plugin.json   (Claude Code plugin manifest; authority for
  *                                   the plugin version — marketplace.json
  *                                   deliberately carries no plugin version)
+ *   - manifest.json                (Claude Desktop bundle / .mcpb manifest; its
+ *                                   top-level "version" — distinct from the
+ *                                   "manifest_version" spec field, which the
+ *                                   regex below never touches)
  *   - src/mcp-server.ts            (runtime fallback literal only; the server
  *                                   reads package.json at runtime, this is the
  *                                   last resort)
- *
- * When the Desktop bundle manifest is added (plan Phase 4), append it to
- * JSON_TARGETS below.
  *
  * Usage:  node scripts/sync-version.mjs          (writes; run by `prebuild`)
  *         node scripts/sync-version.mjs --check   (verifies only; non-zero exit on drift)
@@ -34,7 +35,11 @@ if (!version) {
 }
 
 // JSON manifests whose top-level "version" must match package.json.
-const JSON_TARGETS = ["gemini-extension.json", ".claude-plugin/plugin.json"];
+const JSON_TARGETS = [
+  "gemini-extension.json",
+  ".claude-plugin/plugin.json",
+  "manifest.json",
+];
 
 const drift = [];
 

@@ -1,0 +1,41 @@
+{
+  "manifest_version": "0.3",
+  "name": "brass-monkey",
+  "display_name": "Brass-Monkey (Odoo)",
+  "version": "1.7.0",
+  "description": "High-fidelity, audited MCP bridge for Odoo ERP/CRM — multi-instance.",
+  "long_description": "Brass-Monkey bridges Claude to Odoo ERP/CRM over XML-RPC with a cognitively optimized toolset: breadth-vs-depth search, 360° record dashboards, pruned menu/action navigation, and audited writes (every change captures a before-snapshot and logs a justification to Odoo's ir.logging and the record's Chatter). Configure your Odoo instance in the fields below, or leave them blank and run the `setup_instance` tool on first use. Note: the 30 domain skills ship with the Claude Code plugin, not this desktop bundle — the bundle provides the MCP tools only.",
+  "author": { "name": "Actinon" },
+  "homepage": "https://github.com/actinon-com/brass-monkey",
+  "repository": { "type": "git", "url": "https://github.com/actinon-com/brass-monkey" },
+  "license": "MIT",
+  "keywords": ["odoo", "erp", "crm", "mcp", "xml-rpc"],
+  "server": {
+    "type": "node",
+    "entry_point": "dist/bundle/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/bundle/index.js"],
+      "env": {
+        "ODOO_ALIAS":    "${user_config.odoo_alias}",
+        "ODOO_URL":      "${user_config.odoo_url}",
+        "ODOO_DB":       "${user_config.odoo_db}",
+        "ODOO_USERNAME": "${user_config.odoo_username}",
+        "ODOO_API_KEY":  "${user_config.odoo_api_key}"
+      }
+    }
+  },
+  "tools_generated": true,
+  "user_config": {
+    "odoo_alias":    { "type": "string", "title": "Instance alias",   "description": "Alias for this Odoo instance (e.g. prod, staging).", "required": false, "default": "default" },
+    "odoo_url":      { "type": "string", "title": "Odoo URL",         "description": "Base URL, e.g. https://my-company.odoo.com.",       "required": false, "default": "" },
+    "odoo_db":       { "type": "string", "title": "Database name",    "description": "Odoo database name.",                               "required": false, "default": "" },
+    "odoo_username": { "type": "string", "title": "Username / email", "description": "Odoo login username or email.",                     "required": false, "default": "" },
+    "odoo_api_key":  { "type": "string", "title": "API key",          "description": "Odoo External API Key (recommended) or password.", "sensitive": true, "required": false, "default": "" }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32"],
+    "runtimes": { "node": ">=18.0.0" }
+  }
+}

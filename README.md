@@ -64,11 +64,32 @@ Upgrade to a new release with:
 
 Skills are namespaced under the plugin, e.g. `/brass-monkey:odoo-sales`.
 
-### 4. Configuration on Claude Code / generic MCP hosts
+### 4. Install on Claude Desktop (`.mcpb` bundle)
+
+For non-CLI users, Brass-Monkey also ships as a one-click Claude Desktop bundle
+(`.mcpb`, the successor to the `.dxt` format).
+
+1. Download `brass-monkey.mcpb` from the
+   [latest release](https://github.com/actinon-com/brass-monkey/releases).
+2. Install it — double-click, drag it into the Claude Desktop window, or
+   **Settings → Extensions → Advanced settings → Install Extension…**.
+3. In the install dialog, fill your Odoo **URL, database, username, and API key**
+   (the key is masked and stored in your OS secure storage). Leave the fields
+   blank to configure later via the `setup_instance` tool.
+
+Upgrade by installing a newer `.mcpb` over the old one.
+
+> **Note — skills:** the `.mcpb` bundle delivers the Odoo MCP **tools** only. The
+> 30 domain skills are a Claude Code feature and ship with the plugin (section 3),
+> not the desktop bundle. For the full tools-plus-skills experience, use Claude
+> Code.
+
+### 5. Configuration on Claude Code / generic MCP hosts
 
 The server is host-agnostic: it never depends on Gemini's interactive prompts. Any
 MCP host can configure it through **either** of two independent paths. (On the
-Claude Code plugin above, Path A is wired to the install-time prompts for you.)
+Claude Code plugin and Claude Desktop bundle above, Path A is wired to the
+install-time prompts for you.)
 
 **Path A — host-injected environment variables.** Set the `ODOO_*` variables in your
 host's server entry; on startup they populate a single default instance (no tool call

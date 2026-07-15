@@ -162,13 +162,67 @@ items off and commit this file as you go. All work on a `release-1.6.x` /
   Cross-OS (macOS/Windows) deferred post-release (Mike/Windows), as in Phase 2.
 
 ## Phase 4 — Claude Desktop bundle (secondary path)
-- [ ] **Fetch and read current desktop bundle docs; confirm format/name
+- [x] **Fetch and read current desktop bundle docs; confirm format/name
       (`.dxt` vs `.mcpb`).**
-- [ ] Produce a bundle manifest whose user-config fields mirror the existing
+      → Verified live 2026-07-15: the format is **`.mcpb`** (MCP Bundle; `.dxt`
+      is the retired name). Spec **`manifest_version: "0.3"`** (confirmed against
+      the authoritative `modelcontextprotocol/mcpb` hello-world example — a search
+      summary's "0.4" was wrong). CLI is **`@anthropic-ai/mcpb`** (`mcpb validate
+      <path>`, `mcpb pack <dir> [out]`); installed as a devDependency (v2.1.2).
+      Sources: `claude.com/docs/connectors/building/mcpb`,
+      `github.com/modelcontextprotocol/mcpb/blob/main/MANIFEST.md` + `/CLI.md`.
+- [x] Produce a bundle manifest whose user-config fields mirror the existing
       `settings` array (URL/DB/username/key; key flagged sensitive).
-- [ ] Wire bundle creation into `npm run build`.
+      → `manifest.json` (repo root). `server.type: node`, `entry_point:
+      dist/bundle/index.js`, launch `node ${__dirname}/dist/bundle/index.js` —
+      the same shared bundle. `user_config` mirrors the Phase 3 `userConfig`
+      1:1 (alias/url/db/username + sensitive api_key), each injected as `ODOO_*`
+      env via `${user_config.*}`. Every optional field is `required:false` +
+      `default:""` (alias `default:"default"`) so blanks substitute to empty
+      strings → the `config-store.ts` truthy guard skips → clean `setup_instance`
+      fallback, identical to the Claude Code path. `tools_generated:true` (tools
+      register dynamically; a static `tools[]` with annotations is only needed for
+      Connectors-Directory submission, deferred). `compatibility`: claude_desktop
+      >=0.10.0, platforms darwin/win32, node >=18.
+- [x] Wire bundle creation into `npm run build`.
+      → `scripts/stage-mcpb.mjs` + npm scripts `stage-mcpb` and `build:mcpb`
+      (`stage → mcpb validate → mcpb pack build/mcpb-stage build/brass-monkey.mcpb`),
+      chained into `build`. **Packaging is an allowlist stage, NOT `mcpb pack .` +
+      `.mcpbignore`:** packing the repo root risks zipping the gitignored `.env`
+      (live Odoo creds) into a shippable artifact if one ignore pattern is missed
+      — a credential-isolation violation. The stage copies ONLY `manifest.json` +
+      `dist/bundle/` into `build/mcpb-stage/`, so a secret leak is structurally
+      impossible. Verified: the produced archive is exactly 3 files
+      (`manifest.json`, `dist/bundle/index.js`, ncc's `dist/bundle/package.json`)
+      — no `src/`, `node_modules`, `skills/`, or `.env`. `build/` + `*.mcpb` are
+      gitignored (artifact belongs on GitHub Releases, Phase 6 — not committed;
+      `dist/bundle` itself stays committed for the Gemini/plugin git-install path).
+      `manifest.json` added to `sync-version.mjs` `JSON_TARGETS` (the `"version"`
+      regex safely skips the `"manifest_version"` spec field).
 - **Done when:** the bundle installs in Claude Desktop, prompts for config, and
   the server launches with config injected.
+
+  **Automated gate (green 2026-07-15):** `mcpb validate` passes; `mcpb pack`
+  produces `build/brass-monkey.mcpb` (270 KB); `sync-version --check` at 1.7.0
+  incl. `manifest.json`; `tsc --noEmit` clean; `npm test` 82/82.
+
+  **Known limitations (documented, not hidden):**
+  - **Skills are not in the `.mcpb`.** The bundle format delivers the MCP server
+    (the ~24 tools) only — Agent Skills aren't part of the manifest spec. Desktop
+    users get the tools but not the 30 skills' guidance; Claude Code (Phase 3)
+    remains the full-fidelity path. Noted in the manifest `long_description` and
+    README §4.
+  - **No icon yet** — optional per spec; needs a real 512×512 PNG. Polish item.
+  - **Bundle unsigned** — `mcpb sign` is a distribution/Directory concern
+    (Phase 6), not required for private install.
+
+  **Manual verification (macOS/Windows — Matt's before merge; I'm on Linux):**
+  1. Install `build/brass-monkey.mcpb` (double-click) → the install dialog shows
+     the 5 config fields; the API-key field is masked.
+  2. Fill live Odoo creds → the server launches and `get_environment` connects
+     with no `setup_instance` call (env-injection path end-to-end).
+  3. Leave all fields blank → `list_instances` empty (no literal `${...}`
+     instance), then `setup_instance` works (blank-field fallback).
 
 ## Phase 5 — Skills polish
 - [ ] Sweep all 30 `SKILL.md` files: replace Gemini-specific phrasing (e.g.
@@ -203,6 +257,6 @@ items off and commit this file as you go. All work on a `release-1.6.x` /
 | `gemini-extension.json` | Gemini CLI |
 | standard MCP config entry | Antigravity; manual Claude Code / Desktop |
 | `.claude-plugin/` + marketplace manifest | Claude Code |
-| Desktop bundle manifest | Claude Desktop |
+| `manifest.json` → `build/brass-monkey.mcpb` | Claude Desktop |
 
 All launch the identical `node dist/bundle/index.js`.
