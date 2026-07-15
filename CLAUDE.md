@@ -87,8 +87,12 @@ guidance; fix the guidance before hard-coding restrictions.
 
 ## Security & Data Protection
 - **Zero-log policy:** never log Odoo tokens, passwords, or sensitive record data.
-- **Credential isolation:** OS keychain (`keytar`) or env vars; never commit
-  secrets. Note `keytar` is a native module — treat cross-platform bundling of
-  its prebuilt binary as a known packaging risk (see plan Phase 2).
+- **Credential isolation:** resolution order is OS keychain → encrypted local
+  file → env var; never commit secrets. Phase 2 resolved the native-module risk:
+  `keytar` is now an `optionalDependency` loaded best-effort via `createRequire`
+  (never bundled — no platform-locked `.node` ships), and the guaranteed
+  cross-platform baseline is an AES-256-GCM encrypted local file
+  (`src/services/credential-store.ts`). Hosts that inject `ODOO_API_KEY` use
+  neither on-disk path. `BRASS_MONKEY_NO_KEYCHAIN=1` forces the encrypted-file path.
 - **Write guards:** state-changing tools require an explicit `justification`,
   logged to `ir.logging` + Chatter with agent/human attribution.

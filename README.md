@@ -13,7 +13,7 @@
 - **In-Memory Metadata Caching:** Accelerates default database queries to **0ms metadata latency** by caching model configurations locally and performing parallel, background warming of parent-model schemas.
 - **Hierarchical "Local Neighborhood" Navigation:** Exposes Odoo's menus (`get_menu`) as pruned, recursive JSON trees that cleanly map ancestral breadcrumbs, direct children, and immediate folder siblings while pruning out 95% of unrelated system noise.
 - **Self-Healing Action Resolution:** Dynamically inspects Odoo's base tables to auto-resolve action types (`get_action`), supporting window, server, client, and report actions natively with zero parameter crashes.
-- **OS-Level Security:** API Keys are stored in your operating system's secure keychain (Windows Credential Vault, macOS Keychain).
+- **Layered Credential Security:** API keys are supplied by your host's env-var secret mechanism, or persisted to an AES-256-GCM encrypted local file; when the OS keychain (Windows Credential Vault, macOS Keychain, libsecret) is available it is used automatically as an enhancement.
 - **Audit & Reversibility:** Every write operation captures a "Before Snapshot" and logs a mandatory justification to Odoo's `ir.logging` and the record's Chatter.
 - **23 Domain Skills:** Deep functional expertise pre-loaded for Sales, MRP, Finance, HR, and more.
 
@@ -64,9 +64,8 @@ register; `ODOO_API_KEY` is resolved for the instance named by `ODOO_ALIAS`.
 
 **Path B — the `setup_instance` tool (first-run).** With no env vars set, call
 `setup_instance` from the client. It validates the credentials against Odoo, stores
-the API key in your OS keychain (`keytar`, with a `0600` local-file fallback), and
-persists non-secret metadata. Use it to add further instances alongside an
-env-injected default, too.
+the API key (see **Credential storage** below), and persists non-secret metadata.
+Use it to add further instances alongside an env-injected default, too.
 
 Both paths work with no Gemini-specific step. The `mcp_config.json` template (below)
 plus the `ODOO_*` variables is all a raw MCP host needs.
@@ -150,6 +149,27 @@ ODOO_API_KEY="my-api-key"
 - **Zero Cleartext Policy:** API keys are never stored in your project folder or logged to the console.
 - **Audit Trail:** All AI actions are attributed and logged within Odoo's `ir.logging` and record Chatter.
 - **Production Guard:** Writing to Odoo requires an explicit business `justification`.
+
+### Credential storage
+
+Keys are resolved in this order: **OS keychain → encrypted local file → environment variable.**
+
+- **Environment variable** (`ODOO_API_KEY`) — the primary path for Claude Desktop /
+  Claude Code and any host that manages secrets for you. Nothing is written to disk.
+- **Encrypted local file** — the guaranteed cross-platform baseline for the
+  `setup_instance` path, at `~/.gemini/brass-monkey/credentials.json` (mode `0600`).
+  Values are encrypted with **AES-256-GCM** using a key derived from the current OS
+  user and machine. This is *obfuscation-grade*: it protects against casual disk
+  reads, backups, and file sync, but **not** against an attacker already running as
+  your user (who can re-derive the same key). Legacy plaintext files from older
+  versions are read transparently and re-encrypted on the next save.
+- **OS keychain** (Windows Credential Vault, macOS Keychain, Linux libsecret) — used
+  automatically as a best-effort *enhancement* when the native `keytar` module loads.
+  Because `keytar` is a native binary that cannot be shipped for every OS in a single
+  bundle, it is treated as optional; the encrypted file above is the reliable baseline.
+
+Set `BRASS_MONKEY_NO_KEYCHAIN=1` to skip the native keychain and force the pure-JS
+encrypted-file path (useful on headless CI or in sandboxes).
 
 ## 📄 License
 

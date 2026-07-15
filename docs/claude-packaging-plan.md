@@ -74,12 +74,38 @@ items off and commit this file as you go. All work on a `release-1.6.x` /
      persists to keytar, and a subsequent `get_environment` succeeds.
 
 ## Phase 2 — Native-module packaging decision (likely gotcha)
-- [ ] Decide: keep `keytar` (and solve shipping prebuilt `.node` binaries per
+- [x] Decide: keep `keytar` (and solve shipping prebuilt `.node` binaries per
       OS/arch through `ncc`), or move to a maintained keychain lib / encrypted
       local-file fallback.
-- [ ] Prototype the chosen approach and confirm it loads inside a bundled build.
+      → **Decision: fallback-first (Path 1).** The OS keychain is *any* native
+      module (keytar is archived since Dec 2022; the maintained drop-in
+      `@napi-rs/keyring` is also native), and a single `ncc` bundle can only carry
+      one platform's binary — so no keychain can be relied on across OSes from one
+      distributable. Instead: env-var (primary for Claude hosts) + an **AES-256-GCM
+      encrypted local file** as the guaranteed cross-platform baseline, with the
+      keychain kept as an opportunistic *enhancement*. `keytar` → `optionalDependency`.
+- [x] Prototype the chosen approach and confirm it loads inside a bundled build.
+      → Two traps found and fixed: (1) `ncc -e keytar` emits a **static** top-level
+      `import ... "keytar"`, which makes the whole bundle fail to load where keytar
+      is absent — *worse* than doing nothing. (2) Letting ncc trace the literal
+      `import('keytar')` copies the platform-locked `keytar.node` (77 KB, build-OS
+      only) into `dist/bundle` — and that stale binary was committed to the repo.
+      Fix: load keytar via `createRequire(import.meta.url)('keytar')` with a
+      non-`require` identifier, invisible to ncc's static analysis. Verified the
+      rebuilt bundle ships **no `.node`, no static import, no `754` chunk**, and
+      `node dist/bundle/index.js` starts cleanly **both** with keytar present
+      (keychain active) and with it hidden (graceful fall-through to the file).
+- [x] Encrypt the local fallback at rest (was plaintext JSON, mode `0600`).
+      → AES-256-GCM via `node:crypto` (no new dep); scrypt key from OS
+      user + machine identity; `v1:` value format; transparent legacy-plaintext
+      migration; undecryptable entries skipped, not fatal. Regression-locked in
+      `tests/credential-store-encryption.test.ts` (5 tests).
 - **Done when:** the bundled server starts and reads/writes credentials on at
   least macOS + one other target OS, or a documented fallback is in place.
+  ✅ **Met.** The guaranteed path is pure-JS (env var + encrypted file) and works
+  identically on every OS out of one bundle; 82/82 tests pass; `tsc --noEmit`
+  clean. Documented in README §"Credential storage" and CLAUDE.md. Manual
+  cross-OS Inspector spot-check remains Matt's before the eventual merge.
 
 ## Phase 3 — Claude Code plugin + marketplace (primary path)
 - [ ] **Fetch and read current Claude Code plugin + marketplace docs.**

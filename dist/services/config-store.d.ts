@@ -10,7 +10,9 @@ export declare class ConfigStore {
     constructor();
     /**
      * Loads all configured Odoo instances.
-     * Merges persistent config with environment variables from the official setup mechanism.
+     * Merges persistent config with host-injected environment variables. Any MCP
+     * host (Claude Code, Claude Desktop, Antigravity, Gemini CLI) can supply a
+     * default instance through the ODOO_* env-var contract; none is required to.
      */
     load(): Promise<InstanceConfig[]>;
     /**
