@@ -24,18 +24,23 @@ items off and commit this file as you go. All work on a `release-1.6.x` /
 ---
 
 ## Phase 0 — Cleanup / single source of truth
-- [ ] Choose `package.json` as the canonical version and add a build step (or
+- [x] Choose `package.json` as the canonical version and add a build step (or
       small script) that propagates it to `gemini-extension.json`,
       `src/mcp-server.ts` default, and any new Claude manifests.
-- [ ] Reconcile the current drift: `package.json` 1.6.2, `gemini-extension.json`
+      → `scripts/sync-version.mjs`, wired as `prebuild` + `npm run sync-version` /
+      `check-version`. Canonical bumped to **1.7.0**.
+- [x] Reconcile the current drift: `package.json` 1.6.2, `gemini-extension.json`
       1.6.2, `plugin.json` 1.3.7, `README.md` 1.5.0.
-- [ ] Remove the hardcoded dev path in `mcp_config.json`
+      → all now 1.7.0 via the sync script; README banner de-versioned so it can't
+      drift again.
+- [x] Remove the hardcoded dev path in `mcp_config.json`
       (`/home/mcm/WebstormProjects/brass-monkey`); make it relative or documented.
-- [ ] Add undocumented tools to the README table or mark internal:
+      → replaced with `/ABSOLUTE/PATH/TO/brass-monkey` placeholder + README note.
+- [x] Add undocumented tools to the README table or mark internal:
       `get_audit_log`, `trace_ui_path`, `get_environment`, `remove_instance`,
-      `download_file`.
+      `download_file`. → all five added to the Available Tools table.
 - **Done when:** all four version sources agree via a single mechanism; `npm run
-  build` succeeds; README tool list matches `src/tools/`.
+  build` succeeds; README tool list matches `src/tools/`. ✅ **Met.**
 
 ## Phase 1 — Decouple config from the Gemini installer
 - [ ] Confirm the server is fully configurable via (a) env vars injected by the

@@ -3,7 +3,7 @@
     "brass-monkey-odoo": {
       "command": "node",
       "args": ["dist/bundle/index.js"],
-      "cwd": "/home/mcm/WebstormProjects/brass-monkey"
+      "cwd": "/ABSOLUTE/PATH/TO/brass-monkey"
     }
   }
 }

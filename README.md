@@ -1,6 +1,6 @@
 # Brass-Monkey 🐒: Gemini CLI Extension for Odoo
 
-**Status: ✅ RELEASE v1.5.0 STABLE**  
+**Status: ✅ Stable**  
 *Verified Compatibility: Odoo v15 through v18+ (Enterprise and Community).*
 
 **Brass-Monkey** is a high-fidelity, secure, and cognitively optimized **Gemini CLI extension** and Model Context Protocol (MCP) bridge for **Odoo**. It enables AI agents to navigate Odoo's complex ERP/CRM architecture, manage multiple instances, and perform highly audited record operations with extreme context-window efficiency.
@@ -50,9 +50,11 @@ gemini extensions config brass-monkey
 | :--- | :--- | :--- |
 | **Discovery** | `list_models` | Search and list Odoo's technical models with pagination. |
 | | `inspect_model` | Perform a deep architectural audit of any Odoo model's fields, modules, and rules. |
+| | `get_environment` | "World Map" orientation — server, user, company, and app context. Recommended first call in a session. |
 | **UX & Navigation** | `get_menu` | Retrieve recursive, pruned JSON trees of menus (hierarchical drilling or semantic search). |
 | | `get_action` | Retrieve Window, Server, Client, or Report Action details with view-mode bindings. |
 | | `get_view` | Retrieve raw XML/definitions for Odoo form, tree, or kanban views. |
+| | `trace_ui_path` | Discover exactly how to reach a model through the UI (Menus → Actions → Views). |
 | **Safe CRUD** | `search_records` | Search Odoo records, returning a lightweight breadcrumbs-envelope and list totals. |
 | | `get_record` | Retrieve a 360-degree detailed dashboard of a single record, including lines and chatter. |
 | | `get_records` | Retrieve deep, multi-line detailed reports for multiple records in batch. |
@@ -62,10 +64,13 @@ gemini extensions config brass-monkey
 | | `aggregate_records`| Server-side grouping and pivot-style aggregations with custom offset pagination. |
 | **Reports** | `list_reports` | List all available PDF reports (Invoices, Quotations, Packing Slips) for a model. |
 | | `download_report` | Generate and retrieve PDF report data. |
+| | `download_file` | Download any file or attachment from an Odoo database to the local workspace. |
 | **Workspace** | `setup_instance` | Add and authenticate new Odoo environments. |
 | | `list_instances` | List all configured environments. |
 | | `switch_instance` | Change the active environment. |
+| | `remove_instance` | Delete an instance configuration and its stored credentials. |
 | | `get_info` | Retrieve server version and configuration stats. |
+| | `get_audit_log` | Retrieve recent local audit log entries for transparency. |
 
 ---
 
@@ -103,6 +108,11 @@ ODOO_API_KEY="my-api-key"
 # Start ONLY your local workspace development inspector (Port 6275, Proxy 6278)
 ./start-inspectors.sh --dev
 ```
+
+> **Manual / standard MCP config:** `mcp_config.json` is a template for hosts that
+> consume a raw MCP server entry (e.g. Antigravity, or `claude mcp add`). Replace the
+> `cwd` placeholder `/ABSOLUTE/PATH/TO/brass-monkey` with the absolute path to your
+> checkout. All hosts launch the same `node dist/bundle/index.js`.
 
 ---
 

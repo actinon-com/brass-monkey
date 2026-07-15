@@ -1,9 +1,12 @@
 {
   "name": "brass-monkey",
-  "version": "1.6.2",
+  "version": "1.7.0",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
+    "sync-version": "node scripts/sync-version.mjs",
+    "check-version": "node scripts/sync-version.mjs --check",
+    "prebuild": "node scripts/sync-version.mjs",
     "build": "tsc && npm run bundle",
     "bundle": "ncc build src/mcp-server.ts -o dist/bundle",
     "test": "vitest run",
