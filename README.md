@@ -42,6 +42,35 @@ You can update these settings later or add additional instances using:
 gemini extensions config brass-monkey
 ```
 
+### 3. Configuration on Claude Code / generic MCP hosts
+
+The server is host-agnostic: it never depends on Gemini's interactive prompts. Any
+MCP host can configure it through **either** of two independent paths.
+
+**Path A — host-injected environment variables.** Set the `ODOO_*` variables in your
+host's server entry; on startup they populate a single default instance (no tool call
+needed). This is the env-var contract:
+
+| Variable | Required | Description |
+| :--- | :--- | :--- |
+| `ODOO_ALIAS` | No (default `default`) | Alias for the injected instance. |
+| `ODOO_URL` | Yes | Base URL, e.g. `https://my-company.odoo.com`. |
+| `ODOO_DB` | Yes | Odoo database name. |
+| `ODOO_USERNAME` | Yes | Login username or email. |
+| `ODOO_API_KEY` | Yes | Odoo External API Key (recommended) or password. **Sensitive** — inject via your host's secret mechanism; never commit it. |
+
+`ODOO_URL`, `ODOO_DB`, and `ODOO_USERNAME` must all be present for the instance to
+register; `ODOO_API_KEY` is resolved for the instance named by `ODOO_ALIAS`.
+
+**Path B — the `setup_instance` tool (first-run).** With no env vars set, call
+`setup_instance` from the client. It validates the credentials against Odoo, stores
+the API key in your OS keychain (`keytar`, with a `0600` local-file fallback), and
+persists non-secret metadata. Use it to add further instances alongside an
+env-injected default, too.
+
+Both paths work with no Gemini-specific step. The `mcp_config.json` template (below)
+plus the `ODOO_*` variables is all a raw MCP host needs.
+
 ---
 
 ## 🛠️ Available Tools

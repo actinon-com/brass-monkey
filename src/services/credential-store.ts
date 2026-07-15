@@ -83,8 +83,10 @@ export class CredentialStore {
     const fileKeys = await this.readFromFile();
     if (fileKeys[alias]) return fileKeys[alias];
     
-    // 3. Try Environment Variables
-    if ((alias === 'default' || alias === 'act') && process.env.ODOO_API_KEY) {
+    // 3. Try Environment Variables. The env-injected API key belongs to the
+    //    host-provided instance named by ODOO_ALIAS (default: 'default').
+    const envAlias = process.env.ODOO_ALIAS || 'default';
+    if (alias === envAlias && process.env.ODOO_API_KEY) {
       return process.env.ODOO_API_KEY;
     }
     

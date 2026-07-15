@@ -43,12 +43,35 @@ items off and commit this file as you go. All work on a `release-1.6.x` /
   build` succeeds; README tool list matches `src/tools/`. ✅ **Met.**
 
 ## Phase 1 — Decouple config from the Gemini installer
-- [ ] Confirm the server is fully configurable via (a) env vars injected by the
+- [x] Confirm the server is fully configurable via (a) env vars injected by the
       host and (b) the `setup_instance` tool as a first-run path, with `keytar`
       as the persistence layer — independent of Gemini's interactive prompts.
-- [ ] Document the env-var contract (`ODOO_ALIAS/URL/DB/USERNAME/API_KEY`).
+      → Path (b) already worked. Path (a) was a phantom contract: `ODOO_ALIAS`
+      was declared in the manifest but read nowhere; `config-store` hardcoded the
+      env instance to `default` and `credential-store` gated the env key on
+      `default`/`act` (a personal leftover). Fixed both to honor
+      `ODOO_ALIAS ?? 'default'`; dropped `act`. Regression-locked in
+      `tests/config-env-contract.test.ts` (5 tests).
+- [x] Document the env-var contract (`ODOO_ALIAS/URL/DB/USERNAME/API_KEY`).
+      → README §"Configuration on Claude Code / generic MCP hosts" with a
+      required/default table + both config paths.
+- [x] Decouple user-facing Gemini strings: `remove_instance` guard message now
+      references the host's env config (not `gemini extensions config`); audit
+      `ir.logging` source path `gemini.cli.extension` → `brass-monkey.mcp`; stale
+      `src/index.ts` comment made host-neutral. Legacy `~/.gemini/brass-monkey`
+      storage dir intentionally kept for backwards-compat (documented in code).
 - **Done when:** a clean instance can be configured on Claude Code with no
-  Gemini-specific step, verified in the MCP Inspector.
+  Gemini-specific step, verified in the MCP Inspector. ✅ Automated: 77/77 tests
+  incl. env-var contract; `tsc --noEmit` clean. Manual Inspector check below is
+  Matt's to run before merge.
+
+  **Inspector verification recipe** (`./start-inspectors.sh --dev`):
+  1. *Env-var path* — launch with `ODOO_ALIAS/URL/DB/USERNAME/API_KEY` set;
+     `list_instances` shows the injected instance under its alias; run
+     `get_environment` to confirm it connects with no `setup_instance` call.
+  2. *First-run path* — launch with **no** `ODOO_*` vars; `list_instances` is
+     empty; `setup_instance` (alias/url/db/username/api_key) authenticates,
+     persists to keytar, and a subsequent `get_environment` succeeds.
 
 ## Phase 2 — Native-module packaging decision (likely gotcha)
 - [ ] Decide: keep `keytar` (and solve shipping prebuilt `.node` binaries per

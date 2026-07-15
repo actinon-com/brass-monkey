@@ -60,7 +60,7 @@ export class AuditService {
         dbname: (this.client as any).config.db,
         level,
         message,
-        path: 'gemini.cli.extension',
+        path: 'brass-monkey.mcp',
         line: '0',
         func: 'execute_tool',
       }]);
