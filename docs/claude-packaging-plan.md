@@ -5,7 +5,7 @@ Gemini CLI and Antigravity working unchanged.
 
 **Target install surfaces (priority order):**
 1. **Claude Code plugin + marketplace** — primary. Best "install once, upgrade
-   from git" story; carries the 23 skills natively.
+   from git" story; carries the 30 skills natively.
 2. **Claude Desktop bundle** — secondary. GUI one-click install for non-CLI users.
 3. **Raw `claude mcp add` / MCP config** — universal fallback; also how
    Antigravity consumes the server.
@@ -117,14 +117,49 @@ items off and commit this file as you go. All work on a `release-1.6.x` /
   graceful.
 
 ## Phase 3 — Claude Code plugin + marketplace (primary path)
-- [ ] **Fetch and read current Claude Code plugin + marketplace docs.**
-- [ ] Add the plugin manifest declaring the MCP server (same
+- [x] **Fetch and read current Claude Code plugin + marketplace docs.**
+      → Verified 2026-07-15 at `code.claude.com` (docs.anthropic.com now 301s
+      there): `/en/plugins`, `/en/plugins-reference`, `/en/plugin-marketplaces`.
+      Manifests below follow the current schema.
+- [x] Add the plugin manifest declaring the MCP server (same
       `node dist/bundle/index.js` launch) and pointing at `skills/`.
-- [ ] Add the marketplace manifest so this repo is self-serve; document the
+      → `.claude-plugin/plugin.json`. MCP server declared **inline** (not a
+      separate root `.mcp.json`, which would also load as a *project*-scope
+      server when the repo is opened in Claude Code, where
+      `${CLAUDE_PLUGIN_ROOT}`/`${user_config.*}` don't resolve). Launch is
+      `node ${CLAUDE_PLUGIN_ROOT}/dist/bundle/index.js`. First-run config via
+      `userConfig` (URL/DB/username/alias + sensitive API key) injected as
+      `ODOO_*` env — mirrors the Gemini `settings` array; each field defaults to
+      `""` so blanks fall through cleanly to `setup_instance` (the
+      `config-store.ts` truthy guard skips empty env). Skills auto-discovered by
+      the default `skills/` scan (all 30). Legacy root `plugin.json` deleted;
+      `sync-version.mjs` repointed to `.claude-plugin/plugin.json`.
+- [x] Add the marketplace manifest so this repo is self-serve; document the
       `/plugin marketplace add actinon-com/brass-monkey` + install/upgrade flow.
-- [ ] Smoke-test: all tools register; all 23 skills load and trigger.
+      → `.claude-plugin/marketplace.json`, name **`odoo-actinon`**, single entry
+      `brass-monkey` with `source: "./"` (repo root = marketplace root = plugin
+      root; the plugin can't live in a subdir without forking Gemini's launch
+      path). No `version` in the entry — `plugin.json` is the authority. Install:
+      `/plugin install brass-monkey@odoo-actinon`; upgrade:
+      `/plugin update brass-monkey@odoo-actinon`. Documented in README.
+- [ ] Smoke-test: all tools register; all 30 skills load and trigger.
+      → Automated gate green (see below). Manual Inspector/`--plugin-dir` +
+      live-Odoo check is Matt's to run before merge (recipe below).
 - **Done when:** a fresh Claude Code install can add the marketplace, install the
   plugin, connect to Odoo, and use tools + skills; upgrade pulls a new version.
+
+  **Verification recipe:**
+  1. `claude plugin validate . --strict` — marketplace + entry + manifest fields.
+  2. Gate: `npm test`, `tsc --noEmit`, `node scripts/sync-version.mjs --check`.
+  3. `claude --plugin-dir .` → `/help` lists 30 `brass-monkey:odoo-*` skills;
+     `/plugin` prompts for the 5 userConfig fields.
+  4. Fill prompts with live creds → `get_environment` connects with no
+     `setup_instance` call (env-injection path).
+  5. Leave prompts blank → `list_instances` empty, then `setup_instance` works
+     (blank-field fallback; no literal `${...}` instance).
+  6. `/plugin marketplace add ./` + `/plugin install brass-monkey@odoo-actinon`
+     → same result from the plugin cache (keytar absent → encrypted-file path).
+  Cross-OS (macOS/Windows) deferred post-release (Mike/Windows), as in Phase 2.
 
 ## Phase 4 — Claude Desktop bundle (secondary path)
 - [ ] **Fetch and read current desktop bundle docs; confirm format/name
@@ -136,7 +171,7 @@ items off and commit this file as you go. All work on a `release-1.6.x` /
   the server launches with config injected.
 
 ## Phase 5 — Skills polish
-- [ ] Sweep all 23 `SKILL.md` files: replace Gemini-specific phrasing (e.g.
+- [ ] Sweep all 30 `SKILL.md` files: replace Gemini-specific phrasing (e.g.
       "the Gemini agent") with agent-neutral wording.
 - [ ] Confirm each `description` is a strong trigger string.
 - [ ] Confirm `resources/` progressive-disclosure paths resolve when loaded by

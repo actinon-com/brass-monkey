@@ -15,7 +15,7 @@
 - **Self-Healing Action Resolution:** Dynamically inspects Odoo's base tables to auto-resolve action types (`get_action`), supporting window, server, client, and report actions natively with zero parameter crashes.
 - **Layered Credential Security:** API keys are supplied by your host's env-var secret mechanism, or persisted to an AES-256-GCM encrypted local file; when the OS keychain (Windows Credential Vault, macOS Keychain, libsecret) is available it is used automatically as an enhancement.
 - **Audit & Reversibility:** Every write operation captures a "Before Snapshot" and logs a mandatory justification to Odoo's `ir.logging` and the record's Chatter.
-- **23 Domain Skills:** Deep functional expertise pre-loaded for Sales, MRP, Finance, HR, and more.
+- **30 Domain Skills:** Deep functional expertise pre-loaded for Sales, MRP, Finance, HR, and more.
 
 ---
 
@@ -42,10 +42,33 @@ You can update these settings later or add additional instances using:
 gemini extensions config brass-monkey
 ```
 
-### 3. Configuration on Claude Code / generic MCP hosts
+### 3. Install on Claude Code (plugin + marketplace)
+
+Brass-Monkey is a self-serve Claude Code plugin. Add the marketplace, then install:
+
+```shell
+/plugin marketplace add actinon-com/brass-monkey
+/plugin install brass-monkey@odoo-actinon
+```
+
+On install, Claude Code prompts for your Odoo **URL, database, username, and API
+key** (the key is stored via Claude Code's secure storage). These are injected
+into the server automatically — no further setup needed. Leave them blank to skip
+straight to the `setup_instance` tool instead (see Path B below).
+
+Upgrade to a new release with:
+
+```shell
+/plugin update brass-monkey@odoo-actinon
+```
+
+Skills are namespaced under the plugin, e.g. `/brass-monkey:odoo-sales`.
+
+### 4. Configuration on Claude Code / generic MCP hosts
 
 The server is host-agnostic: it never depends on Gemini's interactive prompts. Any
-MCP host can configure it through **either** of two independent paths.
+MCP host can configure it through **either** of two independent paths. (On the
+Claude Code plugin above, Path A is wired to the install-time prompts for you.)
 
 **Path A — host-injected environment variables.** Set the `ODOO_*` variables in your
 host's server entry; on startup they populate a single default instance (no tool call

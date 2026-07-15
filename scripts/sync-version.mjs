@@ -4,13 +4,16 @@
  *
  * `package.json` is canonical. This script propagates its `version` into every
  * other place a version is declared, so the manifests can never drift:
- *   - gemini-extension.json   (Gemini CLI)
- *   - plugin.json             (legacy plugin descriptor)
- *   - src/mcp-server.ts       (runtime fallback literal only; the server reads
- *                              package.json at runtime, this is the last resort)
+ *   - gemini-extension.json        (Gemini CLI)
+ *   - .claude-plugin/plugin.json   (Claude Code plugin manifest; authority for
+ *                                   the plugin version — marketplace.json
+ *                                   deliberately carries no plugin version)
+ *   - src/mcp-server.ts            (runtime fallback literal only; the server
+ *                                   reads package.json at runtime, this is the
+ *                                   last resort)
  *
- * When Claude Code plugin/marketplace and Desktop bundle manifests are added
- * (plan Phases 3–4), append them to JSON_TARGETS below.
+ * When the Desktop bundle manifest is added (plan Phase 4), append it to
+ * JSON_TARGETS below.
  *
  * Usage:  node scripts/sync-version.mjs          (writes; run by `prebuild`)
  *         node scripts/sync-version.mjs --check   (verifies only; non-zero exit on drift)
@@ -31,7 +34,7 @@ if (!version) {
 }
 
 // JSON manifests whose top-level "version" must match package.json.
-const JSON_TARGETS = ["gemini-extension.json", "plugin.json"];
+const JSON_TARGETS = ["gemini-extension.json", ".claude-plugin/plugin.json"];
 
 const drift = [];
 

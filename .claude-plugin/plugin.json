@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "brass-monkey",
+  "displayName": "Brass-Monkey (Odoo)",
+  "version": "1.7.0",
+  "description": "High-fidelity, audited MCP bridge for Odoo ERP/CRM — multi-instance, 30 domain skills.",
+  "author": { "name": "Actinon" },
+  "homepage": "https://github.com/actinon-com/brass-monkey",
+  "repository": "https://github.com/actinon-com/brass-monkey",
+  "license": "MIT",
+  "keywords": ["odoo", "erp", "crm", "mcp", "xml-rpc"],
+  "userConfig": {
+    "odoo_alias":    { "type": "string", "title": "Instance alias",   "description": "Alias for this Odoo instance (e.g. prod, staging).", "default": "default" },
+    "odoo_url":      { "type": "string", "title": "Odoo URL",         "description": "Base URL, e.g. https://my-company.odoo.com.",       "default": "" },
+    "odoo_db":       { "type": "string", "title": "Database name",    "description": "Odoo database name.",                               "default": "" },
+    "odoo_username": { "type": "string", "title": "Username / email", "description": "Odoo login username or email.",                     "default": "" },
+    "odoo_api_key":  { "type": "string", "title": "API key",          "description": "Odoo External API Key (recommended) or password.", "sensitive": true, "default": "" }
+  },
+  "mcpServers": {
+    "brass-monkey-odoo": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/bundle/index.js"],
+      "env": {
+        "ODOO_ALIAS":    "${user_config.odoo_alias}",
+        "ODOO_URL":      "${user_config.odoo_url}",
+        "ODOO_DB":       "${user_config.odoo_db}",
+        "ODOO_USERNAME": "${user_config.odoo_username}",
+        "ODOO_API_KEY":  "${user_config.odoo_api_key}"
+      }
+    }
+  }
+}
