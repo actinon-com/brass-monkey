@@ -104,8 +104,17 @@ items off and commit this file as you go. All work on a `release-1.6.x` /
   least macOS + one other target OS, or a documented fallback is in place.
   ✅ **Met.** The guaranteed path is pure-JS (env var + encrypted file) and works
   identically on every OS out of one bundle; 82/82 tests pass; `tsc --noEmit`
-  clean. Documented in README §"Credential storage" and CLAUDE.md. Manual
-  cross-OS Inspector spot-check remains Matt's before the eventual merge.
+  clean. Documented in README §"Credential storage" and CLAUDE.md.
+  **Manual verification (single-OS, live Odoo, 2026-07-15):** both paths passed in
+  the MCP Inspector against the workspace bundle — (A) env-var injection: instance
+  built purely from `.env`, `get_environment` connected with no `setup_instance`;
+  (B) first-run: `setup_instance` persisted the key as a `v1:` AES-GCM blob (not
+  plaintext, not keychain), `get_environment` read it back via decrypt. Note: the
+  Inspector forwards custom env vars but not `HOME`, so isolate first-run tests via
+  `BRASS_MONKEY_NO_KEYCHAIN=1` + a throwaway alias rather than a temp `HOME`.
+  **Cross-OS (macOS/Windows) deferred to post-release** (Windows load test owned by
+  Mike); low-risk as the baseline is pure-JS and the keychain-absent path is proven
+  graceful.
 
 ## Phase 3 — Claude Code plugin + marketplace (primary path)
 - [ ] **Fetch and read current Claude Code plugin + marketplace docs.**
