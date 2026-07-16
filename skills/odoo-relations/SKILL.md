@@ -4,7 +4,7 @@ description: MANDATORY for Contacts, Customers, and Vendors (res.partner). Exper
 ---
 # Skill: Odoo Relations (Partners & Contacts)
 
-This skill provides the Gemini agent with the expertise required to manage the `res.partner` ecosystem, which is the foundational directory for all people and organizations in Odoo.
+This skill provides the agent with the expertise required to manage the `res.partner` ecosystem, which is the foundational directory for all people and organizations in Odoo.
 
 ## Core Mandates
 

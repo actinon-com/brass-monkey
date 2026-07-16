@@ -4,7 +4,7 @@ description: MANDATORY FIRST STEP. Orientation skill to establish the Odoo World
 ---
 # Skill: Odoo Orientation (The Mandatory Start)
 
-This skill ensures the Gemini agent establishes a comprehensive "World Map" of the Odoo environment immediately upon session start or when switching instances. **Bypassing this step is a violation of project architecture.**
+This skill ensures the agent establishes a comprehensive "World Map" of the Odoo environment immediately upon session start or when switching instances. **Bypassing this step is a violation of project architecture.**
 
 ## Core Mandates
 

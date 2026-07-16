@@ -225,12 +225,32 @@ items off and commit this file as you go. All work on a `release-1.6.x` /
      instance), then `setup_instance` works (blank-field fallback).
 
 ## Phase 5 — Skills polish
-- [ ] Sweep all 30 `SKILL.md` files: replace Gemini-specific phrasing (e.g.
+- [x] Sweep all 30 `SKILL.md` files: replace Gemini-specific phrasing (e.g.
       "the Gemini agent") with agent-neutral wording.
-- [ ] Confirm each `description` is a strong trigger string.
-- [ ] Confirm `resources/` progressive-disclosure paths resolve when loaded by
+      → Exactly 30 occurrences, one per skill — all the identical Overview-line
+      shape "This skill provides **the Gemini agent** with …". Uniform fix
+      `the Gemini agent` → `the agent` (grammatical across every sentence
+      variant, minimal diff). No other Gemini/Google branding in any skill (the
+      `google_analytics_key` in `odoo-website/resources` is a genuine Odoo field
+      — left untouched). Confirmed 0 `gemini` matches remain in `skills/*/SKILL.md`.
+- [x] Confirm each `description` is a strong trigger string.
+      → Reviewed all 30 frontmatter descriptions. Already actor-neutral and
+      specific: 14 lead with `MANDATORY for … (model.name)` (strong triggers);
+      the rest are topical "expertise in X". Adequate as-is — no rewrites, kept
+      the diff surgical.
+- [x] Confirm `resources/` progressive-disclosure paths resolve when loaded by
       Claude.
+      → Convention is a `## Available Resources` section listing files by bare
+      name. Audited all 30: 53 resource files, every reference resolved and zero
+      orphans **except** `odoo-reports`, which listed `qweb-basics.md` with no
+      `resources/` dir (dangling link). Fixed by authoring
+      `skills/odoo-reports/resources/qweb-basics.md` (QWeb directives / document
+      loop / external_layout reference, matched to the other resource files'
+      depth). Re-audit: **0 missing, 0 orphans** across all 30.
 - **Done when:** skills are agent-neutral and verified loading under Claude Code.
+  ✅ **Met** (agent-neutral wording + reference integrity). Automated re-audit
+  green; manual `claude --plugin-dir .` load check folds into the Phase 3
+  smoke-test recipe (Matt's before merge).
 
 ## Phase 6 — Build, CI, upgrade mechanics
 - [ ] One `npm run build` emits: `dist/bundle`, the Desktop bundle, and validates

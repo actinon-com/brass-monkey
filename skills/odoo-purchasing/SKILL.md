@@ -4,7 +4,7 @@ description: MANDATORY for RFQs and Purchase Orders (purchase.order). Expertise 
 ---
 # Skill: Odoo Purchasing & Procurement
 
-This skill provides the Gemini agent with high-level functional expertise in Odoo's Purchasing engine, covering Requests for Quotation (RFQs), Purchase Orders (POs), and Vendor Price management.
+This skill provides the agent with high-level functional expertise in Odoo's Purchasing engine, covering Requests for Quotation (RFQs), Purchase Orders (POs), and Vendor Price management.
 
 ## Core Mandates
 

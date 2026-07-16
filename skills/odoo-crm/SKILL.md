@@ -4,7 +4,7 @@ description: MANDATORY for Leads and Opportunities (crm.lead). Expertise in Odoo
 ---
 # Skill: Odoo CRM & Pipeline Management
 
-This skill provides the Gemini agent with high-level functional expertise in Odoo's CRM engine, covering Lead qualification, Opportunity management, and Activity tracking.
+This skill provides the agent with high-level functional expertise in Odoo's CRM engine, covering Lead qualification, Opportunity management, and Activity tracking.
 
 ## Core Mandates
 

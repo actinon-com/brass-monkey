@@ -4,7 +4,7 @@ description: MANDATORY for Transfers (stock.picking), Stock Moves (stock.move), 
 ---
 # Skill: Odoo Inventory & Logistics
 
-This skill provides the Gemini agent with the expertise required to manage Odoo's inventory operations, covering transfers (pickings), stock moves, and the physical warehouse structure.
+This skill provides the agent with the expertise required to manage Odoo's inventory operations, covering transfers (pickings), stock moves, and the physical warehouse structure.
 
 ## Core Mandates
 

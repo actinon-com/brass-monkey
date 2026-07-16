@@ -4,7 +4,7 @@ description: MANDATORY for Customer Invoices (out_invoice), Vendor Bills (in_inv
 ---
 # Skill: Odoo Finance & Accounting
 
-This skill provides the Gemini agent with high-level business expertise in Odoo's unified accounting engine, covering Invoicing, Billing, Banking, Consolidation, and Analytics.
+This skill provides the agent with high-level business expertise in Odoo's unified accounting engine, covering Invoicing, Billing, Banking, Consolidation, and Analytics.
 
 ## Core Mandates
 

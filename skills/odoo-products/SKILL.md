@@ -4,7 +4,7 @@ description: MANDATORY for Product Templates (product.template) and Variants (pr
 ---
 # Skill: Odoo Product Management
 
-This skill provides the Gemini agent with the expertise required to manage Odoo's product catalog, covering both the general templates and specific product variants.
+This skill provides the agent with the expertise required to manage Odoo's product catalog, covering both the general templates and specific product variants.
 
 ## Core Mandates
 

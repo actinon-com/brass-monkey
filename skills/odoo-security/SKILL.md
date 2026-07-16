@@ -4,7 +4,7 @@ description: Functional expertise in Odoo's security and permission architecture
 ---
 # Skill: Odoo Security & Access Control
 
-This skill provides the Gemini agent with high-level functional expertise in Odoo's security and permission architecture, covering Users, Groups, Access Rights, and Record Rules.
+This skill provides the agent with high-level functional expertise in Odoo's security and permission architecture, covering Users, Groups, Access Rights, and Record Rules.
 
 ## Core Mandates
 

@@ -4,7 +4,7 @@ description: MANDATORY for Employees (hr.employee) and Departments (hr.departmen
 ---
 # Skill: Odoo Human Resources (HR)
 
-This skill provides the Gemini agent with functional expertise in Odoo's HR module, covering Employee management, Departmental structures, and Employment contracts.
+This skill provides the agent with functional expertise in Odoo's HR module, covering Employee management, Departmental structures, and Employment contracts.
 
 ## Core Mandates
 

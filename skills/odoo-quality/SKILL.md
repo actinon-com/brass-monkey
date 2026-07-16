@@ -4,7 +4,7 @@ description: Functional expertise in Odoo's Quality Management system, covering 
 ---
 # Skill: Odoo Quality & Compliance
 
-This skill provides the Gemini agent with high-level functional expertise in Odoo's Quality Management system, covering Control Points, Quality Checks, and Quality Alerts.
+This skill provides the agent with high-level functional expertise in Odoo's Quality Management system, covering Control Points, Quality Checks, and Quality Alerts.
 
 ## Core Mandates
 

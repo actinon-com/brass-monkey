@@ -4,7 +4,7 @@ description: Functional expertise in Odoo's Dashboard application, covering how 
 ---
 # Skill: Odoo Dashboards
 
-This skill provides the Gemini agent with functional expertise in Odoo's Dashboard application, covering how spreadsheets are organized and presented as read-only BI reports.
+This skill provides the agent with functional expertise in Odoo's Dashboard application, covering how spreadsheets are organized and presented as read-only BI reports.
 
 ## Core Mandates
 

@@ -4,7 +4,7 @@ description: Expertise required to safely query and modify Odoo business data wh
 ---
 # Skill: Odoo Data Operations (CRUD)
 
-This skill provides the Gemini agent with the expertise required to safely query and modify Odoo business data while maintaining a rigorous audit trail and reversibility context.
+This skill provides the agent with the expertise required to safely query and modify Odoo business data while maintaining a rigorous audit trail and reversibility context.
 
 ## Core Mandates
 
