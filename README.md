@@ -21,6 +21,22 @@
 
 ## 🚀 Quick Start
 
+Brass-Monkey is **one** stdio MCP server (`node dist/bundle/index.js`) consumed by
+four surfaces through four thin manifests. Pick the row that matches how your agent
+runs — every surface launches the *identical* server, with **no forked logic per
+platform**.
+
+| Surface | Install | Config | Skills |
+| :--- | :--- | :--- | :--- |
+| **Gemini CLI** | `gemini extensions install …` (§1) | interactive prompts | ✅ 30 |
+| **Claude Code** | `/plugin install brass-monkey@odoo-actinon` (§3) | install prompts → `ODOO_*` | ✅ 30 |
+| **Claude Desktop** | install `brass-monkey.mcpb` (§4) | install dialog → `ODOO_*` | ✗ tools only |
+| **Antigravity / generic MCP** | standard `mcpServers` config (§6) | `env` block **or** `setup_instance` | ✗ tools only |
+
+The 30 domain skills ride with the Gemini extension and the Claude Code plugin
+(both carry a `skills/` manifest); the `.mcpb` and raw MCP-config paths deliver the
+tools only (see §4 note).
+
 ### 1. Installation
 The recommended way to install **Brass-Monkey** is using the official Gemini CLI extension command. This will guide you through the interactive setup of your first Odoo instance.
 
@@ -117,8 +133,50 @@ register; `ODOO_API_KEY` is resolved for the instance named by `ODOO_ALIAS`.
 the API key (see **Credential storage** below), and persists non-secret metadata.
 Use it to add further instances alongside an env-injected default, too.
 
-Both paths work with no Gemini-specific step. The `mcp_config.json` template (below)
+Both paths work with no Gemini-specific step. The `mcp_config.json` template (§6)
 plus the `ODOO_*` variables is all a raw MCP host needs.
+
+### 6. Install on Antigravity / other MCP hosts (standard config)
+
+Any host that reads a standard MCP `mcpServers` config — **Antigravity**, or the
+`claude mcp add` fallback — launches the very same server. In Antigravity, open the
+`…` menu in the agent panel → **Manage MCP Servers → View raw config** (the raw file
+lives under `~/.gemini/`, e.g. `~/.gemini/config/mcp_config.json`; on Windows
+`~/.gemini/antigravity/mcp_config.json`). Add:
+
+```json
+{
+  "mcpServers": {
+    "brass-monkey-odoo": {
+      "command": "node",
+      "args": ["/ABSOLUTE/PATH/TO/brass-monkey/dist/bundle/index.js"],
+      "env": {
+        "ODOO_URL": "https://my-company.odoo.com",
+        "ODOO_DB": "my-database",
+        "ODOO_USERNAME": "me@company.com",
+        "ODOO_API_KEY": "your-odoo-api-key"
+      }
+    }
+  }
+}
+```
+
+Use an **absolute path** in `args` rather than relying on `cwd`. The `env` block is
+**Path A** (§5) — it populates a default instance on startup. Omit `env` entirely to
+configure later via the `setup_instance` tool (**Path B**). The repo-root
+`mcp_config.json` is the same template in `cwd` + relative-args form, for hosts that
+honor `cwd`.
+
+Prefer the CLI? Claude Code (and any host with an equivalent) can add it in one line:
+
+```shell
+claude mcp add brass-monkey-odoo \
+  -e ODOO_URL=https://my-company.odoo.com \
+  -e ODOO_DB=my-database \
+  -e ODOO_USERNAME=me@company.com \
+  -e ODOO_API_KEY=your-odoo-api-key \
+  -- node /ABSOLUTE/PATH/TO/brass-monkey/dist/bundle/index.js
+```
 
 ### ⬆️ Upgrading
 
@@ -129,6 +187,7 @@ Each surface upgrades independently, all to the same server version:
 | **Gemini CLI** | `gemini extensions update brass-monkey` |
 | **Claude Code** | `/plugin update brass-monkey@odoo-actinon` |
 | **Claude Desktop** | Download the newer `brass-monkey.mcpb` from the [latest release](https://github.com/actinon-com/brass-monkey/releases) and install it over the old one. |
+| **Antigravity / generic** | `git pull` your checkout, then `npm run build` to refresh `dist/bundle`. |
 
 ---
 
@@ -197,9 +256,10 @@ ODOO_API_KEY="my-api-key"
 ./start-inspectors.sh --dev
 ```
 
-> **Manual / standard MCP config:** `mcp_config.json` is a template for hosts that
-> consume a raw MCP server entry (e.g. Antigravity, or `claude mcp add`). Replace the
-> `cwd` placeholder `/ABSOLUTE/PATH/TO/brass-monkey` with the absolute path to your
+> **Manual / standard MCP config:** the repo-root `mcp_config.json` is a template
+> for hosts that consume a raw MCP server entry. For installing Brass-Monkey on
+> Antigravity or via `claude mcp add`, see **§6** above. Replace the
+> `/ABSOLUTE/PATH/TO/brass-monkey` placeholder with the absolute path to your
 > checkout. All hosts launch the same `node dist/bundle/index.js`.
 
 ---

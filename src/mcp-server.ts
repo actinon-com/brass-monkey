@@ -20,7 +20,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Read package.json for metadata
-let version = "1.7.0";
+let version = "2.0.0";
 try {
   // Try both possible locations (source vs bundled)
   const pkgPaths = [

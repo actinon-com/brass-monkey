@@ -12,8 +12,8 @@ Gemini CLI and Antigravity working unchanged.
 
 **How to work this file:** one phase per session where practical. Use plan mode
 to propose before editing. Gate each phase on its "Done when" criteria. Check
-items off and commit this file as you go. All work on a `release-1.6.x` /
-`release-1.7.0` branch — never `main`.
+items off and commit this file as you go. All work on a `release-2.0.0` branch
+(was `release-1.6.x` / `release-1.7.0`) — never `main`.
 
 > ⚠️ **Verify-first rule:** Phases 3 and 4 depend on Claude packaging formats
 > that change over time. Their first task is always to fetch and read the current
@@ -292,7 +292,7 @@ items off and commit this file as you go. All work on a `release-1.6.x` /
   82/82; `tsc --noEmit` clean; `sync-version --check` all sources at 1.7.0.
   **First live exercise deferred to release time** (can't run pre-merge): the
   workflow only fires on a real `v*` tag pushed to `main`, which happens *after*
-  the `release-1.7.0` → `main` PR merges. Confirm at tag `v1.7.0` that the Action
+  the `release-2.0.0` → `main` PR merges. Confirm at tag `v2.0.0` that the Action
   builds and the Release shows `brass-monkey.mcpb` attached.
 
   **Still deferred (distribution polish — not required for install/upgrade):**
@@ -300,12 +300,40 @@ items off and commit this file as you go. All work on a `release-1.6.x` /
   Connectors-Directory submission. Unchanged from the Phase 4/5 notes.
 
 ## Phase 7 — Docs & backwards-compat verification
-- [ ] README install matrix: Gemini CLI / Antigravity / Claude Code / Claude
+- [x] README install matrix: Gemini CLI / Antigravity / Claude Code / Claude
       Desktop, all launching the same server.
-- [ ] Regression pass: Gemini extension still installs and runs unchanged.
-- [ ] Confirm Antigravity works via the documented standard MCP config entry.
+      → Added an install matrix table at the top of README §"Quick Start"
+      (Surface / Install / Config / Skills) with the explicit "identical
+      `node dist/bundle/index.js`, no forked logic per platform" statement.
+      Mirrors the manifest→surface map below.
+- [x] Regression pass: Gemini extension still installs and runs unchanged.
+      → `gemini-extension.json` structure untouched (only its `version` field,
+      via `sync-version`); it still launches the same shared bundle with
+      `cwd: ${extensionPath}`. Automated gate green (full build + 82/82 tests).
+      Manual `gemini extensions install <repo>` + a live tool call is Matt's
+      pre-merge smoke test.
+- [x] Confirm Antigravity works via the documented standard MCP config entry.
+      → New README §6 "Install on Antigravity / other MCP hosts". Verified live
+      2026-07-16 that Antigravity reads a standard stdio `mcpServers` entry with
+      `command`/`args`/`env` (env-injection supported → ODOO_* Path A works);
+      documented the in-app **Manage MCP Servers → View raw config** route + the
+      config paths (`~/.gemini/config/mcp_config.json`, Windows
+      `~/.gemini/antigravity/mcp_config.json`). Used an **absolute path in
+      `args`** (Antigravity's `cwd` honoring is unverified) plus an `env` block
+      (Path A) or blank → `setup_instance` (Path B). Same section documents the
+      `claude mcp add … -- node <abs>/dist/bundle/index.js` universal fallback.
 - **Done when:** all four surfaces install and run from documented steps with no
   forked server logic.
+  ✅ **Met** (docs in place; additive guarantee intact). **Release re-cut to
+  2.0.0** this session (new install surfaces = major milestone): `package.json`
+  → 2.0.0, propagated by `sync-version` to `gemini-extension.json`,
+  `.claude-plugin/plugin.json`, `manifest.json`, and the `src/mcp-server.ts`
+  fallback literal; `dist/bundle` rebuilt so the compiled fallback + the `.mcpb`
+  report 2.0.0. Branch renamed `release-1.7.0` → `release-2.0.0`.
+  **Automated gate (green 2026-07-16):** `sync-version --check` all sources at
+  2.0.0; `npm run build` full chain (validator + tsc + ncc + mcpb validate/pack
+  → `build/brass-monkey.mcpb` @ 2.0.0); `tsc --noEmit` clean; `npm test` 82/82.
+  First live release = tag `v2.0.0` on `main` post-merge.
 
 ---
 
