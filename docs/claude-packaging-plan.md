@@ -253,13 +253,51 @@ items off and commit this file as you go. All work on a `release-1.6.x` /
   smoke-test recipe (Matt's before merge).
 
 ## Phase 6 — Build, CI, upgrade mechanics
-- [ ] One `npm run build` emits: `dist/bundle`, the Desktop bundle, and validates
+- [x] One `npm run build` emits: `dist/bundle`, the Desktop bundle, and validates
       the plugin/marketplace manifests.
-- [ ] GitHub Action on tag: build, attach the Desktop bundle to a Release; the
+      → `build` already emitted `dist/` + `dist/bundle` + `build/brass-monkey.mcpb`
+      (the `.mcpb` gated by `mcpb validate`); the missing piece was validating the
+      Claude Code manifests. Added `scripts/validate-plugin.mjs` — a
+      **self-contained** Node validator (no `claude` CLI dependency, so it runs in
+      CI) that checks `.claude-plugin/plugin.json` + `marketplace.json` parse, have
+      required fields, the mcpServers `args` reference
+      `${CLAUDE_PLUGIN_ROOT}/dist/bundle/index.js`, the marketplace entry is
+      `{ name: brass-monkey, source: "./" }`, and plugin.version === package.json
+      version. Wired first in the chain (fail-fast):
+      `validate-plugin → tsc → bundle → build:mcpb`. `claude plugin validate
+      --strict` stays as the authoritative *manual* smoke test (Phase 3 recipe).
+- [x] GitHub Action on tag: build, attach the Desktop bundle to a Release; the
       marketplace serves the new version from the repo.
-- [ ] README: per-platform upgrade commands (Gemini, Claude Code, Desktop).
+      → `.github/workflows/release.yml`: `on: push: tags: ['v*.*.*']`,
+      `permissions: contents: write`. Mirrors `test.yml`'s env (ubuntu,
+      `libsecret-1-dev`, `npm install`); guards that the tag (minus `v`) matches
+      `package.json` version; runs `npm run build` then `npm test`; uploads
+      `build/brass-monkey.mcpb` via `softprops/action-gh-release@v3`
+      (`generate_release_notes: true`), which creates the Release if absent.
+      Gemini + Claude Code marketplace install from the repo/tag directly, so the
+      `.mcpb` is the only asset uploaded. `test.yml` (push/PR to `main`) is
+      unchanged — tag pushes don't trigger it, hence the release job re-runs the
+      gate. Versions verified live 2026-07-16: `action-gh-release@v3` (v2 EOL),
+      `actions/checkout@v6`.
+- [x] README: per-platform upgrade commands (Gemini, Claude Code, Desktop).
+      → Added the missing `gemini extensions update brass-monkey` (verified live)
+      to §2, plus a consolidated **"⬆️ Upgrading"** table (Gemini / Claude Code /
+      Desktop) as the single reference. Claude Code (`/plugin update …`) and
+      Desktop (reinstall `.mcpb`) commands already existed inline in §3/§4.
 - **Done when:** tagging a release produces all artifacts and the upgrade paths
   are documented and tested.
+  ✅ **Met** (automation + docs in place). **Automated gate (green 2026-07-16):**
+  `validate-plugin` OK; `npm run build` full chain succeeds (validator + `tsc` +
+  ncc bundle + `mcpb validate`/`pack` → `build/brass-monkey.mcpb`); `npm test`
+  82/82; `tsc --noEmit` clean; `sync-version --check` all sources at 1.7.0.
+  **First live exercise deferred to release time** (can't run pre-merge): the
+  workflow only fires on a real `v*` tag pushed to `main`, which happens *after*
+  the `release-1.7.0` → `main` PR merges. Confirm at tag `v1.7.0` that the Action
+  builds and the Release shows `brass-monkey.mcpb` attached.
+
+  **Still deferred (distribution polish — not required for install/upgrade):**
+  static `tools[]` with annotations, `icon.png` (512×512), and `mcpb sign` for a
+  Connectors-Directory submission. Unchanged from the Phase 4/5 notes.
 
 ## Phase 7 — Docs & backwards-compat verification
 - [ ] README install matrix: Gemini CLI / Antigravity / Claude Code / Claude

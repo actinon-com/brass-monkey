@@ -42,6 +42,12 @@ You can update these settings later or add additional instances using:
 gemini extensions config brass-monkey
 ```
 
+Upgrade to a newer release with:
+
+```bash
+gemini extensions update brass-monkey
+```
+
 ### 3. Install on Claude Code (plugin + marketplace)
 
 Brass-Monkey is a self-serve Claude Code plugin. Add the marketplace, then install:
@@ -113,6 +119,16 @@ Use it to add further instances alongside an env-injected default, too.
 
 Both paths work with no Gemini-specific step. The `mcp_config.json` template (below)
 plus the `ODOO_*` variables is all a raw MCP host needs.
+
+### ⬆️ Upgrading
+
+Each surface upgrades independently, all to the same server version:
+
+| Platform | Upgrade command |
+| :--- | :--- |
+| **Gemini CLI** | `gemini extensions update brass-monkey` |
+| **Claude Code** | `/plugin update brass-monkey@odoo-actinon` |
+| **Claude Desktop** | Download the newer `brass-monkey.mcpb` from the [latest release](https://github.com/actinon-com/brass-monkey/releases) and install it over the old one. |
 
 ---
 

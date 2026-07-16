@@ -1,0 +1,56 @@
+name: Release
+
+# Tagging `vX.Y.Z` on main builds all artifacts and attaches the Claude Desktop
+# bundle (`.mcpb`) to the GitHub Release. The Gemini extension and the Claude
+# Code marketplace install straight from the repo/tag, so the `.mcpb` is the only
+# asset that needs uploading.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write # required to create the Release and upload the asset
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: "npm"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsecret-1-dev
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Verify tag matches package.json version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag v$TAG does not match package.json version $PKG"
+            exit 1
+          fi
+          echo "Tag and package.json agree at $PKG"
+
+      - name: Build (bundle + .mcpb + validate manifests)
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Publish Release with the .mcpb bundle
+        uses: softprops/action-gh-release@v3
+        with:
+          files: build/brass-monkey.mcpb
+          generate_release_notes: true
