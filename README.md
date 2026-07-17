@@ -1,6 +1,6 @@
 # Brass-Monkey 🐒: Gemini CLI Extension for Odoo
 
-**Status: ✅ RELEASE v1.5.0 STABLE**  
+**Status: ✅ Stable**  
 *Verified Compatibility: Odoo v15 through v18+ (Enterprise and Community).*
 
 **Brass-Monkey** is a high-fidelity, secure, and cognitively optimized **Gemini CLI extension** and Model Context Protocol (MCP) bridge for **Odoo**. It enables AI agents to navigate Odoo's complex ERP/CRM architecture, manage multiple instances, and perform highly audited record operations with extreme context-window efficiency.
@@ -13,13 +13,29 @@
 - **In-Memory Metadata Caching:** Accelerates default database queries to **0ms metadata latency** by caching model configurations locally and performing parallel, background warming of parent-model schemas.
 - **Hierarchical "Local Neighborhood" Navigation:** Exposes Odoo's menus (`get_menu`) as pruned, recursive JSON trees that cleanly map ancestral breadcrumbs, direct children, and immediate folder siblings while pruning out 95% of unrelated system noise.
 - **Self-Healing Action Resolution:** Dynamically inspects Odoo's base tables to auto-resolve action types (`get_action`), supporting window, server, client, and report actions natively with zero parameter crashes.
-- **OS-Level Security:** API Keys are stored in your operating system's secure keychain (Windows Credential Vault, macOS Keychain).
+- **Layered Credential Security:** API keys are supplied by your host's env-var secret mechanism, or persisted to an AES-256-GCM encrypted local file; when the OS keychain (Windows Credential Vault, macOS Keychain, libsecret) is available it is used automatically as an enhancement.
 - **Audit & Reversibility:** Every write operation captures a "Before Snapshot" and logs a mandatory justification to Odoo's `ir.logging` and the record's Chatter.
-- **23 Domain Skills:** Deep functional expertise pre-loaded for Sales, MRP, Finance, HR, and more.
+- **30 Domain Skills:** Deep functional expertise pre-loaded for Sales, MRP, Finance, HR, and more.
 
 ---
 
 ## 🚀 Quick Start
+
+Brass-Monkey is **one** stdio MCP server (`node dist/bundle/index.js`) consumed by
+four surfaces through four thin manifests. Pick the row that matches how your agent
+runs — every surface launches the *identical* server, with **no forked logic per
+platform**.
+
+| Surface | Install | Config | Skills |
+| :--- | :--- | :--- | :--- |
+| **Gemini CLI** | `gemini extensions install …` (§1) | interactive prompts | ✅ 30 |
+| **Claude Code** | `/plugin install brass-monkey@odoo-actinon` (§3) | install prompts → `ODOO_*` | ✅ 30 |
+| **Claude Desktop** | install `brass-monkey.mcpb` (§4) | install dialog → `ODOO_*` | ✗ tools only |
+| **Antigravity / generic MCP** | standard `mcpServers` config (§6) | `env` block **or** `setup_instance` | ✗ tools only |
+
+The 30 domain skills ride with the Gemini extension and the Claude Code plugin
+(both carry a `skills/` manifest); the `.mcpb` and raw MCP-config paths deliver the
+tools only (see §4 note).
 
 ### 1. Installation
 The recommended way to install **Brass-Monkey** is using the official Gemini CLI extension command. This will guide you through the interactive setup of your first Odoo instance.
@@ -42,6 +58,137 @@ You can update these settings later or add additional instances using:
 gemini extensions config brass-monkey
 ```
 
+Upgrade to a newer release with:
+
+```bash
+gemini extensions update brass-monkey
+```
+
+### 3. Install on Claude Code (plugin + marketplace)
+
+Brass-Monkey is a self-serve Claude Code plugin. Add the marketplace, then install:
+
+```shell
+/plugin marketplace add actinon-com/brass-monkey
+/plugin install brass-monkey@odoo-actinon
+```
+
+On install, Claude Code prompts for your Odoo **URL, database, username, and API
+key** (the key is stored via Claude Code's secure storage). These are injected
+into the server automatically — no further setup needed. Leave them blank to skip
+straight to the `setup_instance` tool instead (see Path B below).
+
+Upgrade to a new release with:
+
+```shell
+/plugin update brass-monkey@odoo-actinon
+```
+
+Skills are namespaced under the plugin, e.g. `/brass-monkey:odoo-sales`.
+
+### 4. Install on Claude Desktop (`.mcpb` bundle)
+
+For non-CLI users, Brass-Monkey also ships as a one-click Claude Desktop bundle
+(`.mcpb`, the successor to the `.dxt` format).
+
+1. Download `brass-monkey.mcpb` from the
+   [latest release](https://github.com/actinon-com/brass-monkey/releases).
+2. Install it — double-click, drag it into the Claude Desktop window, or
+   **Settings → Extensions → Advanced settings → Install Extension…**.
+3. In the install dialog, fill your Odoo **URL, database, username, and API key**
+   (the key is masked and stored in your OS secure storage). Leave the fields
+   blank to configure later via the `setup_instance` tool.
+
+Upgrade by installing a newer `.mcpb` over the old one.
+
+> **Note — skills:** the `.mcpb` bundle delivers the Odoo MCP **tools** only. The
+> 30 domain skills are a Claude Code feature and ship with the plugin (section 3),
+> not the desktop bundle. For the full tools-plus-skills experience, use Claude
+> Code.
+
+### 5. Configuration on Claude Code / generic MCP hosts
+
+The server is host-agnostic: it never depends on Gemini's interactive prompts. Any
+MCP host can configure it through **either** of two independent paths. (On the
+Claude Code plugin and Claude Desktop bundle above, Path A is wired to the
+install-time prompts for you.)
+
+**Path A — host-injected environment variables.** Set the `ODOO_*` variables in your
+host's server entry; on startup they populate a single default instance (no tool call
+needed). This is the env-var contract:
+
+| Variable | Required | Description |
+| :--- | :--- | :--- |
+| `ODOO_ALIAS` | No (default `default`) | Alias for the injected instance. |
+| `ODOO_URL` | Yes | Base URL, e.g. `https://my-company.odoo.com`. |
+| `ODOO_DB` | Yes | Odoo database name. |
+| `ODOO_USERNAME` | Yes | Login username or email. |
+| `ODOO_API_KEY` | Yes | Odoo External API Key (recommended) or password. **Sensitive** — inject via your host's secret mechanism; never commit it. |
+
+`ODOO_URL`, `ODOO_DB`, and `ODOO_USERNAME` must all be present for the instance to
+register; `ODOO_API_KEY` is resolved for the instance named by `ODOO_ALIAS`.
+
+**Path B — the `setup_instance` tool (first-run).** With no env vars set, call
+`setup_instance` from the client. It validates the credentials against Odoo, stores
+the API key (see **Credential storage** below), and persists non-secret metadata.
+Use it to add further instances alongside an env-injected default, too.
+
+Both paths work with no Gemini-specific step. The `mcp_config.json` template (§6)
+plus the `ODOO_*` variables is all a raw MCP host needs.
+
+### 6. Install on Antigravity / other MCP hosts (standard config)
+
+Any host that reads a standard MCP `mcpServers` config — **Antigravity**, or the
+`claude mcp add` fallback — launches the very same server. In Antigravity, open the
+`…` menu in the agent panel → **Manage MCP Servers → View raw config** (the raw file
+lives under `~/.gemini/`, e.g. `~/.gemini/config/mcp_config.json`; on Windows
+`~/.gemini/antigravity/mcp_config.json`). Add:
+
+```json
+{
+  "mcpServers": {
+    "brass-monkey-odoo": {
+      "command": "node",
+      "args": ["/ABSOLUTE/PATH/TO/brass-monkey/dist/bundle/index.js"],
+      "env": {
+        "ODOO_URL": "https://my-company.odoo.com",
+        "ODOO_DB": "my-database",
+        "ODOO_USERNAME": "me@company.com",
+        "ODOO_API_KEY": "your-odoo-api-key"
+      }
+    }
+  }
+}
+```
+
+Use an **absolute path** in `args` rather than relying on `cwd`. The `env` block is
+**Path A** (§5) — it populates a default instance on startup. Omit `env` entirely to
+configure later via the `setup_instance` tool (**Path B**). The repo-root
+`mcp_config.json` is the same template in `cwd` + relative-args form, for hosts that
+honor `cwd`.
+
+Prefer the CLI? Claude Code (and any host with an equivalent) can add it in one line:
+
+```shell
+claude mcp add brass-monkey-odoo \
+  -e ODOO_URL=https://my-company.odoo.com \
+  -e ODOO_DB=my-database \
+  -e ODOO_USERNAME=me@company.com \
+  -e ODOO_API_KEY=your-odoo-api-key \
+  -- node /ABSOLUTE/PATH/TO/brass-monkey/dist/bundle/index.js
+```
+
+### ⬆️ Upgrading
+
+Each surface upgrades independently, all to the same server version:
+
+| Platform | Upgrade command |
+| :--- | :--- |
+| **Gemini CLI** | `gemini extensions update brass-monkey` |
+| **Claude Code** | `/plugin update brass-monkey@odoo-actinon` |
+| **Claude Desktop** | Download the newer `brass-monkey.mcpb` from the [latest release](https://github.com/actinon-com/brass-monkey/releases) and install it over the old one. |
+| **Antigravity / generic** | `git pull` your checkout, then `npm run build` to refresh `dist/bundle`. |
+
 ---
 
 ## 🛠️ Available Tools
@@ -50,9 +197,11 @@ gemini extensions config brass-monkey
 | :--- | :--- | :--- |
 | **Discovery** | `list_models` | Search and list Odoo's technical models with pagination. |
 | | `inspect_model` | Perform a deep architectural audit of any Odoo model's fields, modules, and rules. |
+| | `get_environment` | "World Map" orientation — server, user, company, and app context. Recommended first call in a session. |
 | **UX & Navigation** | `get_menu` | Retrieve recursive, pruned JSON trees of menus (hierarchical drilling or semantic search). |
 | | `get_action` | Retrieve Window, Server, Client, or Report Action details with view-mode bindings. |
 | | `get_view` | Retrieve raw XML/definitions for Odoo form, tree, or kanban views. |
+| | `trace_ui_path` | Discover exactly how to reach a model through the UI (Menus → Actions → Views). |
 | **Safe CRUD** | `search_records` | Search Odoo records, returning a lightweight breadcrumbs-envelope and list totals. |
 | | `get_record` | Retrieve a 360-degree detailed dashboard of a single record, including lines and chatter. |
 | | `get_records` | Retrieve deep, multi-line detailed reports for multiple records in batch. |
@@ -62,10 +211,13 @@ gemini extensions config brass-monkey
 | | `aggregate_records`| Server-side grouping and pivot-style aggregations with custom offset pagination. |
 | **Reports** | `list_reports` | List all available PDF reports (Invoices, Quotations, Packing Slips) for a model. |
 | | `download_report` | Generate and retrieve PDF report data. |
+| | `download_file` | Download any file or attachment from an Odoo database to the local workspace. |
 | **Workspace** | `setup_instance` | Add and authenticate new Odoo environments. |
 | | `list_instances` | List all configured environments. |
 | | `switch_instance` | Change the active environment. |
+| | `remove_instance` | Delete an instance configuration and its stored credentials. |
 | | `get_info` | Retrieve server version and configuration stats. |
+| | `get_audit_log` | Retrieve recent local audit log entries for transparency. |
 
 ---
 
@@ -104,6 +256,12 @@ ODOO_API_KEY="my-api-key"
 ./start-inspectors.sh --dev
 ```
 
+> **Manual / standard MCP config:** the repo-root `mcp_config.json` is a template
+> for hosts that consume a raw MCP server entry. For installing Brass-Monkey on
+> Antigravity or via `claude mcp add`, see **§6** above. Replace the
+> `/ABSOLUTE/PATH/TO/brass-monkey` placeholder with the absolute path to your
+> checkout. All hosts launch the same `node dist/bundle/index.js`.
+
 ---
 
 ## 🛡️ Security & Privacy
@@ -111,6 +269,27 @@ ODOO_API_KEY="my-api-key"
 - **Zero Cleartext Policy:** API keys are never stored in your project folder or logged to the console.
 - **Audit Trail:** All AI actions are attributed and logged within Odoo's `ir.logging` and record Chatter.
 - **Production Guard:** Writing to Odoo requires an explicit business `justification`.
+
+### Credential storage
+
+Keys are resolved in this order: **OS keychain → encrypted local file → environment variable.**
+
+- **Environment variable** (`ODOO_API_KEY`) — the primary path for Claude Desktop /
+  Claude Code and any host that manages secrets for you. Nothing is written to disk.
+- **Encrypted local file** — the guaranteed cross-platform baseline for the
+  `setup_instance` path, at `~/.gemini/brass-monkey/credentials.json` (mode `0600`).
+  Values are encrypted with **AES-256-GCM** using a key derived from the current OS
+  user and machine. This is *obfuscation-grade*: it protects against casual disk
+  reads, backups, and file sync, but **not** against an attacker already running as
+  your user (who can re-derive the same key). Legacy plaintext files from older
+  versions are read transparently and re-encrypted on the next save.
+- **OS keychain** (Windows Credential Vault, macOS Keychain, Linux libsecret) — used
+  automatically as a best-effort *enhancement* when the native `keytar` module loads.
+  Because `keytar` is a native binary that cannot be shipped for every OS in a single
+  bundle, it is treated as optional; the encrypted file above is the reliable baseline.
+
+Set `BRASS_MONKEY_NO_KEYCHAIN=1` to skip the native keychain and force the pure-JS
+encrypted-file path (useful on headless CI or in sandboxes).
 
 ## 📄 License
 

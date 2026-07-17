@@ -14,9 +14,11 @@ export const RemoveInstanceSchema = z.object({
  */
 export async function removeInstance(configStore, credentialStore, input) {
     const { alias } = input;
-    if (alias === 'default' && process.env.ODOO_URL) {
-        throw new Error("The 'default' instance is managed by your Gemini CLI configuration and cannot be removed via this tool. " +
-            "Use 'gemini extensions config brass-monkey' to update it, or remove the environment variables from your setup.");
+    const envAlias = process.env.ODOO_ALIAS || 'default';
+    if (alias === envAlias && process.env.ODOO_URL) {
+        throw new Error(`The '${alias}' instance is injected by your host's environment configuration (ODOO_* variables) ` +
+            "and cannot be removed via this tool. Update or unset those environment variables in your MCP host " +
+            "(e.g. your Claude Code plugin, Claude Desktop bundle, or Gemini CLI extension config) instead.");
     }
     const existing = await configStore.getByAlias(alias);
     if (!existing) {

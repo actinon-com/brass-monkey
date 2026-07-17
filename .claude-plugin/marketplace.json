@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "odoo-actinon",
+  "owner": { "name": "Actinon", "email": "matthew.martella@anergy.com" },
+  "description": "Actinon's Odoo tooling for Claude Code.",
+  "plugins": [
+    {
+      "name": "brass-monkey",
+      "source": "./",
+      "description": "High-fidelity, audited MCP bridge for Odoo ERP/CRM (30 domain skills)."
+    }
+  ]
+}

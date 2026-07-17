@@ -7,11 +7,16 @@ import { homedir } from 'os';
 export class ConfigStore {
     configPath;
     constructor() {
+        // Legacy storage location, retained for backwards-compatibility so existing
+        // Gemini CLI installs keep their configs. The path is host-agnostic in
+        // practice — every host reads/writes the same file regardless of its name.
         this.configPath = join(homedir(), '.gemini', 'brass-monkey', 'config.json');
     }
     /**
      * Loads all configured Odoo instances.
-     * Merges persistent config with environment variables from the official setup mechanism.
+     * Merges persistent config with host-injected environment variables. Any MCP
+     * host (Claude Code, Claude Desktop, Antigravity, Gemini CLI) can supply a
+     * default instance through the ODOO_* env-var contract; none is required to.
      */
     async load() {
         let instances = [];
@@ -23,9 +28,10 @@ export class ConfigStore {
         catch (error) {
             // ignore
         }
-        // Check for environment variables (Official Gemini CLI setup mechanism)
+        // Host-injected environment variables (see the ODOO_* env-var contract).
+        // ODOO_ALIAS names the instance; it defaults to 'default' when unset.
         if (process.env.ODOO_URL && process.env.ODOO_DB && process.env.ODOO_USERNAME) {
-            const envAlias = 'default';
+            const envAlias = process.env.ODOO_ALIAS || 'default';
             const existingEnv = instances.find(i => i.alias === envAlias);
             if (!existingEnv) {
                 instances.unshift({

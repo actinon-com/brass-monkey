@@ -4,7 +4,7 @@ description: Functional expertise in Odoo's CMS, covering Page creation, Navigat
 ---
 # Skill: Odoo Website & CMS Management
 
-This skill provides the Gemini agent with high-level functional expertise in Odoo's CMS (Content Management System), covering Page creation, Navigation management, and Multi-Website architecture.
+This skill provides the agent with high-level functional expertise in Odoo's CMS (Content Management System), covering Page creation, Navigation management, and Multi-Website architecture.
 
 ## Core Mandates
 

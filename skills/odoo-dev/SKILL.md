@@ -4,7 +4,7 @@ description: MANDATORY for customizations. High-level technical expertise in Odo
 ---
 # Skill: Odoo Development & Customization
 
-This skill provides the Gemini agent with high-level technical expertise in Odoo's customization engine, covering Server Actions, Automated Rules, and Odoo Studio modifications.
+This skill provides the agent with high-level technical expertise in Odoo's customization engine, covering Server Actions, Automated Rules, and Odoo Studio modifications.
 
 ## Core Mandates
 

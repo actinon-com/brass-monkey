@@ -4,7 +4,7 @@ description: MANDATORY for Manufacturing Orders (mrp.production), BoMs (mrp.bom)
 ---
 # Skill: Odoo MRP (Manufacturing) & PLM
 
-This skill provides the Gemini agent with high-level functional expertise in Odoo's Manufacturing and Product Lifecycle Management (PLM) engines, covering production planning, execution, and engineering changes.
+This skill provides the agent with high-level functional expertise in Odoo's Manufacturing and Product Lifecycle Management (PLM) engines, covering production planning, execution, and engineering changes.
 
 ## Core Mandates
 

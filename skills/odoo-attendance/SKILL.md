@@ -4,7 +4,7 @@ description: Functional expertise in Odoo's Attendance module, covering check-in
 ---
 # Skill: Odoo Attendance
 
-This skill provides the Gemini agent with functional expertise in Odoo's Attendance module, covering check-in/out logs, working hour verification, and overtime management.
+This skill provides the agent with functional expertise in Odoo's Attendance module, covering check-in/out logs, working hour verification, and overtime management.
 
 ## Core Mandates
 

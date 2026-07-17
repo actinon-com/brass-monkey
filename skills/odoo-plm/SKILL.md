@@ -4,7 +4,7 @@ description: High-level functional expertise in Odoo's PLM module, covering Engi
 ---
 # Skill: Odoo PLM (Product Lifecycle Management)
 
-This skill provides the Gemini agent with high-level functional expertise in Odoo's PLM module, covering Engineering Change Orders (ECO), BoM versioning, and change approvals.
+This skill provides the agent with high-level functional expertise in Odoo's PLM module, covering Engineering Change Orders (ECO), BoM versioning, and change approvals.
 
 ## Core Mandates
 

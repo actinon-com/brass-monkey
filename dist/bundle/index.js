@@ -11616,167 +11616,10 @@ xmlrpc.dateFormatter = dateFormatter
 
 /***/ }),
 
-/***/ 7639:
-/***/ ((__unused_webpack_module, __webpack_exports__, __nccwpck_require__) => {
-
-/* harmony export */ __nccwpck_require__.d(__webpack_exports__, {
-/* harmony export */   L: () => (/* binding */ CredentialStore)
-/* harmony export */ });
-/* harmony import */ var fs_promises__WEBPACK_IMPORTED_MODULE_0__ = __nccwpck_require__(1943);
-/* harmony import */ var fs_promises__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__nccwpck_require__.n(fs_promises__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var path__WEBPACK_IMPORTED_MODULE_1__ = __nccwpck_require__(6928);
-/* harmony import */ var path__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__nccwpck_require__.n(path__WEBPACK_IMPORTED_MODULE_1__);
-/* harmony import */ var os__WEBPACK_IMPORTED_MODULE_2__ = __nccwpck_require__(857);
-/* harmony import */ var os__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__nccwpck_require__.n(os__WEBPACK_IMPORTED_MODULE_2__);
-
-
-
-let keytar = null;
-/**
- * Service to manage Odoo API keys securely.
- * Prefers the OS keychain (keytar) but falls back to a restricted local file
- * if the keychain is unavailable (e.g., headless Linux, missing native deps).
- */
-class CredentialStore {
-    serviceName = 'BrassMonkey-Odoo';
-    fallbackPath = (0,path__WEBPACK_IMPORTED_MODULE_1__.join)((0,os__WEBPACK_IMPORTED_MODULE_2__.homedir)(), '.gemini', 'brass-monkey', 'credentials.json');
-    initialized = false;
-    async ensureInitialized() {
-        if (this.initialized)
-            return;
-        try {
-            // Try to load keytar. We use a dynamic import/require strategy to handle 
-            // different environments and prevent bundlers from failing.
-            try {
-                const req = eval('require');
-                keytar = req('keytar');
-            }
-            catch (e) {
-                // Fallback for ESM environments where require is not defined
-                const module = await __nccwpck_require__.e(/* import() */ 754).then(__nccwpck_require__.t.bind(__nccwpck_require__, 9754, 23));
-                keytar = module.default || module;
-            }
-        }
-        catch (e) {
-            // Keytar is expected to fail in bundled environments where 
-            // native modules aren't shipped in node_modules or if 
-            // libsecret-1-dev is missing on Linux.
-            console.warn('Note: OS Keychain (keytar) not found. Falling back to local file storage.');
-        }
-        this.initialized = true;
-    }
-    /**
-     * Stores an API key for a specific Odoo instance.
-     * @param alias The unique alias of the instance.
-     * @param apiKey The secret API key or password.
-     */
-    async saveApiKey(alias, apiKey) {
-        await this.ensureInitialized();
-        let savedInKeychain = false;
-        if (keytar) {
-            try {
-                await keytar.setPassword(this.serviceName, alias, apiKey);
-                savedInKeychain = true;
-            }
-            catch (e) {
-                console.warn(`Warning: Failed to save to OS Keychain: ${e instanceof Error ? e.message : String(e)}. Falling back to file storage.`);
-            }
-        }
-        if (!savedInKeychain) {
-            await this.saveToFile(alias, apiKey);
-        }
-    }
-    /**
-     * Retrieves the API key for a specific Odoo instance.
-     * Checks the OS keychain first, then the local fallback file,
-     * and finally environment variables.
-     * @param alias The unique alias of the instance.
-     */
-    async getApiKey(alias) {
-        await this.ensureInitialized();
-        // 1. Try OS Keychain
-        if (keytar) {
-            try {
-                const key = await keytar.getPassword(this.serviceName, alias);
-                if (key)
-                    return key;
-            }
-            catch (e) {
-                // Ignore keychain errors
-            }
-        }
-        // 2. Try Local Fallback File
-        const fileKeys = await this.readFromFile();
-        if (fileKeys[alias])
-            return fileKeys[alias];
-        // 3. Try Environment Variables
-        if ((alias === 'default' || alias === 'act') && process.env.ODOO_API_KEY) {
-            return process.env.ODOO_API_KEY;
-        }
-        return null;
-    }
-    /**
-     * Deletes the API key for a specific Odoo instance.
-     * @param alias The unique alias of the instance.
-     */
-    async deleteApiKey(alias) {
-        await this.ensureInitialized();
-        if (keytar) {
-            try {
-                await keytar.deletePassword(this.serviceName, alias);
-            }
-            catch (e) {
-                // Ignore
-            }
-        }
-        const fileKeys = await this.readFromFile();
-        if (fileKeys[alias]) {
-            delete fileKeys[alias];
-            await this.writeAllToFile(fileKeys);
-        }
-    }
-    async readFromFile() {
-        try {
-            const data = await (0,fs_promises__WEBPACK_IMPORTED_MODULE_0__.readFile)(this.fallbackPath, 'utf-8');
-            return JSON.parse(data);
-        }
-        catch (e) {
-            return {};
-        }
-    }
-    async saveToFile(alias, apiKey) {
-        const keys = await this.readFromFile();
-        keys[alias] = apiKey;
-        await this.writeAllToFile(keys);
-    }
-    async writeAllToFile(keys) {
-        try {
-            await (0,fs_promises__WEBPACK_IMPORTED_MODULE_0__.mkdir)((0,path__WEBPACK_IMPORTED_MODULE_1__.join)((0,os__WEBPACK_IMPORTED_MODULE_2__.homedir)(), '.gemini', 'brass-monkey'), { recursive: true });
-            await (0,fs_promises__WEBPACK_IMPORTED_MODULE_0__.writeFile)(this.fallbackPath, JSON.stringify(keys), {
-                mode: 0o600, // Restricted permissions (read/write only by owner)
-            });
-        }
-        catch (e) {
-            console.error('Failed to save credentials to file:', e);
-            throw new Error('Unable to store credentials securely.');
-        }
-    }
-}
-
-
-/***/ }),
-
 /***/ 4434:
 /***/ ((module) => {
 
 module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("events");
-
-/***/ }),
-
-/***/ 1943:
-/***/ ((module) => {
-
-module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("fs/promises");
 
 /***/ }),
 
@@ -11791,20 +11634,6 @@ module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("http");
 /***/ ((module) => {
 
 module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("https");
-
-/***/ }),
-
-/***/ 857:
-/***/ ((module) => {
-
-module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("os");
-
-/***/ }),
-
-/***/ 6928:
-/***/ ((module) => {
-
-module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("path");
 
 /***/ }),
 
@@ -12839,9 +12668,6 @@ module.exports = /*#__PURE__*/JSON.parse('{"$schema":"http://json-schema.org/dra
 /******/ 	return module.exports;
 /******/ }
 /******/ 
-/******/ // expose the modules object (__webpack_modules__)
-/******/ __nccwpck_require__.m = __webpack_modules__;
-/******/ 
 /************************************************************************/
 /******/ /* webpack/runtime/compat get default export */
 /******/ (() => {
@@ -12855,36 +12681,6 @@ module.exports = /*#__PURE__*/JSON.parse('{"$schema":"http://json-schema.org/dra
 /******/ 	};
 /******/ })();
 /******/ 
-/******/ /* webpack/runtime/create fake namespace object */
-/******/ (() => {
-/******/ 	var getProto = Object.getPrototypeOf ? (obj) => (Object.getPrototypeOf(obj)) : (obj) => (obj.__proto__);
-/******/ 	var leafPrototypes;
-/******/ 	// create a fake namespace object
-/******/ 	// mode & 1: value is a module id, require it
-/******/ 	// mode & 2: merge all properties of value into the ns
-/******/ 	// mode & 4: return value when already ns object
-/******/ 	// mode & 16: return value when it's Promise-like
-/******/ 	// mode & 8|1: behave like require
-/******/ 	__nccwpck_require__.t = function(value, mode) {
-/******/ 		if(mode & 1) value = this(value);
-/******/ 		if(mode & 8) return value;
-/******/ 		if(typeof value === 'object' && value) {
-/******/ 			if((mode & 4) && value.__esModule) return value;
-/******/ 			if((mode & 16) && typeof value.then === 'function') return value;
-/******/ 		}
-/******/ 		var ns = Object.create(null);
-/******/ 		__nccwpck_require__.r(ns);
-/******/ 		var def = {};
-/******/ 		leafPrototypes = leafPrototypes || [null, getProto({}), getProto([]), getProto(getProto)];
-/******/ 		for(var current = mode & 2 && value; typeof current == 'object' && !~leafPrototypes.indexOf(current); current = getProto(current)) {
-/******/ 			Object.getOwnPropertyNames(current).forEach((key) => (def[key] = () => (value[key])));
-/******/ 		}
-/******/ 		def['default'] = () => (value);
-/******/ 		__nccwpck_require__.d(ns, def);
-/******/ 		return ns;
-/******/ 	};
-/******/ })();
-/******/ 
 /******/ /* webpack/runtime/define property getters */
 /******/ (() => {
 /******/ 	// define getter functions for harmony exports
@@ -12894,28 +12690,6 @@ module.exports = /*#__PURE__*/JSON.parse('{"$schema":"http://json-schema.org/dra
 /******/ 				Object.defineProperty(exports, key, { enumerable: true, get: definition[key] });
 /******/ 			}
 /******/ 		}
-/******/ 	};
-/******/ })();
-/******/ 
-/******/ /* webpack/runtime/ensure chunk */
-/******/ (() => {
-/******/ 	__nccwpck_require__.f = {};
-/******/ 	// This file contains only the entry chunk.
-/******/ 	// The chunk loading function for additional chunks
-/******/ 	__nccwpck_require__.e = (chunkId) => {
-/******/ 		return Promise.all(Object.keys(__nccwpck_require__.f).reduce((promises, key) => {
-/******/ 			__nccwpck_require__.f[key](chunkId, promises);
-/******/ 			return promises;
-/******/ 		}, []));
-/******/ 	};
-/******/ })();
-/******/ 
-/******/ /* webpack/runtime/get javascript chunk filename */
-/******/ (() => {
-/******/ 	// This function allow to reference async chunks
-/******/ 	__nccwpck_require__.u = (chunkId) => {
-/******/ 		// return url for filenames based on template
-/******/ 		return "" + chunkId + ".index.js";
 /******/ 	};
 /******/ })();
 /******/ 
@@ -12938,69 +12712,6 @@ module.exports = /*#__PURE__*/JSON.parse('{"$schema":"http://json-schema.org/dra
 /******/ /* webpack/runtime/compat */
 /******/ 
 /******/ if (typeof __nccwpck_require__ !== 'undefined') __nccwpck_require__.ab = new URL('.', import.meta.url).pathname.slice(import.meta.url.match(/^file:\/\/\/\w:/) ? 1 : 0, -1) + "/";
-/******/ 
-/******/ /* webpack/runtime/import chunk loading */
-/******/ (() => {
-/******/ 	// no baseURI
-/******/ 	
-/******/ 	// object to store loaded and loading chunks
-/******/ 	// undefined = chunk not loaded, null = chunk preloaded/prefetched
-/******/ 	// [resolve, Promise] = chunk loading, 0 = chunk loaded
-/******/ 	var installedChunks = {
-/******/ 		792: 0
-/******/ 	};
-/******/ 	
-/******/ 	var installChunk = (data) => {
-/******/ 		var {ids, modules, runtime} = data;
-/******/ 		// add "modules" to the modules object,
-/******/ 		// then flag all "ids" as loaded and fire callback
-/******/ 		var moduleId, chunkId, i = 0;
-/******/ 		for(moduleId in modules) {
-/******/ 			if(__nccwpck_require__.o(modules, moduleId)) {
-/******/ 				__nccwpck_require__.m[moduleId] = modules[moduleId];
-/******/ 			}
-/******/ 		}
-/******/ 		if(runtime) runtime(__nccwpck_require__);
-/******/ 		for(;i < ids.length; i++) {
-/******/ 			chunkId = ids[i];
-/******/ 			if(__nccwpck_require__.o(installedChunks, chunkId) && installedChunks[chunkId]) {
-/******/ 				installedChunks[chunkId][0]();
-/******/ 			}
-/******/ 			installedChunks[ids[i]] = 0;
-/******/ 		}
-/******/ 	
-/******/ 	}
-/******/ 	
-/******/ 	__nccwpck_require__.f.j = (chunkId, promises) => {
-/******/ 			// import() chunk loading for javascript
-/******/ 			var installedChunkData = __nccwpck_require__.o(installedChunks, chunkId) ? installedChunks[chunkId] : undefined;
-/******/ 			if(installedChunkData !== 0) { // 0 means "already installed".
-/******/ 	
-/******/ 				// a Promise means "currently loading".
-/******/ 				if(installedChunkData) {
-/******/ 					promises.push(installedChunkData[1]);
-/******/ 				} else {
-/******/ 					if(true) { // all chunks have JS
-/******/ 						// setup Promise in chunk cache
-/******/ 						var promise = import("./" + __nccwpck_require__.u(chunkId)).then(installChunk, (e) => {
-/******/ 							if(installedChunks[chunkId] !== 0) installedChunks[chunkId] = undefined;
-/******/ 							throw e;
-/******/ 						});
-/******/ 						var promise = Promise.race([promise, new Promise((resolve) => (installedChunkData = installedChunks[chunkId] = [resolve]))])
-/******/ 						promises.push(installedChunkData[1] = promise);
-/******/ 					}
-/******/ 				}
-/******/ 			}
-/******/ 	};
-/******/ 	
-/******/ 	// no prefetching
-/******/ 	
-/******/ 	// no preloaded
-/******/ 	
-/******/ 	// no external install chunk
-/******/ 	
-/******/ 	// no on chunks loaded
-/******/ })();
 /******/ 
 /************************************************************************/
 var __webpack_exports__ = {};
@@ -38050,14 +37761,14 @@ class OdooClient {
     }
 }
 
-// EXTERNAL MODULE: external "fs/promises"
-var promises_ = __nccwpck_require__(1943);
-// EXTERNAL MODULE: external "path"
-var external_path_ = __nccwpck_require__(6928);
-var external_path_default = /*#__PURE__*/__nccwpck_require__.n(external_path_);
-// EXTERNAL MODULE: external "os"
-var external_os_ = __nccwpck_require__(857);
-var external_os_default = /*#__PURE__*/__nccwpck_require__.n(external_os_);
+;// CONCATENATED MODULE: external "fs/promises"
+const promises_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("fs/promises");
+;// CONCATENATED MODULE: external "path"
+const external_path_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("path");
+var external_path_default = /*#__PURE__*/__nccwpck_require__.n(external_path_namespaceObject);
+;// CONCATENATED MODULE: external "os"
+const external_os_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("os");
+var external_os_default = /*#__PURE__*/__nccwpck_require__.n(external_os_namespaceObject);
 ;// CONCATENATED MODULE: ./src/services/audit-service.ts
 
 
@@ -38071,7 +37782,7 @@ class AuditService {
     localLogPath;
     constructor(client) {
         this.client = client;
-        this.localLogPath = (0,external_path_.join)((0,external_os_.homedir)(), '.gemini', 'brass-monkey', 'audit.jsonl');
+        this.localLogPath = (0,external_path_namespaceObject.join)((0,external_os_namespaceObject.homedir)(), '.gemini', 'brass-monkey', 'audit.jsonl');
     }
     /**
      * Logs an action locally for the agent's history and verification.
@@ -38087,7 +37798,7 @@ class AuditService {
             justification
         };
         try {
-            await (0,promises_.appendFile)(this.localLogPath, JSON.stringify(entry) + '\n');
+            await (0,promises_namespaceObject.appendFile)(this.localLogPath, JSON.stringify(entry) + '\n');
         }
         catch (e) {
             console.error('Failed to write to local audit log:', e);
@@ -38098,7 +37809,7 @@ class AuditService {
      */
     async getLocalLogs(limit = 10) {
         try {
-            const data = await (0,promises_.readFile)(this.localLogPath, 'utf-8');
+            const data = await (0,promises_namespaceObject.readFile)(this.localLogPath, 'utf-8');
             const lines = data.trim().split('\n');
             return lines.slice(-limit).map(l => JSON.parse(l));
         }
@@ -38119,7 +37830,7 @@ class AuditService {
                     dbname: this.client.config.db,
                     level,
                     message,
-                    path: 'gemini.cli.extension',
+                    path: 'brass-monkey.mcp',
                     line: '0',
                     func: 'execute_tool',
                 }]);
@@ -38240,25 +37951,31 @@ class InstanceManager {
 class ConfigStore {
     configPath;
     constructor() {
-        this.configPath = (0,external_path_.join)((0,external_os_.homedir)(), '.gemini', 'brass-monkey', 'config.json');
+        // Legacy storage location, retained for backwards-compatibility so existing
+        // Gemini CLI installs keep their configs. The path is host-agnostic in
+        // practice — every host reads/writes the same file regardless of its name.
+        this.configPath = (0,external_path_namespaceObject.join)((0,external_os_namespaceObject.homedir)(), '.gemini', 'brass-monkey', 'config.json');
     }
     /**
      * Loads all configured Odoo instances.
-     * Merges persistent config with environment variables from the official setup mechanism.
+     * Merges persistent config with host-injected environment variables. Any MCP
+     * host (Claude Code, Claude Desktop, Antigravity, Gemini CLI) can supply a
+     * default instance through the ODOO_* env-var contract; none is required to.
      */
     async load() {
         let instances = [];
         try {
-            const data = await (0,promises_.readFile)(this.configPath, 'utf-8');
+            const data = await (0,promises_namespaceObject.readFile)(this.configPath, 'utf-8');
             const parsed = JSON.parse(data);
             instances = parsed.instances || [];
         }
         catch (error) {
             // ignore
         }
-        // Check for environment variables (Official Gemini CLI setup mechanism)
+        // Host-injected environment variables (see the ODOO_* env-var contract).
+        // ODOO_ALIAS names the instance; it defaults to 'default' when unset.
         if (process.env.ODOO_URL && process.env.ODOO_DB && process.env.ODOO_USERNAME) {
-            const envAlias = 'default';
+            const envAlias = process.env.ODOO_ALIAS || 'default';
             const existingEnv = instances.find(i => i.alias === envAlias);
             if (!existingEnv) {
                 instances.unshift({
@@ -38294,7 +38011,7 @@ class ConfigStore {
             instances.push(metadata);
         }
         await this.ensureDir();
-        await (0,promises_.writeFile)(this.configPath, JSON.stringify({ instances }), {
+        await (0,promises_namespaceObject.writeFile)(this.configPath, JSON.stringify({ instances }), {
             mode: 0o600, // Restricted permissions
         });
     }
@@ -38305,16 +38022,253 @@ class ConfigStore {
         const instances = await this.load();
         const filtered = instances.filter(i => i.alias !== alias);
         await this.ensureDir();
-        await (0,promises_.writeFile)(this.configPath, JSON.stringify({ instances: filtered }));
+        await (0,promises_namespaceObject.writeFile)(this.configPath, JSON.stringify({ instances: filtered }));
     }
     async ensureDir() {
-        const dir = (0,external_path_.join)((0,external_os_.homedir)(), '.gemini', 'brass-monkey');
-        await (0,promises_.mkdir)(dir, { recursive: true });
+        const dir = (0,external_path_namespaceObject.join)((0,external_os_namespaceObject.homedir)(), '.gemini', 'brass-monkey');
+        await (0,promises_namespaceObject.mkdir)(dir, { recursive: true });
     }
 }
 
-// EXTERNAL MODULE: ./src/services/credential-store.ts
-var credential_store = __nccwpck_require__(7639);
+;// CONCATENATED MODULE: external "crypto"
+const external_crypto_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("crypto");
+;// CONCATENATED MODULE: ./src/services/credential-store.ts
+
+
+
+
+
+let keytar = null;
+// Encrypted-file format constants. Stored values look like
+//   v1:<iv b64>:<authTag b64>:<ciphertext b64>
+// A value without the `v1:` prefix is treated as a legacy plaintext credential
+// (written before encryption existed) and transparently re-encrypted on save.
+const ENC_PREFIX = 'v1';
+const ENC_ALGO = 'aes-256-gcm';
+const KDF_SALT = 'brass-monkey.credential-store.v1';
+/**
+ * Service to manage Odoo API keys securely.
+ *
+ * Lookup order (unchanged): OS keychain → local file → environment variable.
+ *
+ * The OS keychain (keytar) is a best-effort *enhancement*: keytar is a native
+ * module, and a single bundled build can only ever carry one platform's binary,
+ * so it cannot be relied on across macOS/Windows/Linux. The guaranteed
+ * cross-platform baseline is therefore the local file — encrypted at rest with
+ * AES-256-GCM (see the security note in the README). Hosts that inject
+ * ODOO_API_KEY (e.g. Claude Desktop / Claude Code) never touch either path.
+ *
+ * Set BRASS_MONKEY_NO_KEYCHAIN=1 to skip the native keychain entirely and force
+ * the pure-JS encrypted-file path (useful on headless CI or in sandboxes).
+ */
+class CredentialStore {
+    serviceName = 'BrassMonkey-Odoo';
+    fallbackPath = (0,external_path_namespaceObject.join)((0,external_os_namespaceObject.homedir)(), '.gemini', 'brass-monkey', 'credentials.json');
+    initialized = false;
+    async ensureInitialized() {
+        if (this.initialized)
+            return;
+        // Escape hatch: force the pure-JS encrypted-file path and skip the native
+        // keychain (headless CI, sandboxes, or env-var-injected hosts).
+        if (process.env.BRASS_MONKEY_NO_KEYCHAIN === '1') {
+            this.initialized = true;
+            return;
+        }
+        try {
+            // Load keytar through a createRequire handle rather than a static/literal
+            // import. This is deliberate: it keeps keytar invisible to ncc's static
+            // analysis, so the bundler neither emits a top-level `import ... "keytar"`
+            // (which would make the whole bundle fail to load where keytar is absent)
+            // nor copies keytar's platform-locked *.node binary into dist/bundle. At
+            // runtime the require resolves keytar only when it is actually installed
+            // (source/native installs); in a shipped single-file bundle with no
+            // node_modules it throws and we fall through to the encrypted file below.
+            const nodeRequire = /* createRequire() */ undefined;
+            keytar = nodeRequire('keytar');
+        }
+        catch (e) {
+            // Keytar is expected to be absent in bundled/headless environments (native
+            // binary not shipped, or libsecret-1-dev missing on Linux). The encrypted
+            // local file covers those cases.
+            console.warn('Note: OS Keychain (keytar) not available. Using encrypted local file storage.');
+        }
+        this.initialized = true;
+    }
+    /**
+     * Stores an API key for a specific Odoo instance.
+     * @param alias The unique alias of the instance.
+     * @param apiKey The secret API key or password.
+     */
+    async saveApiKey(alias, apiKey) {
+        await this.ensureInitialized();
+        let savedInKeychain = false;
+        if (keytar) {
+            try {
+                await keytar.setPassword(this.serviceName, alias, apiKey);
+                savedInKeychain = true;
+            }
+            catch (e) {
+                console.warn(`Warning: Failed to save to OS Keychain: ${e instanceof Error ? e.message : String(e)}. Falling back to file storage.`);
+            }
+        }
+        if (!savedInKeychain) {
+            await this.saveToFile(alias, apiKey);
+        }
+    }
+    /**
+     * Retrieves the API key for a specific Odoo instance.
+     * Checks the OS keychain first, then the local fallback file,
+     * and finally environment variables.
+     * @param alias The unique alias of the instance.
+     */
+    async getApiKey(alias) {
+        await this.ensureInitialized();
+        // 1. Try OS Keychain
+        if (keytar) {
+            try {
+                const key = await keytar.getPassword(this.serviceName, alias);
+                if (key)
+                    return key;
+            }
+            catch (e) {
+                // Ignore keychain errors
+            }
+        }
+        // 2. Try Local Fallback File (decrypted transparently)
+        const fileKeys = await this.readFromFile();
+        if (fileKeys[alias])
+            return fileKeys[alias];
+        // 3. Try Environment Variables. The env-injected API key belongs to the
+        //    host-provided instance named by ODOO_ALIAS (default: 'default').
+        const envAlias = process.env.ODOO_ALIAS || 'default';
+        if (alias === envAlias && process.env.ODOO_API_KEY) {
+            return process.env.ODOO_API_KEY;
+        }
+        return null;
+    }
+    /**
+     * Deletes the API key for a specific Odoo instance.
+     * @param alias The unique alias of the instance.
+     */
+    async deleteApiKey(alias) {
+        await this.ensureInitialized();
+        if (keytar) {
+            try {
+                await keytar.deletePassword(this.serviceName, alias);
+            }
+            catch (e) {
+                // Ignore
+            }
+        }
+        const fileKeys = await this.readFromFile();
+        if (fileKeys[alias]) {
+            delete fileKeys[alias];
+            await this.writeAllToFile(fileKeys);
+        }
+    }
+    // --- Encryption helpers (AES-256-GCM, node:crypto, no extra dependency) ---
+    /**
+     * Derives the 32-byte file-encryption key from stable machine/user identity.
+     * This is obfuscation-grade: it binds the file to this OS user + machine so it
+     * is not readable off-box or from a backup. It does NOT protect against an
+     * attacker already running as this user, who can re-derive the same key.
+     */
+    getEncryptionKey() {
+        let user = 'unknown';
+        try {
+            user = (0,external_os_namespaceObject.userInfo)().username;
+        }
+        catch {
+            // No passwd entry available; fall through with the placeholder.
+        }
+        const material = `${user}::${(0,external_os_namespaceObject.hostname)()}::${(0,external_os_namespaceObject.homedir)()}`;
+        return (0,external_crypto_namespaceObject.scryptSync)(material, KDF_SALT, 32);
+    }
+    encrypt(plaintext) {
+        const iv = (0,external_crypto_namespaceObject.randomBytes)(12);
+        const cipher = (0,external_crypto_namespaceObject.createCipheriv)(ENC_ALGO, this.getEncryptionKey(), iv);
+        const ct = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+        const tag = cipher.getAuthTag();
+        return [ENC_PREFIX, iv.toString('base64'), tag.toString('base64'), ct.toString('base64')].join(':');
+    }
+    /** Returns the decrypted plaintext, or null if the blob can't be decrypted. */
+    decrypt(blob) {
+        try {
+            const parts = blob.split(':');
+            if (parts.length !== 4 || parts[0] !== ENC_PREFIX)
+                return null;
+            const [, ivB64, tagB64, ctB64] = parts;
+            const decipher = (0,external_crypto_namespaceObject.createDecipheriv)(ENC_ALGO, this.getEncryptionKey(), Buffer.from(ivB64, 'base64'));
+            decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
+            const pt = Buffer.concat([decipher.update(Buffer.from(ctB64, 'base64')), decipher.final()]);
+            return pt.toString('utf8');
+        }
+        catch {
+            return null;
+        }
+    }
+    // --- File persistence ---
+    async readRawFile() {
+        try {
+            const data = await (0,promises_namespaceObject.readFile)(this.fallbackPath, 'utf-8');
+            return JSON.parse(data);
+        }
+        catch (e) {
+            return {};
+        }
+    }
+    /**
+     * Reads the fallback file and returns decrypted plaintext values.
+     * `v1:`-prefixed values are decrypted; anything else is treated as a legacy
+     * plaintext credential and returned as-is (re-encrypted on the next write).
+     * Entries that fail to decrypt (e.g. file copied to another machine) are
+     * skipped rather than crashing the lookup.
+     */
+    async readFromFile() {
+        const raw = await this.readRawFile();
+        const out = {};
+        for (const [alias, value] of Object.entries(raw)) {
+            if (typeof value !== 'string')
+                continue;
+            if (value.startsWith(`${ENC_PREFIX}:`)) {
+                const dec = this.decrypt(value);
+                if (dec === null) {
+                    console.warn(`Note: stored credential for '${alias}' could not be decrypted on this machine; ignoring it. Re-run setup_instance to restore it.`);
+                    continue;
+                }
+                out[alias] = dec;
+            }
+            else {
+                // Legacy plaintext credential (written before encryption existed).
+                out[alias] = value;
+            }
+        }
+        return out;
+    }
+    async saveToFile(alias, apiKey) {
+        const keys = await this.readFromFile();
+        keys[alias] = apiKey;
+        await this.writeAllToFile(keys);
+    }
+    /** Writes the full credential map, encrypting every value at rest. */
+    async writeAllToFile(keys) {
+        try {
+            await (0,promises_namespaceObject.mkdir)((0,external_path_namespaceObject.join)((0,external_os_namespaceObject.homedir)(), '.gemini', 'brass-monkey'), { recursive: true });
+            const encrypted = {};
+            for (const [alias, apiKey] of Object.entries(keys)) {
+                encrypted[alias] = this.encrypt(apiKey);
+            }
+            await (0,promises_namespaceObject.writeFile)(this.fallbackPath, JSON.stringify(encrypted), {
+                mode: 0o600, // Restricted permissions (read/write only by owner)
+            });
+        }
+        catch (e) {
+            console.error('Failed to save credentials to file:', e);
+            throw new Error('Unable to store credentials securely.');
+        }
+    }
+}
+
 ;// CONCATENATED MODULE: ./src/services/response-pruner.ts
 /**
  * Utility to prune and compress Odoo responses for context efficiency.
@@ -38996,9 +38950,11 @@ const RemoveInstanceSchema = schemas_object({
  */
 async function removeInstance(configStore, credentialStore, input) {
     const { alias } = input;
-    if (alias === 'default' && process.env.ODOO_URL) {
-        throw new Error("The 'default' instance is managed by your Gemini CLI configuration and cannot be removed via this tool. " +
-            "Use 'gemini extensions config brass-monkey' to update it, or remove the environment variables from your setup.");
+    const envAlias = process.env.ODOO_ALIAS || 'default';
+    if (alias === envAlias && process.env.ODOO_URL) {
+        throw new Error(`The '${alias}' instance is injected by your host's environment configuration (ODOO_* variables) ` +
+            "and cannot be removed via this tool. Update or unset those environment variables in your MCP host " +
+            "(e.g. your Claude Code plugin, Claude Desktop bundle, or Gemini CLI extension config) instead.");
     }
     const existing = await configStore.getByAlias(alias);
     if (!existing) {
@@ -40607,7 +40563,7 @@ async function downloadReport(manager, input) {
     const { report_id, record_ids, destination_path, justification, instance_alias } = input;
     const client = await manager.getClient(instance_alias);
     const audit = await manager.getAudit(instance_alias);
-    if (!(0,external_path_.isAbsolute)(destination_path)) {
+    if (!(0,external_path_namespaceObject.isAbsolute)(destination_path)) {
         throw new Error(`The destination_path must be an absolute path: ${destination_path}`);
     }
     // Trigger Odoo's render method (typically _render_qweb_pdf)
@@ -40618,7 +40574,7 @@ async function downloadReport(manager, input) {
     // Odoo returns a tuple: [base64_pdf_content, format]
     const base64Data = result[0];
     const buffer = Buffer.from(base64Data, 'base64');
-    await (0,promises_.writeFile)(destination_path, buffer);
+    await (0,promises_namespaceObject.writeFile)(destination_path, buffer);
     // Log the action for traceability
     await audit.logSystemEvent(`Downloaded report ID ${report_id} for records ${record_ids.join(',')}: ${justification}`);
     return destination_path;
@@ -40651,7 +40607,7 @@ async function downloadFile(manager, input) {
     const { model, res_id, field, destination_path, justification, instance_alias } = parsedInput;
     const client = await manager.getClient(instance_alias);
     const audit = await manager.getAudit(instance_alias);
-    if (!(0,external_path_.isAbsolute)(destination_path)) {
+    if (!(0,external_path_namespaceObject.isAbsolute)(destination_path)) {
         throw new Error(`The destination_path must be an absolute path: ${destination_path}`);
     }
     // Fetch only the requested binary field
@@ -40668,7 +40624,7 @@ async function downloadFile(manager, input) {
         throw new Error(`Field '${field}' on record ${res_id} in model ${model} did not return a valid base64-encoded string (got type ${typeof base64Data}).`);
     }
     const buffer = Buffer.from(base64Data, 'base64');
-    await (0,promises_.writeFile)(destination_path, buffer);
+    await (0,promises_namespaceObject.writeFile)(destination_path, buffer);
     // Log the action for traceability
     await audit.logSystemEvent(`Downloaded file from model '${model}' ID ${res_id} field '${field}' to '${destination_path}': ${justification}`);
     return destination_path;
@@ -41041,8 +40997,10 @@ async function getAuditLog(manager, input) {
 
 
 
-// The extension manifest will typically be handled by the Gemini CLI 
-// by scanning the exported tools and the src/skills directory.
+// Tool exports are consumed by the shared MCP server (src/mcp-server.ts), which
+// every host launches identically. Each ecosystem's manifest (Gemini CLI, Claude
+// Code plugin, Claude Desktop bundle) points at that same server; skills live in
+// the top-level skills/ directory.
 
 ;// CONCATENATED MODULE: ./src/mcp-server.ts
 
@@ -41059,7 +41017,7 @@ async function getAuditLog(manager, input) {
 
 const mcp_server_dirname = external_path_default().dirname((0,external_url_.fileURLToPath)(import.meta.url));
 // Read package.json for metadata
-let mcp_server_version = "1.6.2";
+let mcp_server_version = "2.0.0";
 try {
     // Try both possible locations (source vs bundled)
     const pkgPaths = [
@@ -41084,7 +41042,7 @@ const server = new Server({
     },
 });
 const configStore = new ConfigStore();
-const credentialStore = new credential_store/* CredentialStore */.L();
+const credentialStore = new CredentialStore();
 const instanceManager = new InstanceManager(configStore, credentialStore);
 /**
  * Mapping of tool names to their implementation and metadata.

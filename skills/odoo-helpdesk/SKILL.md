@@ -4,7 +4,7 @@ description: MANDATORY for Tickets (helpdesk.ticket) and SLAs (helpdesk.sla). Ex
 ---
 # Skill: Odoo Helpdesk & Customer Support
 
-This skill provides the Gemini agent with high-level functional expertise in Odoo's Customer Support engine, covering Ticket management, SLA compliance, and multi-channel integration.
+This skill provides the agent with high-level functional expertise in Odoo's Customer Support engine, covering Ticket management, SLA compliance, and multi-channel integration.
 
 ## Core Mandates
 

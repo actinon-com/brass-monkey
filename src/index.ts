@@ -33,5 +33,7 @@ export * from './tools/trace_ui_path.js';
 export * from './tools/aggregate_records.js';
 export * from './tools/get_audit_log.js';
 
-// The extension manifest will typically be handled by the Gemini CLI 
-// by scanning the exported tools and the src/skills directory.
+// Tool exports are consumed by the shared MCP server (src/mcp-server.ts), which
+// every host launches identically. Each ecosystem's manifest (Gemini CLI, Claude
+// Code plugin, Claude Desktop bundle) points at that same server; skills live in
+// the top-level skills/ directory.

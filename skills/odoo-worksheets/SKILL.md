@@ -4,7 +4,7 @@ description: Functional expertise in Odoo's Worksheet engine for creating custom
 ---
 # Skill: Odoo Worksheets
 
-This skill provides the Gemini agent with functional expertise in Odoo's Worksheet engine, which allows for the creation of custom, dynamic digital forms in Field Service and Quality modules.
+This skill provides the agent with functional expertise in Odoo's Worksheet engine, which allows for the creation of custom, dynamic digital forms in Field Service and Quality modules.
 
 ## Core Mandates
 

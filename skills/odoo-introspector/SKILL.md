@@ -4,7 +4,7 @@ description: MANDATORY for technical discovery. Expertise in Odoo's internal ORM
 ---
 # Skill: Odoo Introspector
 
-This skill provides the Gemini agent with the necessary expertise to examine, understand, and interpret Odoo's internal ORM (Object-Relational Mapping) structures and metadata.
+This skill provides the agent with the necessary expertise to examine, understand, and interpret Odoo's internal ORM (Object-Relational Mapping) structures and metadata.
 
 ## Core Mandates
 

@@ -4,7 +4,7 @@ description: MANDATORY for Projects (project.project) and Tasks (project.task). 
 ---
 # Skill: Odoo Projects, Milestones & Timesheets
 
-This skill provides the Gemini agent with high-level functional expertise in Odoo's Project Management engine, covering Tasks, Milestones, and the critical integration with Sales (Invoicing) and Accounting (Analytic Ledger).
+This skill provides the agent with high-level functional expertise in Odoo's Project Management engine, covering Tasks, Milestones, and the critical integration with Sales (Invoicing) and Accounting (Analytic Ledger).
 
 ## Core Mandates
 

@@ -8,6 +8,11 @@ coverage/
 *.lcov
 .nyc_output
 
+# Claude Desktop bundle staging + artifact (built by `npm run build:mcpb`,
+# attached to GitHub Releases — never committed)
+/build/
+*.mcpb
+
 # IDE - WebStorm/IntelliJ
 .idea/
 *.iml

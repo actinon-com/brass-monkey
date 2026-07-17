@@ -4,7 +4,7 @@ description: MANDATORY for UI navigation. Expertise in Odoo's interface architec
 ---
 # Skill: Odoo UX & Navigation
 
-This skill provides the Gemini agent with the necessary expertise to navigate Odoo's user interface architecture and interpret frontend metadata.
+This skill provides the agent with the necessary expertise to navigate Odoo's user interface architecture and interpret frontend metadata.
 
 ## Core Mandates
 
