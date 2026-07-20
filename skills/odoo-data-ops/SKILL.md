@@ -60,11 +60,11 @@ If you make a mistake or are asked to "undo" a change:
     - `(6, 0, [ids])`: Replace all existing links with this list of IDs.
 
 ### 8. Multi-Company Logic (Golden Rule)
-Odoo is a multi-company environment. By default, Brass-Monkey enables cross-company visibility, but you must be precise:
+Odoo *can be* a multi-company environment, but many instances are single-company. **Check `get_environment` (or the scope reported by `switch_instance`) for this instance's actual scope before applying company logic.** When cross-company visibility applies, be precise:
 - **Implicit Context Injection:** Brass-Monkey automatically appends `context: { 'allowed_company_ids': [...] }` containing all of your authorized companies to the headers of every single tool execution. You do NOT need to switch active companies to see all your records.
-- **Visibility:** You can see records from all allowed companies (retrieved via `get_environment` and available programmatically in the root `active_context` object).
-- **Filtering:** To query data for a specific company, ALWAYS include `['company_id', '=', ID]` in your domain.
-- **Write / Relational Integrity:** When creating or writing records, Odoo enforces strict relational isolation. Do not link records belonging to different companies (e.g., a Sales Order in Co A cannot point to a Warehouse in Co B). Always ensure a valid `company_id` is supplied in values and relational targets match that company.
+- **Visibility:** You can see records from all allowed companies (retrieved via `get_environment` and available programmatically in the root `active_context` object; `multi_company` there tells you whether this instance has more than one).
+- **Filtering:** On multi-company instances, to query data for a specific company include `['company_id', '=', ID]` in your domain — but only for models that actually have a `company_id` field. On single-company instances this filter is unnecessary, and on company-agnostic models (e.g. `res.country`, most `ir.*`) it raises `Invalid field 'company_id'`.
+- **Write / Relational Integrity:** When creating or writing records, Odoo enforces strict relational isolation. Do not link records belonging to different companies (e.g., a Sales Order in Co A cannot point to a Warehouse in Co B). For company-scoped models, ensure a valid `company_id` is supplied in values and relational targets match that company.
 - **Operational Safety:** NEVER attempt to modify your own `res.users` record to change your active company. This is considered **System Vandalism**. 
 - **Correct Pattern:** If you need to "switch" companies for a query, simply use the `company_id` domain filter.
 

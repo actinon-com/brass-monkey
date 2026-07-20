@@ -18,6 +18,7 @@ export declare function getEnvironment(manager: InstanceManager, input: GetEnvir
     environment: any;
     active_context: {
         implicit_allowed_company_ids: any;
+        multi_company: boolean;
         visibility_scope: string;
         tip: string;
     };

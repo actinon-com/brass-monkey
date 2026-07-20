@@ -162,8 +162,9 @@ describe('Orchestrated Introspection', () => {
     mockClient.executeKw
       .mockResolvedValueOnce([{ id: 100, modules: 'base', name: 'Partner', transient: false }]) // model info
       .mockResolvedValueOnce([{ module: 'base' }]) // resolveBaseModule (ir.model.data)
+      .mockResolvedValueOnce({ name: {}, field_description: {}, ttype: {}, relation: {}, required: {}, readonly: {}, store: {}, translate: {}, company_dependent: {}, help: {}, domain: {}, modules: {}, compute: {}, related: {} }) // ir.model.fields fields_get probe (column availability)
       .mockResolvedValueOnce([
-        { 
+        {
           name: 'name', 
           field_description: 'Name', 
           ttype: 'char', 

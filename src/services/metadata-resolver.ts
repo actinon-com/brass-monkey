@@ -48,6 +48,45 @@ export async function resolveBaseModule(client: any, modelId: number, moduleList
 }
 
 /**
+ * Columns we would like to read from `ir.model.fields`. Some are NOT present on
+ * every Odoo version: `company_dependent`, in particular, is absent from
+ * `ir.model.fields` on older instances (observed on Odoo 15.0), where requesting
+ * it makes the whole `search_read` fail with
+ * "Invalid field 'company_dependent' on model 'ir.model.fields'" — taking down
+ * `inspect_model` entirely. We therefore probe the instance's actual columns once
+ * and request only the ones that exist, rather than assuming the newest schema.
+ */
+const DESIRED_FIELD_COLUMNS = [
+  'name', 'field_description', 'ttype', 'relation', 'required', 'readonly',
+  'store', 'translate', 'company_dependent', 'help', 'domain', 'modules',
+  'compute', 'related'
+];
+
+/** Per-client cache of the columns actually available on `ir.model.fields`. */
+const irModelFieldsColumns = new WeakMap<object, Set<string>>();
+
+/**
+ * Returns the subset of DESIRED_FIELD_COLUMNS that this instance's
+ * `ir.model.fields` model actually exposes, probing once per client via
+ * `fields_get` and caching the result. If the probe itself fails, we fall back
+ * to the full desired list (preserving prior behaviour) rather than guessing.
+ */
+async function getAvailableFieldColumns(client: any): Promise<string[]> {
+  let available = irModelFieldsColumns.get(client);
+  if (!available) {
+    try {
+      const schema = await client.executeKw('ir.model.fields', 'fields_get', [], { attributes: [] });
+      available = new Set<string>(Object.keys(schema || {}));
+    } catch {
+      available = new Set<string>();
+    }
+    irModelFieldsColumns.set(client, available);
+  }
+  if (available.size === 0) return DESIRED_FIELD_COLUMNS;
+  return DESIRED_FIELD_COLUMNS.filter(c => available!.has(c));
+}
+
+/**
  * Builds, categorizes, and resolves complete metadata layout for a model,
  * including auto-detecting the "Belonging Relation" and background warming parent modules.
  */
@@ -61,9 +100,11 @@ export async function buildModelMetadata(client: any, model: string, instanceAli
   const m = modelInfo[0];
   const baseModule = await resolveBaseModule(client, m.id, m.modules || '');
 
-  // 2. Fetch Fields and Filter
+  // 2. Fetch Fields and Filter — request only columns this Odoo version exposes
+  //    (see getAvailableFieldColumns; guards against version schema drift).
+  const fieldColumns = await getAvailableFieldColumns(client);
   const fRecords = await client.executeKw('ir.model.fields', 'search_read', [[['model_id.model', '=', model]]], {
-    fields: ['name', 'field_description', 'ttype', 'relation', 'required', 'readonly', 'store', 'translate', 'company_dependent', 'help', 'domain', 'modules', 'compute', 'related']
+    fields: fieldColumns
   });
 
   const buckets: Record<string, any> = { base: {}, extended: {}, computed: {}, related: {}, relational: {}, lines: {} };

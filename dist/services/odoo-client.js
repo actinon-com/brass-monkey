@@ -21,6 +21,16 @@ export class OdooClient {
     get db() { return this.config.db; }
     get url() { return this.config.url; }
     get writeGuard() { return this.config.write_guard ?? true; }
+    /** Company IDs the authenticated user may access (populated during authenticate()). */
+    get accessibleCompanyIds() { return this.companyIds; }
+    /**
+     * True only when the authenticated user can access more than one company.
+     * This reflects the *user's* company access (reliably knowable via RPC), not a
+     * global claim about the instance — do not assume every instance/user is
+     * multi-company. Derived from `company_ids`, so it is accurate on any call path
+     * once authenticated.
+     */
+    get isMultiCompany() { return this.companyIds.length > 1; }
     /**
      * Returns the major version of the Odoo instance (e.g. 16).
      */
@@ -144,6 +154,13 @@ export class OdooClient {
                 const msg = match[1].trim();
                 // Enhanced Actionable Feedback
                 if (msg.includes('does not exist') || msg.includes('column') || msg.includes('field')) {
+                    // A rejected field on the metadata models themselves (ir.model / ir.model.fields)
+                    // is a Brass-Monkey schema-compatibility issue (a requested column absent on this
+                    // Odoo version), NOT a stale local cache — advising 'inspect_model' here would loop
+                    // on the very call that is failing.
+                    if (context.includes('ir.model')) {
+                        return new Error(`${msg}\n💡 ACTION: This is likely an Odoo version/schema difference during metadata discovery (a requested column may not exist on this Odoo version). Please report it.`);
+                    }
                     return new Error(`${msg}\n💡 ACTION: Your local schema is stale. You MUST execute 'inspect_model' for this model to synchronize.`);
                 }
                 if (msg.includes('Access Denied') || msg.includes('permission')) {

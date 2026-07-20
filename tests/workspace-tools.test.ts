@@ -39,7 +39,13 @@ describe('Workspace Tools', () => {
       deleteApiKey: vi.fn().mockResolvedValue(true),
     };
     mockManager = {
-      getClient: vi.fn().mockResolvedValue({}),
+      // A already-authenticated, single-company client stub.
+      getClient: vi.fn().mockResolvedValue({
+        activeUid: 1,
+        isMultiCompany: false,
+        accessibleCompanyIds: [1],
+        authenticate: vi.fn().mockResolvedValue(1),
+      }),
       setDefault: vi.fn(),
     };
   });
@@ -83,11 +89,25 @@ describe('Workspace Tools', () => {
   });
 
   describe('switchInstance', () => {
-    it('should verify existence and set default', async () => {
+    it('should verify existence, set default, and report single-company scope', async () => {
       const result = await switchInstance(mockManager, { alias: 'prod' });
       expect(result).toContain("Instance switched to 'prod'");
+      expect(result).toContain('SINGLE-COMPANY');
       expect(mockManager.setDefault).toHaveBeenCalledWith('prod');
       expect(mockManager.getClient).toHaveBeenCalledWith('prod');
+    });
+
+    it('should eagerly authenticate when the client is not yet authenticated and report multi-company scope', async () => {
+      const authenticate = vi.fn().mockResolvedValue(7);
+      mockManager.getClient.mockResolvedValue({
+        activeUid: null,
+        isMultiCompany: true,
+        accessibleCompanyIds: [1, 2, 3],
+        authenticate,
+      });
+      const result = await switchInstance(mockManager, { alias: 'prod' });
+      expect(authenticate).toHaveBeenCalledOnce();
+      expect(result).toContain('MULTI-COMPANY (3 accessible companies)');
     });
   });
 

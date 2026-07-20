@@ -84,6 +84,7 @@ describe('CRUD Tools', () => {
       mockClient.executeKw
         .mockResolvedValueOnce([{ id: 10, name: 'Partner', modules: 'base', transient: false }]) // buildModelMetadata (ir.model)
         .mockResolvedValueOnce([{ module: 'base' }]) // buildModelMetadata (ir.model.data)
+        .mockResolvedValueOnce({ name: {}, field_description: {}, ttype: {}, relation: {}, required: {}, readonly: {}, store: {}, translate: {}, company_dependent: {}, help: {}, domain: {}, modules: {}, compute: {}, related: {} }) // ir.model.fields fields_get probe (column availability)
         .mockResolvedValueOnce([
           { name: 'name', field_description: 'Name', ttype: 'char', required: false, readonly: false, store: true, translate: false, company_dependent: false, modules: 'base' },
           { name: 'write_date', field_description: 'Modified', ttype: 'datetime', required: false, readonly: false, store: true, translate: false, company_dependent: false, modules: 'base' }
