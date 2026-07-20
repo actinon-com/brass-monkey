@@ -154,6 +154,13 @@ export class OdooClient {
                 const msg = match[1].trim();
                 // Enhanced Actionable Feedback
                 if (msg.includes('does not exist') || msg.includes('column') || msg.includes('field')) {
+                    // A rejected field on the metadata models themselves (ir.model / ir.model.fields)
+                    // is a Brass-Monkey schema-compatibility issue (a requested column absent on this
+                    // Odoo version), NOT a stale local cache — advising 'inspect_model' here would loop
+                    // on the very call that is failing.
+                    if (context.includes('ir.model')) {
+                        return new Error(`${msg}\n💡 ACTION: This is likely an Odoo version/schema difference during metadata discovery (a requested column may not exist on this Odoo version). Please report it.`);
+                    }
                     return new Error(`${msg}\n💡 ACTION: Your local schema is stale. You MUST execute 'inspect_model' for this model to synchronize.`);
                 }
                 if (msg.includes('Access Denied') || msg.includes('permission')) {

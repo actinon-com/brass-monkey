@@ -55,6 +55,7 @@ describe('Discovery Tools', () => {
       mockClient.executeKw
         .mockResolvedValueOnce([{ id: 1, name: 'Contact', modules: 'base', transient: false }]) // model
         .mockResolvedValueOnce([{ module: 'base' }]) // resolveBaseModule (ir.model.data)
+        .mockResolvedValueOnce({ name: {}, field_description: {}, ttype: {}, relation: {}, required: {}, readonly: {}, store: {}, translate: {}, company_dependent: {}, help: {}, domain: {}, modules: {}, compute: {}, related: {} }) // ir.model.fields fields_get probe (column availability)
         .mockResolvedValueOnce([
           { name: 'name', field_description: 'Name', ttype: 'char', modules: 'base', store: true, required: true },
           { name: 'x_custom', field_description: 'Custom', ttype: 'char', modules: 'studio_custom', store: true },
@@ -65,6 +66,29 @@ describe('Discovery Tools', () => {
       expect(result.identity.model).toBe('res.partner');
       expect(result.fields.base.name.string).toBe('Name');
       expect(result.fields.extended.x_custom.string).toBe('Custom');
+    });
+
+    it('drops ir.model.fields columns absent on older Odoo (e.g. company_dependent on v15) instead of crashing', async () => {
+      mockClient.executeKw
+        .mockResolvedValueOnce([{ id: 9, name: 'Mail Server', modules: 'base', transient: false }]) // model
+        .mockResolvedValueOnce([{ module: 'base' }]) // resolveBaseModule (ir.model.data)
+        // fields_get probe simulating Odoo 15: NO company_dependent column present
+        .mockResolvedValueOnce({ name: {}, field_description: {}, ttype: {}, relation: {}, required: {}, readonly: {}, store: {}, translate: {}, help: {}, domain: {}, modules: {}, compute: {}, related: {} })
+        .mockResolvedValueOnce([
+          { name: 'smtp_host', field_description: 'SMTP Server', ttype: 'char', modules: 'base', store: true },
+        ]); // fields search_read
+
+      const result = await inspectModel(mockManager, { model: 'ir.mail_server', show_base: true });
+
+      expect(result.identity.model).toBe('ir.mail_server');
+      const fieldsReadCall = mockClient.executeKw.mock.calls.find(
+        (c: any[]) => c[0] === 'ir.model.fields' && c[1] === 'search_read'
+      );
+      expect(fieldsReadCall).toBeTruthy();
+      // The offending column must be omitted from the request on this instance...
+      expect(fieldsReadCall[3].fields).not.toContain('company_dependent');
+      // ...while still requesting the columns the instance does expose.
+      expect(fieldsReadCall[3].fields).toContain('name');
     });
   });
 

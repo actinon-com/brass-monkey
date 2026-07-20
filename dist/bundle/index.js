@@ -37753,6 +37753,13 @@ class OdooClient {
                 const msg = match[1].trim();
                 // Enhanced Actionable Feedback
                 if (msg.includes('does not exist') || msg.includes('column') || msg.includes('field')) {
+                    // A rejected field on the metadata models themselves (ir.model / ir.model.fields)
+                    // is a Brass-Monkey schema-compatibility issue (a requested column absent on this
+                    // Odoo version), NOT a stale local cache — advising 'inspect_model' here would loop
+                    // on the very call that is failing.
+                    if (context.includes('ir.model')) {
+                        return new Error(`${msg}\n💡 ACTION: This is likely an Odoo version/schema difference during metadata discovery (a requested column may not exist on this Odoo version). Please report it.`);
+                    }
                     return new Error(`${msg}\n💡 ACTION: Your local schema is stale. You MUST execute 'inspect_model' for this model to synchronize.`);
                 }
                 if (msg.includes('Access Denied') || msg.includes('permission')) {
@@ -38690,6 +38697,44 @@ async function resolveBaseModule(client, modelId, moduleListStr) {
     }
 }
 /**
+ * Columns we would like to read from `ir.model.fields`. Some are NOT present on
+ * every Odoo version: `company_dependent`, in particular, is absent from
+ * `ir.model.fields` on older instances (observed on Odoo 15.0), where requesting
+ * it makes the whole `search_read` fail with
+ * "Invalid field 'company_dependent' on model 'ir.model.fields'" — taking down
+ * `inspect_model` entirely. We therefore probe the instance's actual columns once
+ * and request only the ones that exist, rather than assuming the newest schema.
+ */
+const DESIRED_FIELD_COLUMNS = [
+    'name', 'field_description', 'ttype', 'relation', 'required', 'readonly',
+    'store', 'translate', 'company_dependent', 'help', 'domain', 'modules',
+    'compute', 'related'
+];
+/** Per-client cache of the columns actually available on `ir.model.fields`. */
+const irModelFieldsColumns = new WeakMap();
+/**
+ * Returns the subset of DESIRED_FIELD_COLUMNS that this instance's
+ * `ir.model.fields` model actually exposes, probing once per client via
+ * `fields_get` and caching the result. If the probe itself fails, we fall back
+ * to the full desired list (preserving prior behaviour) rather than guessing.
+ */
+async function getAvailableFieldColumns(client) {
+    let available = irModelFieldsColumns.get(client);
+    if (!available) {
+        try {
+            const schema = await client.executeKw('ir.model.fields', 'fields_get', [], { attributes: [] });
+            available = new Set(Object.keys(schema || {}));
+        }
+        catch {
+            available = new Set();
+        }
+        irModelFieldsColumns.set(client, available);
+    }
+    if (available.size === 0)
+        return DESIRED_FIELD_COLUMNS;
+    return DESIRED_FIELD_COLUMNS.filter(c => available.has(c));
+}
+/**
  * Builds, categorizes, and resolves complete metadata layout for a model,
  * including auto-detecting the "Belonging Relation" and background warming parent modules.
  */
@@ -38703,9 +38748,11 @@ async function buildModelMetadata(client, model, instanceAlias = 'default') {
         throw new Error(`Model not found: ${model}`);
     const m = modelInfo[0];
     const baseModule = await resolveBaseModule(client, m.id, m.modules || '');
-    // 2. Fetch Fields and Filter
+    // 2. Fetch Fields and Filter — request only columns this Odoo version exposes
+    //    (see getAvailableFieldColumns; guards against version schema drift).
+    const fieldColumns = await getAvailableFieldColumns(client);
     const fRecords = await client.executeKw('ir.model.fields', 'search_read', [[['model_id.model', '=', model]]], {
-        fields: ['name', 'field_description', 'ttype', 'relation', 'required', 'readonly', 'store', 'translate', 'company_dependent', 'help', 'domain', 'modules', 'compute', 'related']
+        fields: fieldColumns
     });
     const buckets = { base: {}, extended: {}, computed: {}, related: {}, relational: {}, lines: {} };
     const baseFields = ['id'];
