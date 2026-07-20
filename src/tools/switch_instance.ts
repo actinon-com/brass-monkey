@@ -24,11 +24,24 @@ export type SwitchInstanceInput = z.infer<typeof SwitchInstanceSchema>;
  */
 export async function switchInstance(manager: InstanceManager, input: SwitchInstanceInput) {
   const { alias } = input;
-  
+
   // Verify it exists by trying to get it
-  await manager.getClient(alias);
-  
+  const client = await manager.getClient(alias);
+
+  // Eagerly authenticate so credentials validate now and the company scope is
+  // known at the switch point — the agent should not have to call get_environment
+  // just to learn whether this instance is single- or multi-company. Do this
+  // BEFORE flipping the default, so a failed switch does not strand the session
+  // pointing at an instance that cannot authenticate.
+  if (!client.activeUid) {
+    await client.authenticate();
+  }
+
   manager.setDefault(alias);
 
-  return `Instance switched to '${alias}'. All subsequent Odoo tool calls will use this instance unless 'instance_alias' is explicitly provided.`;
+  const scope = client.isMultiCompany
+    ? `MULTI-COMPANY (${client.accessibleCompanyIds.length} accessible companies)`
+    : `SINGLE-COMPANY`;
+
+  return `Instance switched to '${alias}'. Scope: ${scope}. All subsequent Odoo tool calls will use this instance unless 'instance_alias' is explicitly provided.`;
 }

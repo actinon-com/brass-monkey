@@ -15,6 +15,16 @@ export declare class OdooClient {
     get db(): string;
     get url(): string;
     get writeGuard(): boolean;
+    /** Company IDs the authenticated user may access (populated during authenticate()). */
+    get accessibleCompanyIds(): number[];
+    /**
+     * True only when the authenticated user can access more than one company.
+     * This reflects the *user's* company access (reliably knowable via RPC), not a
+     * global claim about the instance — do not assume every instance/user is
+     * multi-company. Derived from `company_ids`, so it is accurate on any call path
+     * once authenticated.
+     */
+    get isMultiCompany(): boolean;
     /**
      * Returns the major version of the Odoo instance (e.g. 16).
      */

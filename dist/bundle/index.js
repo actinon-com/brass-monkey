@@ -37620,6 +37620,16 @@ class OdooClient {
     get db() { return this.config.db; }
     get url() { return this.config.url; }
     get writeGuard() { return this.config.write_guard ?? true; }
+    /** Company IDs the authenticated user may access (populated during authenticate()). */
+    get accessibleCompanyIds() { return this.companyIds; }
+    /**
+     * True only when the authenticated user can access more than one company.
+     * This reflects the *user's* company access (reliably knowable via RPC), not a
+     * global claim about the instance — do not assume every instance/user is
+     * multi-company. Derived from `company_ids`, so it is accurate on any call path
+     * once authenticated.
+     */
+    get isMultiCompany() { return this.companyIds.length > 1; }
     /**
      * Returns the major version of the Odoo instance (e.g. 16).
      */
@@ -38436,7 +38446,7 @@ const SEARCH_RECORDS_SCHEMA = {
     type: "object",
     properties: {
         model: { type: "string", description: 'Technical name of the model (e.g., "res.partner", "project.task").' },
-        domain: { type: "array", items: {}, description: 'Odoo domain filter. A list of triplets: [["field", "operator", value]]. Example: [["is_company", "=", true]]. MULTI-COMPANY TIP: By default, Brass-Monkey automatically injects allowed_company_ids so you see all authorized companies. To search within a specific company, always include [["company_id", "=", COMPANY_ID]].' },
+        domain: { type: "array", items: {}, description: 'Odoo domain filter. A list of triplets: [["field", "operator", value]]. Example: [["is_company", "=", true]]. MULTI-COMPANY: Brass-Monkey injects allowed_company_ids so you see all authorized companies. On multi-company instances (see get_environment), to narrow to one company add [["company_id", "=", COMPANY_ID]] — but only for models that have a company_id field.' },
         fields: { type: "array", items: { type: "string" }, description: "Optional explicit list of field names to retrieve. If omitted, returns lightweight Breadth fields." },
         limit: { type: "number", description: "Maximum number of records to return (defaults to 10)." },
         offset: { type: "number", description: "Number of records to skip (for pagination, defaults to 0)." },
@@ -38518,26 +38528,26 @@ const CREATE_RECORD_SCHEMA = {
     type: "object",
     properties: {
         model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
-        values: { type: "string", description: "JSON-serialized string of field values: '{\"field_name\": value}'. Use inspect_model to find writable fields. MULTI-COMPANY CRITICAL: Ensure you specify a valid 'company_id' in values that matches all relational fields (e.g. journals, accounts) to avoid Multi-Company Access/Validation Errors." },
+        values: { type: "string", description: "JSON-serialized string of field values: '{\"field_name\": value}'. Use inspect_model to find writable fields. MULTI-COMPANY: If the model is company-scoped (has a company_id field), keep 'company_id' consistent with related records (e.g. journals, accounts) to avoid multi-company validation errors. Not all models have company_id — do not add it blindly." },
         justification: { type: "string", description: "MANDATORY: Explain WHY this record is being created. This is logged to Odoo Chatter and local audit logs." },
         with_translations: { type: "boolean", description: "If True, translatable fields can be provided as strings (sync to all) or expanded lists." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "values", "justification"],
-    description: "Create new records in a specified model with audit logging. MULTI-COMPANY RULE: Ensure a correct 'company_id' is supplied in values. MANDATORY: Describe your intent and the specific values in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
+    description: "Create new records in a specified model with audit logging. MULTI-COMPANY: For company-scoped models (those with a company_id field), ensure 'company_id' is consistent with related records. MANDATORY: Describe your intent and the specific values in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
 };
 const WRITE_RECORD_SCHEMA = {
     type: "object",
     properties: {
         model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
         id: { type: "number", description: "The database ID of the record to update." },
-        values: { type: "string", description: "JSON-serialized string of fields to update: '{\"field_name\": value}'. PRO TIP: We take a 'Before Snapshot' automatically for reversibility. MULTI-COMPANY CRITICAL: Do not mix records from different companies. Ensure any relational values linked match the record's company_id." },
+        values: { type: "string", description: "JSON-serialized string of fields to update: '{\"field_name\": value}'. PRO TIP: We take a 'Before Snapshot' automatically for reversibility. MULTI-COMPANY: For company-scoped models, do not mix records from different companies; ensure any relational values linked match the record's company_id." },
         justification: { type: "string", description: "MANDATORY: Explain WHY this update is necessary. Logged for audit and safety." },
         with_translations: { type: "boolean", description: "If True, translatable fields can be provided as strings (sync to all) or expanded lists." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "id", "values", "justification"],
-    description: "Update existing records with field-level tracking. MULTI-COMPANY RULE: Verify relational safety across companies before writing. MANDATORY: Describe your intent and the specific values in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
+    description: "Update existing records with field-level tracking. MULTI-COMPANY: For company-scoped models, verify relational safety across companies before writing. MANDATORY: Describe your intent and the specific values in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
 };
 const UNLINK_RECORD_SCHEMA = {
     type: "object",
@@ -38928,9 +38938,20 @@ const SwitchInstanceSchema = schemas_object({
 async function switchInstance(manager, input) {
     const { alias } = input;
     // Verify it exists by trying to get it
-    await manager.getClient(alias);
+    const client = await manager.getClient(alias);
+    // Eagerly authenticate so credentials validate now and the company scope is
+    // known at the switch point — the agent should not have to call get_environment
+    // just to learn whether this instance is single- or multi-company. Do this
+    // BEFORE flipping the default, so a failed switch does not strand the session
+    // pointing at an instance that cannot authenticate.
+    if (!client.activeUid) {
+        await client.authenticate();
+    }
     manager.setDefault(alias);
-    return `Instance switched to '${alias}'. All subsequent Odoo tool calls will use this instance unless 'instance_alias' is explicitly provided.`;
+    const scope = client.isMultiCompany
+        ? `MULTI-COMPANY (${client.accessibleCompanyIds.length} accessible companies)`
+        : `SINGLE-COMPANY`;
+    return `Instance switched to '${alias}'. Scope: ${scope}. All subsequent Odoo tool calls will use this instance unless 'instance_alias' is explicitly provided.`;
 }
 
 ;// CONCATENATED MODULE: ./src/tools/remove_instance.ts
@@ -40792,14 +40813,24 @@ async function getEnvironment(manager, input) {
         };
     }
     const companyList = res.user.accessible_companies.map((c) => `${c.name} (${c.id})`).join(', ');
-    const summary = `🌍 WORLD MAP: Connected to Odoo ${res.server.version} (${res.server.database}) ${res.server.write_guard ? '🔒 WRITE_GUARD ACTIVE' : '🔓 NO GUARD'}.\n👤 USER: ${res.user.name} (${res.user.login})\n🏢 MULTI-COMPANY: Enabled. Accessible Companies: ${companyList}\n🔑 ACTIVE SKILLS: ${res.session.active_skills.join(', ') || 'none'}\n💡 TIP: You have global visibility. To filter for a specific company, use a domain: [('company_id', '=', ID)].`;
+    const isMultiCompany = accessibleCompanies.length > 1;
+    const companyLine = isMultiCompany
+        ? `🏢 MULTI-COMPANY: You can access ${accessibleCompanies.length} companies: ${companyList}`
+        : `🏢 SINGLE-COMPANY ACCESS: ${companyList}`;
+    const companyTip = isMultiCompany
+        ? `\n💡 TIP: You have global visibility across companies. To filter for a specific company, use a domain: [('company_id', '=', ID)].`
+        : ``;
+    const summary = `🌍 WORLD MAP: Connected to Odoo ${res.server.version} (${res.server.database}) ${res.server.write_guard ? '🔒 WRITE_GUARD ACTIVE' : '🔓 NO GUARD'}.\n👤 USER: ${res.user.name} (${res.user.login})\n${companyLine}\n🔑 ACTIVE SKILLS: ${res.session.active_skills.join(', ') || 'none'}${companyTip}`;
     return {
         summary,
         environment: res,
         active_context: {
             implicit_allowed_company_ids: user.company_ids,
-            visibility_scope: "GLOBAL_CROSS_COMPANY",
-            tip: "Brass-Monkey automatically injects 'allowed_company_ids' representing all your authorized companies into the context of every tool call. You have global read visibility. To filter for a specific company, always use an explicit domain filter, e.g., [['company_id', '=', ID]] or [['company_id', 'in', [ID1, ID2]]]."
+            multi_company: isMultiCompany,
+            visibility_scope: isMultiCompany ? "GLOBAL_CROSS_COMPANY" : "SINGLE_COMPANY",
+            tip: isMultiCompany
+                ? "Brass-Monkey automatically injects 'allowed_company_ids' representing all your authorized companies into the context of every tool call. You have global read visibility. To filter for a specific company, use an explicit domain filter on company-scoped models, e.g., [['company_id', '=', ID]] or [['company_id', 'in', [ID1, ID2]]]."
+                : "You can access only one company. 'allowed_company_ids' is injected for consistency, but company filtering is generally unnecessary; only add a 'company_id' filter on models that actually have a company_id field."
         }
     };
 }
@@ -41017,7 +41048,7 @@ async function getAuditLog(manager, input) {
 
 const mcp_server_dirname = external_path_default().dirname((0,external_url_.fileURLToPath)(import.meta.url));
 // Read package.json for metadata
-let mcp_server_version = "2.0.0";
+let mcp_server_version = "2.0.1";
 try {
     // Try both possible locations (source vs bundled)
     const pkgPaths = [

@@ -98,14 +98,24 @@ export async function getEnvironment(manager, input) {
         };
     }
     const companyList = res.user.accessible_companies.map((c) => `${c.name} (${c.id})`).join(', ');
-    const summary = `🌍 WORLD MAP: Connected to Odoo ${res.server.version} (${res.server.database}) ${res.server.write_guard ? '🔒 WRITE_GUARD ACTIVE' : '🔓 NO GUARD'}.\n👤 USER: ${res.user.name} (${res.user.login})\n🏢 MULTI-COMPANY: Enabled. Accessible Companies: ${companyList}\n🔑 ACTIVE SKILLS: ${res.session.active_skills.join(', ') || 'none'}\n💡 TIP: You have global visibility. To filter for a specific company, use a domain: [('company_id', '=', ID)].`;
+    const isMultiCompany = accessibleCompanies.length > 1;
+    const companyLine = isMultiCompany
+        ? `🏢 MULTI-COMPANY: You can access ${accessibleCompanies.length} companies: ${companyList}`
+        : `🏢 SINGLE-COMPANY ACCESS: ${companyList}`;
+    const companyTip = isMultiCompany
+        ? `\n💡 TIP: You have global visibility across companies. To filter for a specific company, use a domain: [('company_id', '=', ID)].`
+        : ``;
+    const summary = `🌍 WORLD MAP: Connected to Odoo ${res.server.version} (${res.server.database}) ${res.server.write_guard ? '🔒 WRITE_GUARD ACTIVE' : '🔓 NO GUARD'}.\n👤 USER: ${res.user.name} (${res.user.login})\n${companyLine}\n🔑 ACTIVE SKILLS: ${res.session.active_skills.join(', ') || 'none'}${companyTip}`;
     return {
         summary,
         environment: res,
         active_context: {
             implicit_allowed_company_ids: user.company_ids,
-            visibility_scope: "GLOBAL_CROSS_COMPANY",
-            tip: "Brass-Monkey automatically injects 'allowed_company_ids' representing all your authorized companies into the context of every tool call. You have global read visibility. To filter for a specific company, always use an explicit domain filter, e.g., [['company_id', '=', ID]] or [['company_id', 'in', [ID1, ID2]]]."
+            multi_company: isMultiCompany,
+            visibility_scope: isMultiCompany ? "GLOBAL_CROSS_COMPANY" : "SINGLE_COMPANY",
+            tip: isMultiCompany
+                ? "Brass-Monkey automatically injects 'allowed_company_ids' representing all your authorized companies into the context of every tool call. You have global read visibility. To filter for a specific company, use an explicit domain filter on company-scoped models, e.g., [['company_id', '=', ID]] or [['company_id', 'in', [ID1, ID2]]]."
+                : "You can access only one company. 'allowed_company_ids' is injected for consistency, but company filtering is generally unnecessary; only add a 'company_id' filter on models that actually have a company_id field."
         }
     };
 }

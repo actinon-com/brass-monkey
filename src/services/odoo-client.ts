@@ -25,6 +25,18 @@ export class OdooClient {
   get url(): string { return this.config.url; }
   get writeGuard(): boolean { return this.config.write_guard ?? true; }
 
+  /** Company IDs the authenticated user may access (populated during authenticate()). */
+  get accessibleCompanyIds(): number[] { return this.companyIds; }
+
+  /**
+   * True only when the authenticated user can access more than one company.
+   * This reflects the *user's* company access (reliably knowable via RPC), not a
+   * global claim about the instance — do not assume every instance/user is
+   * multi-company. Derived from `company_ids`, so it is accurate on any call path
+   * once authenticated.
+   */
+  get isMultiCompany(): boolean { return this.companyIds.length > 1; }
+
   /**
    * Returns the major version of the Odoo instance (e.g. 16).
    */

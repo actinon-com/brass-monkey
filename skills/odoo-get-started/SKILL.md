@@ -19,8 +19,8 @@ When you receive the `get_environment` response, you must internalize:
 - **User Context:** What is your name and login? (Used for audit trails).
 - **Active Context (`active_context`):**
   - **Programmatic Scope:** View the root `active_context` payload to see your `implicit_allowed_company_ids`.
-  - **Implicit Injection:** Brass-Monkey automatically injects these company IDs into every query. You have global read visibility across all of them by default.
-  - **Restricting Scope:** To target a single organization, do not alter user settings. Apply an explicit domain filter, e.g., `[['company_id', '=', ID]]`.
+  - **Implicit Injection:** Brass-Monkey automatically injects these company IDs into every query. You have global read visibility across all of them by default. Check the `multi_company` flag in `active_context` — many instances are single-company, where company filtering is unnecessary.
+  - **Restricting Scope:** On multi-company instances, to target a single organization do not alter user settings — apply an explicit domain filter on models that have a `company_id` field, e.g., `[['company_id', '=', ID]]`.
 - **Organization:** How many companies exist? Which one is active? What are the local currencies and languages?
 - **Apps Manifest:** (If `show_manifest: true`) What modules are installed? (e.g., if `crm` is not installed, do not attempt to search for leads).
 

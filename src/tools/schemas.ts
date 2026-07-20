@@ -109,7 +109,7 @@ export const SEARCH_RECORDS_SCHEMA = {
   type: "object",
   properties: {
     model: { type: "string", description: 'Technical name of the model (e.g., "res.partner", "project.task").' },
-    domain: { type: "array", items: {}, description: 'Odoo domain filter. A list of triplets: [["field", "operator", value]]. Example: [["is_company", "=", true]]. MULTI-COMPANY TIP: By default, Brass-Monkey automatically injects allowed_company_ids so you see all authorized companies. To search within a specific company, always include [["company_id", "=", COMPANY_ID]].' },
+    domain: { type: "array", items: {}, description: 'Odoo domain filter. A list of triplets: [["field", "operator", value]]. Example: [["is_company", "=", true]]. MULTI-COMPANY: Brass-Monkey injects allowed_company_ids so you see all authorized companies. On multi-company instances (see get_environment), to narrow to one company add [["company_id", "=", COMPANY_ID]] — but only for models that have a company_id field.' },
     fields: { type: "array", items: { type: "string" }, description: "Optional explicit list of field names to retrieve. If omitted, returns lightweight Breadth fields." },
     limit: { type: "number", description: "Maximum number of records to return (defaults to 10)." },
     offset: { type: "number", description: "Number of records to skip (for pagination, defaults to 0)." },
@@ -196,13 +196,13 @@ export const CREATE_RECORD_SCHEMA = {
   type: "object",
   properties: {
     model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
-    values: { type: "string", description: "JSON-serialized string of field values: '{\"field_name\": value}'. Use inspect_model to find writable fields. MULTI-COMPANY CRITICAL: Ensure you specify a valid 'company_id' in values that matches all relational fields (e.g. journals, accounts) to avoid Multi-Company Access/Validation Errors." },
+    values: { type: "string", description: "JSON-serialized string of field values: '{\"field_name\": value}'. Use inspect_model to find writable fields. MULTI-COMPANY: If the model is company-scoped (has a company_id field), keep 'company_id' consistent with related records (e.g. journals, accounts) to avoid multi-company validation errors. Not all models have company_id — do not add it blindly." },
     justification: { type: "string", description: "MANDATORY: Explain WHY this record is being created. This is logged to Odoo Chatter and local audit logs." },
     with_translations: { type: "boolean", description: "If True, translatable fields can be provided as strings (sync to all) or expanded lists." },
     instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
   },
   required: ["model", "values", "justification"],
-  description: "Create new records in a specified model with audit logging. MULTI-COMPANY RULE: Ensure a correct 'company_id' is supplied in values. MANDATORY: Describe your intent and the specific values in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
+  description: "Create new records in a specified model with audit logging. MULTI-COMPANY: For company-scoped models (those with a company_id field), ensure 'company_id' is consistent with related records. MANDATORY: Describe your intent and the specific values in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
 };
 
 export const WRITE_RECORD_SCHEMA = {
@@ -210,13 +210,13 @@ export const WRITE_RECORD_SCHEMA = {
   properties: {
     model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
     id: { type: "number", description: "The database ID of the record to update." },
-    values: { type: "string", description: "JSON-serialized string of fields to update: '{\"field_name\": value}'. PRO TIP: We take a 'Before Snapshot' automatically for reversibility. MULTI-COMPANY CRITICAL: Do not mix records from different companies. Ensure any relational values linked match the record's company_id." },
+    values: { type: "string", description: "JSON-serialized string of fields to update: '{\"field_name\": value}'. PRO TIP: We take a 'Before Snapshot' automatically for reversibility. MULTI-COMPANY: For company-scoped models, do not mix records from different companies; ensure any relational values linked match the record's company_id." },
     justification: { type: "string", description: "MANDATORY: Explain WHY this update is necessary. Logged for audit and safety." },
     with_translations: { type: "boolean", description: "If True, translatable fields can be provided as strings (sync to all) or expanded lists." },
     instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
   },
   required: ["model", "id", "values", "justification"],
-  description: "Update existing records with field-level tracking. MULTI-COMPANY RULE: Verify relational safety across companies before writing. MANDATORY: Describe your intent and the specific values in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
+  description: "Update existing records with field-level tracking. MULTI-COMPANY: For company-scoped models, verify relational safety across companies before writing. MANDATORY: Describe your intent and the specific values in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
 };
 
 export const UNLINK_RECORD_SCHEMA = {
