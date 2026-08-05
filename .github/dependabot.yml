@@ -1,0 +1,33 @@
+version: 2
+
+updates:
+  # Runtime + build dependencies. Grouped so a routine bump is one reviewable
+  # PR rather than a dozen; `dist/` is regenerated at release time, so these
+  # PRs intentionally touch source and lockfile only.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        update-types: [ minor, patch ]
+      production-patch:
+        dependency-type: production
+        update-types: [ patch ]
+
+  # Keeps `actions/checkout`, `actions/setup-node` etc. current. Worth having
+  # even though only first-party actions are used today: it is the mechanism
+  # that will surface a required bump if that ever changes.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "ci"
