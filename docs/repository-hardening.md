@@ -26,7 +26,14 @@ repository's merge history.
 | `required_approving_review_count` | 0 |
 | `require_code_owner_reviews` | true |
 | `allow_force_pushes` / `allow_deletions` | false / false |
-| Required status checks (`strict: true`) | `test (18.x)`, `test (20.x)`, `test (22.x)`, `Contributor guard` |
+| Required status checks (`strict: true`) | `test (20.x)`, `test (22.x)`, `Contributor guard` |
+
+> **Node 18 was dropped** (EOL April 2025) because `vitest` 4.x declares
+> `engines: ^20.0.0 || ^22.0.0 || >=24.0.0`. `package.json` now declares
+> `engines: { node: ">=20" }`. **The matrix and the required-check list must be
+> changed together** — dropping a matrix entry while its context is still
+> required leaves every PR pending forever on a job that will never report, and
+> re-adding the matrix entry without re-adding the context makes it advisory.
 
 Because `enforce_admins` is true and there are no push restrictions to bypass,
 **nobody can push directly to `main` — including the repository owner.** This is

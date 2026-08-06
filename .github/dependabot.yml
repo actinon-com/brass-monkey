@@ -28,15 +28,26 @@ updates:
           - version-update:semver-major
           - version-update:semver-minor
 
+    # Grouping is deliberately broad. The first configuration only grouped dev
+    # minor/patch and production *patch*, which left every production **minor**
+    # to open its own PR — that is how one week produced seven separate PRs
+    # (hono, fast-uri, ip-address/express-rate-limit, postcss, plus two action
+    # bumps and the dev group). Because `required_status_checks.strict` is true,
+    # each merge staleness-invalidates the rest of the queue, so seven PRs means
+    # seven rebase-and-recheck cycles and seven approvals. One PR per week per
+    # ecosystem is the point.
+    #
+    # Majors are deliberately NOT grouped — those still arrive individually,
+    # because a major deserves its own review.
     groups:
-      dev-dependencies:
+      production:
+        dependency-type: production
+        update-types: [ minor, patch ]
+      development:
         dependency-type: development
         update-types: [ minor, patch ]
         exclude-patterns:
           - "@vercel/ncc"
-      production-patch:
-        dependency-type: production
-        update-types: [ patch ]
 
   # Keeps `actions/checkout`, `actions/setup-node` etc. current. Worth having
   # even though only first-party actions are used today: it is the mechanism
@@ -48,3 +59,7 @@ updates:
       day: monday
     commit-message:
       prefix: "ci"
+    # Without this, each action bump is its own PR.
+    groups:
+      github-actions:
+        patterns: [ "*" ]
