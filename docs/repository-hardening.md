@@ -119,23 +119,57 @@ property.
 - Secret scanning: **enabled**. Push protection: **enabled**.
 - Dependabot security updates and vulnerability alerts: **enabled**;
   `.github/dependabot.yml` adds weekly grouped npm + github-actions updates.
+  `@vercel/ncc` is excluded from grouping and pinned against minor/major bumps,
+  because it is the bundler that produces the shipped artifact — see the comment
+  in that file for the incident that prompted it.
+
+  **Consequence of the committed-artifact model:** merging a dependency PR updates
+  `package.json` and the lockfile but *not* `dist/bundle/index.js`. A dependency
+  fix therefore does not reach users installing from the repo or a tag until a
+  release rebuilds the bundle. Factor this into release timing when an advisory
+  actually affects shipped code.
 - Rebase merges disabled; squash and merge-commit retained. Merge commits are kept
   deliberately — the release-branch pattern depends on them — so squash is a
   per-PR choice for contributor branches rather than forced repo-wide.
 - Delete branch on merge: enabled.
 - CI uses `npm ci`, not `npm install`, so the committed lockfile is authoritative.
 
-## Outstanding — needs a human in the GitHub UI
+- Fork PR workflow approval: **`all_external_contributors`**. Every fork PR now
+  needs a maintainer to authorise its workflow run, not just first-timers.
+  Contrary to what the UI implies, this *is* scriptable — the endpoint is easy to
+  miss because it is not under `actions/permissions` proper:
 
-1. **Fork PR workflow approval.** Settings → Actions → General → *Fork pull request
-   workflows from outside collaborators* → **"Require approval for all external
-   contributors."** Not exposed in the REST API. Exposure is already low (the test
-   workflow uses `pull_request` not `pull_request_target`, there are zero repo
-   Actions secrets, and the default workflow token is read-only), so the residual
-   risk is compute abuse and a fork PR introducing a third-party action.
-2. **Secret scanning extras.** `secret_scanning_non_provider_patterns` and
-   `secret_scanning_validity_checks` refuse to enable via the API and remain
-   disabled — likely plan-gated. Settings → Code security.
+  ```bash
+  gh api repos/actinon-com/brass-monkey/actions/permissions/fork-pr-contributor-approval
+  # => {"approval_policy":"all_external_contributors"}
+
+  gh api -X PUT repos/actinon-com/brass-monkey/actions/permissions/fork-pr-contributor-approval \
+    -f approval_policy=all_external_contributors
+  ```
+
+  Valid values are `first_time_contributors_new_to_github`,
+  `first_time_contributors` (the default) and `all_external_contributors`. Prefer
+  the API over the UI here: the setting is easy to believe you have saved when you
+  have not, and the `GET` above is the only reliable confirmation.
+
+  Underlying exposure was already low — the test workflow uses `pull_request` not
+  `pull_request_target`, there are zero repo Actions secrets, and the default
+  workflow token is read-only — so this closes compute abuse and a fork PR
+  introducing a third-party action.
+
+## Outstanding — not achievable on this plan
+
+**Secret scanning extras.** `secret_scanning_non_provider_patterns` and
+`secret_scanning_validity_checks` both refuse to enable via the API and remain
+disabled. These belong to **GitHub Secret Protection**, a paid add-on, which is
+why there is no free-tier toggle for them; the correct UI location is
+**Settings → Security → Advanced Security → Secret Protection** (the section was
+formerly called "Code security and analysis", so older instructions naming a "Code
+security" group are stale).
+
+This is a nice-to-have, not a gap. The two features that matter — secret scanning
+and **push protection**, the one that actually blocks a credential at push time —
+are both enabled and are free on public repositories.
 
 ## Known broken, deliberately untouched
 
