@@ -1,0 +1,123 @@
+name: Contributor Guard
+
+# Gates that apply to contributions arriving from forks — i.e. everyone without
+# write access to this repository.
+#
+# Why this exists: `dist/bundle/index.js` is a committed, minified build artifact
+# AND the file that Gemini/Antigravity/Claude Code actually execute (the Gemini
+# extension and the Claude Code marketplace install straight from the repo/tag).
+# The Test Suite regenerates it with `npm run build` *before* running `npm test`,
+# so a PR carrying a poisoned bundle would be overwritten in CI, pass every
+# check, and still ship that bundle to users on merge. No human realistically
+# reviews a minified diff, so the artifact is gated instead of reviewed.
+#
+# Maintainer release branches are same-repo, not forks, and legitimately DO
+# rebuild `dist/`. The discriminator is therefore fork-vs-same-repo, not the
+# path alone, and it stays correct if a second maintainer is added later.
+#
+# NOTE: this job is registered as a required status check on `main`. It must
+# therefore ALWAYS run and decide pass/fail internally. Never add a job-level
+# `if:` — a skipped job leaves the required context pending forever and the PR
+# becomes unmergeable.
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  guard:
+    name: Contributor guard
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Block build artifacts in fork PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
+        run: |
+          set -euo pipefail
+
+          if [ "$IS_FORK" != "true" ]; then
+            echo "Same-repo pull request — \`dist/\` changes are permitted here."
+            echo "(This is the maintainer release path: build artifacts are"
+            echo "rebuilt and committed on the release branch.)"
+            exit 0
+          fi
+
+          echo "Fork pull request detected — checking for build artifact changes."
+
+          # `gh` is preinstalled on GitHub-hosted runners. Using the API rather
+          # than `git diff` avoids merge-ref/shallow-clone subtleties, and
+          # avoids pulling in an unpinned third-party action.
+          gh pr diff "$PR_NUMBER" --repo "$REPO" --name-only > changed.txt
+
+          if grep -qE '^dist/' changed.txt; then
+            echo "::error::This pull request modifies \`dist/\`, which is a generated build artifact."
+            echo
+            echo "Files flagged:"
+            grep -E '^dist/' changed.txt | sed 's/^/  /'
+            echo
+            echo "Please submit source changes only (\`src/\`, \`skills/\`, \`docs/\`, tests)"
+            echo "and revert your \`dist/\` changes:"
+            echo
+            echo "    git checkout origin/main -- dist/"
+            echo "    git commit -m 'Revert generated dist/ changes'"
+            echo
+            echo "A maintainer regenerates \`dist/\` at release time. See CONTRIBUTING.md."
+            exit 1
+          fi
+
+          echo "No build artifact changes. OK."
+
+      - name: Require Developer Certificate of Origin sign-off
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
+        run: |
+          set -euo pipefail
+
+          if [ "$IS_FORK" != "true" ]; then
+            echo "Same-repo pull request — DCO sign-off not required."
+            exit 0
+          fi
+
+          missing=0
+          # Read as NUL-free lines: "<sha> <first line of message>"
+          gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/commits" \
+            --jq '.[] | "\(.sha)\t\(.commit.message | split("\n")[0])"' > commits.tsv
+
+          while IFS=$'\t' read -r sha subject; do
+            [ -n "$sha" ] || continue
+            body=$(gh api "repos/$REPO/commits/$sha" --jq '.commit.message')
+            if ! printf '%s\n' "$body" | grep -qiE '^[[:space:]]*Signed-off-by:[[:space:]]+[^[:space:]<][^<]*<[^[:space:]@<>]+@[^[:space:]@<>]+>[[:space:]]*$'; then
+              echo "::error::Commit ${sha:0:8} (\"$subject\") is missing a Signed-off-by line."
+              missing=1
+            fi
+          done < commits.tsv
+
+          if [ "$missing" -ne 0 ]; then
+            echo
+            echo "This project requires a Developer Certificate of Origin sign-off"
+            echo "(https://developercertificate.org/) on every commit. It certifies"
+            echo "that you wrote the contribution, or otherwise have the right to"
+            echo "submit it under this project's MIT licence."
+            echo
+            echo "To fix, amend your commits with a sign-off:"
+            echo
+            echo "    git commit --amend --signoff        # most recent commit"
+            echo "    git rebase --signoff origin/main    # every commit on the branch"
+            echo "    git push --force-with-lease"
+            echo
+            echo "Use \`git commit -s\` in future to add it automatically."
+            exit 1
+          fi
+
+          echo "All commits carry a DCO sign-off. OK."
