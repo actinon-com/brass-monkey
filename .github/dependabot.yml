@@ -13,10 +13,27 @@ updates:
     commit-message:
       prefix: "deps"
       prefix-development: "deps-dev"
+    # `@vercel/ncc` is the bundler that produces `dist/bundle/index.js` — the
+    # committed artifact MCP hosts actually execute. A bundler bump therefore
+    # changes shipped output, so it must never ride along in a grouped PR.
+    #
+    # This is not theoretical: PR #47 grouped 0.38.4 -> 0.44.1 in with three
+    # harmless dev updates and broke `npm run bundle` outright with
+    # `TypeError: N.hash is not a function` on Node 18, 20 and 22. Minor bumps
+    # of a 0.x package are routinely breaking, so only patches are allowed
+    # through, and they arrive as their own reviewable PR.
+    ignore:
+      - dependency-name: "@vercel/ncc"
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+
     groups:
       dev-dependencies:
         dependency-type: development
         update-types: [ minor, patch ]
+        exclude-patterns:
+          - "@vercel/ncc"
       production-patch:
         dependency-type: production
         update-types: [ patch ]
