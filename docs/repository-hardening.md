@@ -80,6 +80,42 @@ gh api repos/actinon-com/brass-monkey/rulesets/20434049 -q '.current_user_can_by
 Note this field is only populated on the **single-ruleset** endpoint; the list
 endpoint returns `null` for it.
 
+### The code-owner gate is real — verified, not assumed
+
+When this repository was first audited, the review requirement was
+`required_approving_review_count: 0` plus `require_code_owner_reviews: true`, and it
+was **unknown** whether that combination actually blocked a pull request from
+someone other than the code owner. Every PR in the repository's history up to that
+point had been authored by the sole code owner, so the third-party path had never
+been exercised. It has now been, by Dependabot:
+
+| PR author | `gh pr merge --admin` | Why |
+|---|---|---|
+| `matty-drexler` (e.g. #48) | **succeeds** | The sole code owner cannot review their own PR, so the requirement is unsatisfiable and the admin override is permitted. |
+| `dependabot[bot]` (e.g. #41) | **refused** — "Waiting on code owner review from matty-drexler" | A real approval *is* obtainable, so GitHub will not let an admin override it. |
+
+Two consequences worth internalising:
+
+1. **Outside contributions were already gated**, even before ruleset 20434049 was
+   added. The ruleset raises the bar to an explicit approving review; it did not
+   create the gate.
+2. **`--admin` is not a universal skeleton key.** It only bypasses requirements
+   that cannot be satisfied. Any PR authored by someone else — a contributor,
+   Dependabot, a second maintainer — needs a genuine approving review, and no flag
+   substitutes for it. Plan releases accordingly: bot PRs need a click.
+
+### Merging a queue of PRs
+
+`required_status_checks.strict` is `true`, so every PR must be up to date with
+`main` before it can merge, and each merge staleness-invalidates the rest of the
+queue. Merging several PRs is therefore inherently sequential:
+
+```bash
+gh pr update-branch <n>          # rebase onto current main
+gh pr checks <n> --watch         # wait for the matrix + Contributor guard
+gh pr merge <n> --squash --delete-branch
+```
+
 ### If the ruleset ever does block you
 
 ```bash
