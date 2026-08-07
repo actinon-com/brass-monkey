@@ -15,13 +15,21 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [18.x, 20.x, 22.x]
+        # Node 18 dropped: EOL since April 2025, and `vitest` 4.x declares
+        # `engines: ^20.0.0 || ^22.0.0 || >=24.0.0`. Keeping 18 in the matrix
+        # would mean pinning vitest to an exact version forever, because the
+        # existing `^4.1.4` range resolves forward to releases that use
+        # `node:util`'s `styleText` (added in Node 20.12) and crash on 18.
+        #
+        # If this is reverted, `test (18.x)` must be re-added to the branch's
+        # required status checks at the same time.
+        node-version: [20.x, 22.x]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'

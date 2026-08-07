@@ -71,7 +71,7 @@ outside contributions arrive as fork pull requests.
    above.
 5. Open the pull request against `main` and fill in the template.
 
-`main` is protected: it requires a passing test matrix on Node 18/20/22, the
+`main` is protected: it requires a passing test matrix on Node 20/22, the
 Contributor Guard check, and review from a code owner. Maintainers merge; please
 don't be discouraged by a delay.
 
