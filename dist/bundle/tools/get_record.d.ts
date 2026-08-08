@@ -24,8 +24,8 @@ export declare const GetRecordSchema: z.ZodObject<{
 }, z.core.$strip>;
 export declare const GetRecordsSchema: z.ZodObject<{
     model: z.ZodString;
-    res_ids: z.ZodPipe<z.ZodTransform<any, unknown>, z.ZodDefault<z.ZodArray<z.ZodCoercedNumber<unknown>>>>;
-    xml_ids: z.ZodPipe<z.ZodTransform<any, unknown>, z.ZodDefault<z.ZodArray<z.ZodString>>>;
+    res_ids: z.ZodPreprocess<z.ZodDefault<z.ZodArray<z.ZodCoercedNumber<unknown>>>>;
+    xml_ids: z.ZodPreprocess<z.ZodDefault<z.ZodArray<z.ZodString>>>;
     show_meta: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     show_security: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     show_relationships: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;

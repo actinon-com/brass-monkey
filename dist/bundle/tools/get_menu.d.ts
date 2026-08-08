@@ -4,8 +4,8 @@ import { InstanceManager } from '../services/instance-manager.js';
  * Zod schema for get_menu tool input.
  */
 export declare const GetMenuSchema: z.ZodObject<{
-    parent_id: z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodOptional<z.ZodNullable<z.ZodCoercedNumber<unknown>>>>;
-    search_term: z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodOptional<z.ZodString>>;
+    parent_id: z.ZodPreprocess<z.ZodOptional<z.ZodNullable<z.ZodCoercedNumber<unknown>>>>;
+    search_term: z.ZodPreprocess<z.ZodOptional<z.ZodString>>;
     instance_alias: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 export type GetMenuInput = z.infer<typeof GetMenuSchema>;

@@ -5,8 +5,8 @@ import { InstanceManager } from '../services/instance-manager.js';
  */
 export declare const AggregateRecordsSchema: z.ZodObject<{
     model: z.ZodString;
-    domain: z.ZodPipe<z.ZodTransform<any, unknown>, z.ZodDefault<z.ZodArray<z.ZodAny>>>;
-    groupby: z.ZodPipe<z.ZodTransform<any, unknown>, z.ZodArray<z.ZodString>>;
+    domain: z.ZodPreprocess<z.ZodDefault<z.ZodArray<z.ZodAny>>>;
+    groupby: z.ZodPreprocess<z.ZodArray<z.ZodString>>;
     fields: z.ZodOptional<z.ZodArray<z.ZodString>>;
     limit: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     offset: z.ZodOptional<z.ZodCoercedNumber<unknown>>;

@@ -6,8 +6,8 @@ import { InstanceManager } from '../services/instance-manager.js';
  */
 export declare const SearchRecordsSchema: z.ZodObject<{
     model: z.ZodString;
-    domain: z.ZodPipe<z.ZodTransform<any, unknown>, z.ZodDefault<z.ZodArray<z.ZodAny>>>;
-    fields: z.ZodPipe<z.ZodTransform<any, unknown>, z.ZodOptional<z.ZodArray<z.ZodString>>>;
+    domain: z.ZodPreprocess<z.ZodDefault<z.ZodArray<z.ZodAny>>>;
+    fields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodString>>>;
     limit: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     offset: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     order: z.ZodOptional<z.ZodString>;

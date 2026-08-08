@@ -20,7 +20,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Read package.json for metadata
-let version = "2.0.1";
+let version = "2.1.0";
 try {
   // Try both possible locations (source vs bundled)
   const pkgPaths = [
@@ -56,7 +56,26 @@ const instanceManager = new InstanceManager(configStore, credentialStore);
 /**
  * Mapping of tool names to their implementation and metadata.
  */
-const toolRegistry: Record<string, { handler: Function; schema: any; description: string; deps: ('manager' | 'config' | 'both') }> = {
+const toolRegistry: Record<string, {
+  handler: Function;
+  schema: any;
+  description: string;
+  deps: ('manager' | 'config' | 'both');
+  /**
+   * Marks a tool whose permission prompt must reach a human on every call.
+   *
+   * Advertised to Claude Code as `_meta["anthropic/requiresUserInteraction"]`,
+   * which forces the prompt even in `acceptEdits`, `auto` and
+   * `bypassPermissions` modes, suppresses "don't ask again", and overrides any
+   * matching allow rule.
+   *
+   * Reserved for operations that are irreversible or unbounded. Note that
+   * `execute_action`'s `acknowledge_unsafe` gate depends on this: without a
+   * prompt the agent can read its own refusal and retry with the flag set, and
+   * no human ever sees the Python it acknowledged.
+   */
+  requiresUserInteraction?: boolean;
+}> = {
   setup_instance: {
     handler: tools.setupInstance,
     schema: schemas.SETUP_INSTANCE_SCHEMA,
@@ -145,6 +164,23 @@ const toolRegistry: Record<string, { handler: Function; schema: any; description
     handler: tools.unlinkRecord,
     schema: schemas.UNLINK_RECORD_SCHEMA,
     description: "Delete records from the system.",
+    deps: 'manager',
+    // Irreversible. Must be confirmed by a person on every call.
+    requiresUserInteraction: true
+  },
+  execute_action: {
+    handler: tools.executeAction,
+    schema: schemas.EXECUTE_ACTION_SCHEMA,
+    description: "Run an existing Odoo server action against explicit records. Use dry_run first to expand the action tree.",
+    deps: 'manager',
+    // A server action can run arbitrary Python; the acknowledge_unsafe gate is
+    // only meaningful if a human sees the prompt.
+    requiresUserInteraction: true
+  },
+  execute_method: {
+    handler: tools.executeMethod,
+    schema: schemas.EXECUTE_METHOD_SCHEMA,
+    description: "Call a workflow button method on records (e.g. action_confirm). ORM primitives are refused; use the dedicated CRUD tools.",
     deps: 'manager'
   },
   list_reports: {
@@ -199,10 +235,13 @@ const toolRegistry: Record<string, { handler: Function; schema: any; description
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
-    tools: Object.entries(toolRegistry).map(([name, { description, schema }]) => ({
+    tools: Object.entries(toolRegistry).map(([name, { description, schema, requiresUserInteraction }]) => ({
       name,
       description,
       inputSchema: schema as any,
+      ...(requiresUserInteraction
+        ? { _meta: { 'anthropic/requiresUserInteraction': true } }
+        : {}),
     })),
   };
 });

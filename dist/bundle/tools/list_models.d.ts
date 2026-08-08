@@ -5,7 +5,7 @@ import { InstanceManager } from '../services/instance-manager.js';
  * Includes pre-processing to handle single-item arrays.
  */
 export declare const ListModelsSchema: z.ZodObject<{
-    search_term: z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodOptional<z.ZodString>>;
+    search_term: z.ZodPreprocess<z.ZodOptional<z.ZodString>>;
     limit: z.ZodDefault<z.ZodOptional<z.ZodCoercedNumber<unknown>>>;
     offset: z.ZodDefault<z.ZodOptional<z.ZodCoercedNumber<unknown>>>;
     instance_alias: z.ZodOptional<z.ZodString>;

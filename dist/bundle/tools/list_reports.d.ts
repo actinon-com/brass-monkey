@@ -5,7 +5,7 @@ import { InstanceManager } from '../services/instance-manager.js';
  * Includes pre-processing to handle single-item arrays.
  */
 export declare const ListReportsSchema: z.ZodObject<{
-    model: z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodString>;
+    model: z.ZodPreprocess<z.ZodString>;
     search_term: z.ZodOptional<z.ZodString>;
     instance_alias: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;

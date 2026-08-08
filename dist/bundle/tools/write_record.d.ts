@@ -7,7 +7,7 @@ import { InstanceManager } from '../services/instance-manager.js';
 export declare const WriteRecordSchema: z.ZodObject<{
     model: z.ZodString;
     id: z.ZodCoercedNumber<unknown>;
-    values: z.ZodPipe<z.ZodTransform<any, unknown>, z.ZodRecord<z.ZodString, z.ZodAny>>;
+    values: z.ZodPreprocess<z.ZodRecord<z.ZodString, z.ZodAny>>;
     justification: z.ZodString;
     with_translations: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     instance_alias: z.ZodOptional<z.ZodString>;
