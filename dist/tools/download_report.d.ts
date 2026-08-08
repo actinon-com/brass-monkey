@@ -6,7 +6,7 @@ import { InstanceManager } from '../services/instance-manager.js';
  */
 export declare const DownloadReportSchema: z.ZodObject<{
     report_id: z.ZodCoercedNumber<unknown>;
-    record_ids: z.ZodPipe<z.ZodTransform<any, unknown>, z.ZodArray<z.ZodNumber>>;
+    record_ids: z.ZodPreprocess<z.ZodArray<z.ZodNumber>>;
     destination_path: z.ZodString;
     justification: z.ZodString;
     instance_alias: z.ZodOptional<z.ZodString>;

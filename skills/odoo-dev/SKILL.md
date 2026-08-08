@@ -23,6 +23,23 @@ Before troubleshooting or proposing changes, the agent must identify existing lo
 - **Mandate:** When writing Python code in a Server Action, ensure all variables (`env`, `model`, `record`, `records`, `time`) are used correctly. Avoid long-running loops or operations that could cause database locks.
 - **HTML Communication:** If using `message_post` within a Server Action to send HTML, remember to pass `body_is_html=True` to prevent escaping.
 
+#### Running one (`execute_action`)
+- **Inspect before you run.** A server action is a *mutable data row*, so its name tells you nothing
+  about its effect. ALWAYS call `execute_action` with `dry_run: true` first for an action you have
+  not run before: the report expands the full `child_ids` tree and classifies every step.
+- **Unsafe states are blocked by default.** `code` (arbitrary Python), `webhook`, `mail_post` and
+  `sms` require `acknowledge_unsafe: true`. Before setting it, explain to the user in your message
+  exactly what the action does — for a `code` action, quote the Python from the dry-run report.
+- **A `multi` action is only as safe as its children.** The classification covers the whole
+  expanded tree, so a wrapper containing one Python step is treated as Python.
+- **Targets are explicit.** Pass `ids`. An empty recordset is refused unless you set
+  `allow_empty_recordset: true`, because many actions fall back to acting on everything in scope.
+- **Follow-up actions are inert.** If the action returns another action, it is handed back as data
+  and is NOT executed. Decide deliberately whether to act on it.
+- **Snapshots are honest.** Only declarative states (`object_write`, `object_create`, `update`)
+  can be snapshotted. For anything else the audit entry records that no before-state was capturable
+  rather than implying nothing changed — so recovery planning is on you.
+
 ### 3. Automated Rules (`base.automation`)
 - **Purpose:** Automatically trigger Server Actions based on specific events.
 - **Triggers:**

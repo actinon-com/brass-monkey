@@ -212,6 +212,38 @@ export const UNLINK_RECORD_SCHEMA = {
     required: ["model", "id", "justification"],
     description: "Delete records from the system. MANDATORY: Describe your intent in the chat message BEFORE calling this tool to ensure the user can read it clearly during approval.",
 };
+export const EXECUTE_ACTION_SCHEMA = {
+    type: "object",
+    properties: {
+        action_id: { type: "number", description: "Database ID of the ir.actions.server record to run. Find it with get_action or trace_ui_path." },
+        model: { type: "string", description: 'Technical name of the model the action runs against (e.g., "sale.order").' },
+        ids: { type: "string", description: 'JSON-serialized array of record IDs to run the action against, e.g. "[42, 43]". An empty set is refused unless allow_empty_recordset is set.' },
+        justification: { type: "string", description: "MANDATORY: Explain WHY this action must be run. Logged to the audit trail, ir.logging and each record's Chatter." },
+        dry_run: { type: "boolean", description: "Return the pre-flight report (full action tree, target records, safety classification) WITHOUT executing. Use this first when you have not run this action before." },
+        acknowledge_unsafe: { type: "boolean", description: "Required to run actions that execute arbitrary Python or send data outside Odoo (code, webhook, mail_post, sms). Explain the risk to the user before setting this." },
+        allow_empty_recordset: { type: "boolean", description: "Required to run an action against no specific record. Many actions fall back to acting on their entire scope when given nothing." },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
+    },
+    required: ["action_id", "model", "justification"],
+    description: "Run an existing Odoo server action against explicit records. A server action can contain arbitrary Python, so its effect is NOT knowable from its name: run with dry_run first to see the expanded action tree. Any follow-up action returned is inert data and is never executed for you. MANDATORY: Describe the action and its targets in the chat message BEFORE calling this tool so the user can read it clearly during approval.",
+};
+export const EXECUTE_METHOD_SCHEMA = {
+    type: "object",
+    properties: {
+        model: { type: "string", description: 'Technical name of the model (e.g., "sale.order").' },
+        method: { type: "string", description: 'The workflow method to call, i.e. a UI button such as "action_confirm", "action_post" or "button_validate". ORM primitives (write, create, unlink, read, search...) are refused — use the dedicated tool instead.' },
+        ids: { type: "string", description: 'JSON-serialized array of record IDs to call the method on, e.g. "[42, 43]".' },
+        kwargs: { type: "string", description: 'Optional JSON-serialized keyword arguments for the method, e.g. "{\\"context\\": {}}". Most workflow buttons need none.' },
+        justification: { type: "string", description: "MANDATORY: Explain WHY this method must be called. Logged to the audit trail, ir.logging and each record's Chatter." },
+        dry_run: { type: "boolean", description: "Return the pre-flight report (view-button evidence, target records, snapshot fields) WITHOUT executing." },
+        acknowledge_unsafe: { type: "boolean", description: "Required for methods outside the action_/button_/toggle_ naming convention." },
+        skip_view_validation: { type: "boolean", description: "Skip the check that the method is bound to a button in the model's views. Needed for conditionally rendered or runtime-injected buttons." },
+        allow_empty_recordset: { type: "boolean", description: "Required to call a method against no specific record." },
+        instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
+    },
+    required: ["model", "method", "justification"],
+    description: "Call a workflow button method on Odoo records (e.g. confirming a sales order, posting an invoice). Verified against the model's live view definitions before running. Any follow-up action returned is inert data and is never executed for you. MANDATORY: Describe the method and its targets in the chat message BEFORE calling this tool so the user can read it clearly during approval.",
+};
 export const LIST_REPORTS_SCHEMA = {
     type: "object",
     properties: {

@@ -535,6 +535,92 @@ export declare const UNLINK_RECORD_SCHEMA: {
     required: string[];
     description: string;
 };
+export declare const EXECUTE_ACTION_SCHEMA: {
+    type: string;
+    properties: {
+        action_id: {
+            type: string;
+            description: string;
+        };
+        model: {
+            type: string;
+            description: string;
+        };
+        ids: {
+            type: string;
+            description: string;
+        };
+        justification: {
+            type: string;
+            description: string;
+        };
+        dry_run: {
+            type: string;
+            description: string;
+        };
+        acknowledge_unsafe: {
+            type: string;
+            description: string;
+        };
+        allow_empty_recordset: {
+            type: string;
+            description: string;
+        };
+        instance_alias: {
+            type: string;
+            description: string;
+        };
+    };
+    required: string[];
+    description: string;
+};
+export declare const EXECUTE_METHOD_SCHEMA: {
+    type: string;
+    properties: {
+        model: {
+            type: string;
+            description: string;
+        };
+        method: {
+            type: string;
+            description: string;
+        };
+        ids: {
+            type: string;
+            description: string;
+        };
+        kwargs: {
+            type: string;
+            description: string;
+        };
+        justification: {
+            type: string;
+            description: string;
+        };
+        dry_run: {
+            type: string;
+            description: string;
+        };
+        acknowledge_unsafe: {
+            type: string;
+            description: string;
+        };
+        skip_view_validation: {
+            type: string;
+            description: string;
+        };
+        allow_empty_recordset: {
+            type: string;
+            description: string;
+        };
+        instance_alias: {
+            type: string;
+            description: string;
+        };
+    };
+    required: string[];
+    description: string;
+};
 export declare const LIST_REPORTS_SCHEMA: {
     type: string;
     properties: {

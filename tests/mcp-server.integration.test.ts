@@ -88,6 +88,25 @@ describe('MCP Server Integration', () => {
     expect(setupTool).toBeDefined();
     expect(setupTool.inputSchema.properties.alias.type).toBe('string');
 
+    // Irreversible/unbounded tools must advertise requiresUserInteraction, which
+    // forces Claude Code to prompt a human even in auto and bypassPermissions
+    // modes. Without it, execute_action's acknowledge_unsafe gate can be
+    // satisfied by the agent retrying its own refusal.
+    const MUST_PROMPT = ['unlink_record', 'execute_action'];
+    for (const name of MUST_PROMPT) {
+      const tool = tools.find((t: any) => t.name === name);
+      expect(tool, `${name} missing from tools/list`).toBeDefined();
+      expect(tool._meta?.['anthropic/requiresUserInteraction'], `${name} must require user interaction`).toBe(true);
+    }
+
+    // The annotation forces a prompt on every call, so it must stay off the
+    // routine tools or auto mode becomes unusable for ordinary data work.
+    for (const tool of tools) {
+      if (!MUST_PROMPT.includes(tool.name)) {
+        expect(tool._meta?.['anthropic/requiresUserInteraction'], `${tool.name} should not require user interaction`).toBeUndefined();
+      }
+    }
+
     // 4. Ensure NO pollution on stdout
     expect(stdoutData.trim().startsWith('{')).toBe(true);
     

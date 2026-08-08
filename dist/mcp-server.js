@@ -12,7 +12,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Read package.json for metadata
-let version = "2.0.1";
+let version = "2.1.0";
 try {
     // Try both possible locations (source vs bundled)
     const pkgPaths = [
@@ -131,6 +131,23 @@ const toolRegistry = {
         handler: tools.unlinkRecord,
         schema: schemas.UNLINK_RECORD_SCHEMA,
         description: "Delete records from the system.",
+        deps: 'manager',
+        // Irreversible. Must be confirmed by a person on every call.
+        requiresUserInteraction: true
+    },
+    execute_action: {
+        handler: tools.executeAction,
+        schema: schemas.EXECUTE_ACTION_SCHEMA,
+        description: "Run an existing Odoo server action against explicit records. Use dry_run first to expand the action tree.",
+        deps: 'manager',
+        // A server action can run arbitrary Python; the acknowledge_unsafe gate is
+        // only meaningful if a human sees the prompt.
+        requiresUserInteraction: true
+    },
+    execute_method: {
+        handler: tools.executeMethod,
+        schema: schemas.EXECUTE_METHOD_SCHEMA,
+        description: "Call a workflow button method on records (e.g. action_confirm). ORM primitives are refused; use the dedicated CRUD tools.",
         deps: 'manager'
     },
     list_reports: {
@@ -184,10 +201,13 @@ const toolRegistry = {
 };
 server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
-        tools: Object.entries(toolRegistry).map(([name, { description, schema }]) => ({
+        tools: Object.entries(toolRegistry).map(([name, { description, schema, requiresUserInteraction }]) => ({
             name,
             description,
             inputSchema: schema,
+            ...(requiresUserInteraction
+                ? { _meta: { 'anthropic/requiresUserInteraction': true } }
+                : {}),
         })),
     };
 });

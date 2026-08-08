@@ -5,7 +5,7 @@ import { InstanceManager } from '../services/instance-manager.js';
  * Includes pre-processing to handle single-item arrays.
  */
 export declare const SwitchInstanceSchema: z.ZodObject<{
-    alias: z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodString>;
+    alias: z.ZodPreprocess<z.ZodString>;
 }, z.core.$strip>;
 export type SwitchInstanceInput = z.infer<typeof SwitchInstanceSchema>;
 /**

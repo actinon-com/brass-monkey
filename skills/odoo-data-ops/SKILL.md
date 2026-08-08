@@ -50,6 +50,22 @@ If you make a mistake or are asked to "undo" a change:
 2. **Analyze:** Verify the current record state. Do not attempt a rollback if it violates Odoo's business logic (e.g., trying to revert an invoice that has since been paid).
 3. **Revert:** Use `write_record` to re-apply the old values from the snapshot, providing a justification like `"Reverting previous AI action: [Original Reason]"`.
 
+### 8. Workflow Transitions (`execute_method`)
+Business documents move through their lifecycle via **buttons**, not field writes. Confirming a
+quotation, posting an invoice or validating a transfer runs server-side logic that creates journal
+entries, reserves stock and fires automations.
+- **Mandate:** NEVER simulate a transition with `write_record` on the `state` field. Writing
+  `state = 'sale'` sets a string and skips every side effect, leaving the database inconsistent.
+  Use `execute_method` with the real button (`action_confirm`, `action_post`, `button_validate`).
+- **Discovery:** Find the button name with `get_view` (look for `<button type="object">` in the
+  form header) or `trace_ui_path`. The tool verifies your method against the live views anyway and
+  will refuse a name it cannot find.
+- **ORM primitives are refused.** `write`, `create`, `unlink`, `read` and `search` are not callable
+  here — that restriction exists so `execute_method` cannot bypass the snapshot and audit guards on
+  the dedicated CRUD tools. Use those tools instead.
+- **Inspect first:** pass `dry_run: true` to see the target records and the state fields that will
+  be captured, before committing.
+
 ### 7. Handling Relational Fields
 - **Many2one:** Pass the integer ID of the target record.
 - **X2many (One2many/Many2many):** Use command tuples:

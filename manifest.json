@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "brass-monkey",
   "display_name": "Brass-Monkey (Odoo)",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "High-fidelity, audited MCP bridge for Odoo ERP/CRM — multi-instance.",
   "long_description": "Brass-Monkey bridges Claude to Odoo ERP/CRM over XML-RPC with a cognitively optimized toolset: breadth-vs-depth search, 360° record dashboards, pruned menu/action navigation, and audited writes (every change captures a before-snapshot and logs a justification to Odoo's ir.logging and the record's Chatter). Configure your Odoo instance in the fields below, or leave them blank and run the `setup_instance` tool on first use. Note: the 30 domain skills ship with the Claude Code plugin, not this desktop bundle — the bundle provides the MCP tools only.",
   "author": { "name": "Actinon" },

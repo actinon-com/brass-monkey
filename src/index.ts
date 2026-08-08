@@ -4,6 +4,7 @@ export * from './services/instance-manager.js';
 export * from './services/config-store.js';
 export * from './services/credential-store.js';
 export * from './services/audit-service.js';
+export * from './services/execution-guard.js';
 
 export * from './services/response-pruner.js';
 export * from './services/metadata-cache.js';
@@ -24,6 +25,8 @@ export * from './tools/get_record.js';
 export * from './tools/create_record.js';
 export * from './tools/write_record.js';
 export * from './tools/unlink_record.js';
+export * from './tools/execute_action.js';
+export * from './tools/execute_method.js';
 export * from './tools/list_reports.js';
 export * from './tools/download_report.js';
 export * from './tools/download_file.js';
