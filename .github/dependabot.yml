@@ -48,6 +48,18 @@ updates:
         update-types: [ minor, patch ]
         exclude-patterns:
           - "@vercel/ncc"
+      # Security updates ignore every group above: a group without `applies-to`
+      # defaults to `version-updates`, so each open alert raised its own PR.
+      # That is how October produced ten separate PRs (fast-uri, vitest, MCP
+      # SDK, hono, vite, source-map-js, proxy-addr, ip-address, esbuild, qs)
+      # that had to be consolidated by hand in one roundup PR. This group
+      # bundles them into one PR per run. `@vercel/ncc` stays out for the same
+      # reason as above — a bundler change must be reviewed on its own.
+      security:
+        applies-to: security-updates
+        patterns: [ "*" ]
+        exclude-patterns:
+          - "@vercel/ncc"
 
   # Keeps `actions/checkout`, `actions/setup-node` etc. current. Worth having
   # even though only first-party actions are used today: it is the mechanism
