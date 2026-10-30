@@ -8,8 +8,8 @@ import { PreflightReport } from '../services/execution-guard.js';
 export declare const ExecuteMethodSchema: z.ZodObject<{
     model: z.ZodString;
     method: z.ZodString;
-    ids: z.ZodDefault<z.ZodOptional<z.ZodPreprocess<z.ZodArray<z.ZodCoercedNumber<unknown>>>>>;
-    kwargs: z.ZodDefault<z.ZodOptional<z.ZodPreprocess<z.ZodRecord<z.ZodString, z.ZodAny>>>>;
+    ids: z.ZodDefault<z.ZodOptional<z.ZodPreprocess<z.ZodArray<z.ZodCoercedNumber<unknown>>, unknown>>>;
+    kwargs: z.ZodDefault<z.ZodOptional<z.ZodPreprocess<z.ZodRecord<z.ZodString, z.ZodAny>, unknown>>>;
     justification: z.ZodString;
     dry_run: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     acknowledge_unsafe: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;

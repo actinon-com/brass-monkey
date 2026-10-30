@@ -2,11 +2,11 @@ import { z } from 'zod';
 import { ConfigStore } from '../services/config-store.js';
 import { CredentialStore } from '../services/credential-store.js';
 export declare const SetupInstanceSchema: z.ZodObject<{
-    alias: z.ZodPreprocess<z.ZodString>;
-    url: z.ZodOptional<z.ZodPreprocess<z.ZodString>>;
-    db: z.ZodOptional<z.ZodPreprocess<z.ZodString>>;
-    username: z.ZodOptional<z.ZodPreprocess<z.ZodString>>;
-    api_key: z.ZodOptional<z.ZodPreprocess<z.ZodString>>;
+    alias: z.ZodPreprocess<z.ZodString, unknown>;
+    url: z.ZodOptional<z.ZodPreprocess<z.ZodString, unknown>>;
+    db: z.ZodOptional<z.ZodPreprocess<z.ZodString, unknown>>;
+    username: z.ZodOptional<z.ZodPreprocess<z.ZodString, unknown>>;
+    api_key: z.ZodOptional<z.ZodPreprocess<z.ZodString, unknown>>;
 }, z.core.$strip>;
 export type SetupInstanceInput = z.infer<typeof SetupInstanceSchema>;
 /**
