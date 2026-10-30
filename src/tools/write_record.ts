@@ -16,7 +16,7 @@ export const WriteRecordSchema = z.object({
     return val;
   }, z.record(z.string(), z.any())).describe('A dictionary of fields to update.'),
   justification: z.string().min(1).describe('Business justification for the change.'),
-  with_translations: z.boolean().optional().default(false).describe("If True, translatable fields can be provided as strings (sync to all) or expanded lists."),
+  with_translations: z.boolean().optional().default(false).describe("If True, a plain string written to a translatable field is applied to ALL active languages, and a [{value, langs}] list targets specific ones; the result lists the languages written. Without this flag only the user's language changes and other languages keep their old text."),
   instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 
@@ -68,7 +68,7 @@ export async function writeRecord(manager: InstanceManager, input: WriteRecordIn
   }
 
   // 4. Execute the orchestrated write
-  const resultId = await orchestrator.applyBroadcastWrite(model, id, resolvedValues, transFieldNames);
+  const { id: resultId, languagesWritten, skipped } = await orchestrator.applyBroadcastWrite(model, id, resolvedValues, transFieldNames);
   const success = !!resultId;
 
   // 5. Audit and store reversibility context
@@ -79,5 +79,12 @@ export async function writeRecord(manager: InstanceManager, input: WriteRecordIn
     await audit.logSystemEvent(`Modified ${model}(${id}): ${justification}`);
   }
 
+  // Confirm which languages a translated write reached; plain writes keep the bare boolean
+  if (success && Object.keys(languagesWritten).length > 0) {
+    return {
+      success,
+      translations: { languages_written: languagesWritten, ...(Object.keys(skipped).length > 0 ? { skipped_inactive: skipped } : {}) }
+    };
+  }
   return success;
 }

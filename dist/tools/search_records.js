@@ -37,7 +37,7 @@ export const SearchRecordsSchema = z.object({
     limit: z.coerce.number().optional().describe('Maximum number of records to return (defaults to 10)'),
     offset: z.coerce.number().optional().describe('Number of records to skip (for pagination)'),
     order: z.string().optional().describe('Sort order (e.g., "id desc", "write_date desc")'),
-    with_translations: z.boolean().optional().default(false).describe("If True, translatable fields are enriched with their 'Forgiving' format."),
+    with_translations: z.boolean().optional().default(false).describe("If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only."),
     instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -103,6 +103,7 @@ export async function searchRecords(manager, input) {
         }
     }
     // 3. Translate if requested
+    let translationNote;
     if (with_translations && activeRecords.length > 0) {
         const orchestrator = new OdooOrchestrator(client);
         const transFieldRecs = await client.executeKw('ir.model.fields', 'search_read', [[
@@ -113,10 +114,11 @@ export async function searchRecords(manager, input) {
         const transFieldNames = transFieldRecs.map((f) => f.name);
         if (transFieldNames.length > 0) {
             const resIds = activeRecords.map((r) => r.id);
-            const matrix = await orchestrator.fetchTranslationMatrix(model, resIds, transFieldNames);
+            const { values, note } = await orchestrator.readTranslations(model, resIds, transFieldNames);
+            translationNote = note;
             for (const rec of activeRecords) {
-                if (matrix[rec.id]) {
-                    Object.assign(rec, matrix[rec.id]);
+                if (values[rec.id]) {
+                    Object.assign(rec, values[rec.id]);
                 }
             }
         }
@@ -136,6 +138,7 @@ export async function searchRecords(manager, input) {
         offset: targetOffset,
         limit: targetLimit,
         ...(advice.length > 0 ? { optimization_advice: advice } : {}),
+        ...(translationNote ? { translations: translationNote } : {}),
         leads: activeRecords.reduce((acc, r) => {
             acc[String(r.id)] = r.display_name || r.name || `ID ${r.id}`;
             return acc;

@@ -85,11 +85,13 @@ Odoo *can be* a multi-company environment, but many instances are single-company
 - **Correct Pattern:** If you need to "switch" companies for a query, simply use the `company_id` domain filter.
 
 ### 9. Orchestrated Translations (Forgiving Format)
-Odoo supports multi-language fields (marked as `translatable` in `inspect_model`). Brass-Monkey handles the complexity of these fields for you:
-- **Enabling Matrix:** Set `with_translations: true` in `search_records` to see all translations.
-- **The Matrix Format:** Translatable fields will return an array of objects if values diverge: `[{"value": "My Product", "langs": []}, {"value": "Mon Produit", "langs": ["fr_FR"]}]`.
-- **Broadcast Writing:** If you provide a simple string to a translatable field (e.g., `"name": "New Name"`), the server automatically syncs it across ALL active languages.
-- **Targeted Writing:** You can provide the expanded array format to `write_record` to update specific languages.
+Odoo supports multi-language fields (marked as `translatable` in `inspect_model`). Brass-Monkey handles them **only when you set `with_translations: true`**. Without the flag you read and write the user's language alone.
+- **Reading:** `search_records`, `get_record` and `get_records` all accept `with_translations: true`.
+- **The Matrix Format:** A **plain value** means the field is identical in every active language. A **list** means the languages differ: `[{"value": "My Product", "langs": []}, {"value": "Mon Produit", "langs": ["fr_FR"]}]`. The entry with empty `langs` is the fallback for every language not listed.
+- **The `translations` note:** Read results carry a note (`translations` on `search_records`, `_translations` on `get_record`/`get_records`) listing the active languages. If it holds an `error`, the translations were **not** fetched, so the values are in the user's language only. Do not conclude that the languages match or differ.
+- **Broadcast Writing:** With `with_translations: true`, a plain string written to a translatable field (e.g. `"name": "New Name"`) is applied to ALL active languages. **Without the flag, only the user's language changes and the others keep their old text, with no warning.**
+- **Targeted Writing:** With the flag, pass the list format to `write_record`/`create_record` to set specific languages.
+- **Confirmation:** A translated write returns `translations.languages_written` per field. Requested languages that are not active appear under `skipped_inactive`.
 
 ### 10. System Vandalism Warning
 You are an AI agent with high-level access. You must NEVER:

@@ -11663,8 +11663,31 @@ module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("url");
 
 
 
-const { normalizeIPv6, removeDotSegments, recomposeAuthority, normalizePercentEncoding, normalizePathEncoding, escapePreservingEscapes, reescapeHostDelimiters, isIPv4, nonSimpleDomain } = __nccwpck_require__(5077)
+const { normalizeIPv6, removeDotSegments, removeDotSegmentsRelative, recomposeAuthority, normalizePercentEncoding, normalizePathEncoding, serializePathEncoding, normalizeQueryFragmentEncoding, encodeQuery, encodeFragment, reescapeHostDelimiters, isIPv4, nonSimpleDomain } = __nccwpck_require__(5077)
 const { SCHEMES, getSchemeHandler } = __nccwpck_require__(5300)
+
+const VALID_SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*$/u
+const MALFORMED_SCHEME_ERROR = 'URI scheme is malformed.'
+const MALFORMED_HOST_ERROR = 'URI host is malformed.'
+// ASCII characters outside the RFC 3986 reg-name set (unreserved, sub-delims
+// and "%" for pct-encoded): C0 controls, space, DEL, and "#/:<>?@[\]^`{|}.
+const FORBIDDEN_DOMAIN_HOST_CHARACTER = /[\0-\x20"#/:<>?@[\\\]^`{|}\x7F]/u
+
+/**
+ * RFC 3986 section 3.1 does not allow percent-encoding in a scheme, so the
+ * scheme is validated as-is and never decoded. Decoding would let inert input
+ * such as `%6Aavascript:` become a live `javascript:` scheme.
+ *
+ * @param {string} scheme
+ * @returns {string}
+ */
+function validateScheme (scheme) {
+  const stringScheme = String(scheme)
+  if (!VALID_SCHEME.test(stringScheme)) {
+    throw new TypeError(MALFORMED_SCHEME_ERROR)
+  }
+  return stringScheme
+}
 
 /**
  * @template {import('./types/index').URIComponent|string} T
@@ -11689,12 +11712,56 @@ function normalize (uri, options) {
  */
 function resolve (baseURI, relativeURI, options) {
   const schemelessOptions = options ? Object.assign({ scheme: 'null' }, options) : { scheme: 'null' }
-  const { parsed: baseParsed, malformedAuthorityOrPort: baseMalformed } = parseWithStatus(baseURI, schemelessOptions)
-  const { parsed: relativeParsed, malformedAuthorityOrPort: relativeMalformed } = parseWithStatus(relativeURI, schemelessOptions)
-  if (baseMalformed || relativeMalformed) {
+  const {
+    parsed: baseParsed,
+    malformedAuthorityOrPort: baseMalformed,
+    malformedPercentEncoding: baseMalformedPercentEncoding,
+    malformedSchemeSpecific: baseMalformedSchemeSpecific,
+    malformedHost: baseMalformedHost,
+    malformedScheme: baseMalformedScheme
+  } = parseWithStatus(baseURI, schemelessOptions)
+  const {
+    parsed: relativeParsed,
+    malformedAuthorityOrPort: relativeMalformed,
+    malformedPercentEncoding: relativeMalformedPercentEncoding,
+    malformedSchemeSpecific: relativeMalformedSchemeSpecific,
+    malformedHost: relativeMalformedHost,
+    malformedScheme: relativeMalformedScheme
+  } = parseWithStatus(relativeURI, schemelessOptions)
+  if (
+    baseMalformed ||
+    relativeMalformed ||
+    baseMalformedPercentEncoding ||
+    relativeMalformedPercentEncoding ||
+    baseMalformedSchemeSpecific ||
+    relativeMalformedSchemeSpecific ||
+    baseMalformedHost ||
+    relativeMalformedHost ||
+    baseMalformedScheme ||
+    relativeMalformedScheme
+  ) {
     throw new Error(baseParsed.error || relativeParsed.error || 'URI is malformed.')
   }
   const resolved = resolveComponent(baseParsed, relativeParsed, schemelessOptions, true)
+  const resolvedSchemeHandler = getSchemeHandler((options && options.scheme) || resolved.scheme)
+  const resolvedHost = resolved.host
+  const resolvedHostIsIP = resolvedHost !== undefined && resolvedHost !== '' &&
+    (isIPv4(resolvedHost) || normalizeIPv6(resolvedHost).isIPV6)
+  // Inputs are parsed scheme-neutrally, so delimiters and controls in a domain
+  // host are only detected here, once the final scheme is known. They always
+  // fail closed, including in percent-encoded hosts.
+  if (hasForbiddenDomainHost(resolved, options || {}, resolvedSchemeHandler, resolvedHostIsIP)) {
+    throw new Error(MALFORMED_HOST_ERROR)
+  }
+  canonicalizeHost(resolved, options || {}, resolvedSchemeHandler, resolvedHostIsIP)
+  // Percent escapes in an ASCII reg-name are encoded data. The WHATWG hostname
+  // parser can reject them even though fast-uri preserves them safely as RFC
+  // 3986 data. A raw non-ASCII host must still fail closed if conversion fails.
+  const encodedASCIIHost = resolvedHost && resolvedHost.indexOf('%') !== -1 &&
+    !/\P{ASCII}/u.test(resolvedHost)
+  if (resolved.error && !encodedASCIIHost) {
+    throw new Error(resolved.error)
+  }
   schemelessOptions.skipEscape = true
   return serialize(resolved, schemelessOptions)
 }
@@ -11743,14 +11810,17 @@ function resolveComponent (base, relative, options, skipNormalization) {
         if (relative.path[0] === '/') {
           target.path = removeDotSegments(relative.path)
         } else {
-          if ((base.userinfo !== undefined || base.host !== undefined || base.port !== undefined) && !base.path) {
+          const baseHasAuthority = base.userinfo !== undefined || base.host !== undefined || base.port !== undefined
+          if (baseHasAuthority && !base.path) {
             target.path = '/' + relative.path
           } else if (!base.path) {
             target.path = relative.path
           } else {
             target.path = base.path.slice(0, base.path.lastIndexOf('/') + 1) + relative.path
           }
-          target.path = removeDotSegments(target.path)
+          target.path = base.scheme === undefined && !baseHasAuthority && target.path[0] !== '/'
+            ? removeDotSegmentsRelative(target.path)
+            : removeDotSegments(target.path)
         }
         target.query = relative.query
       }
@@ -11777,7 +11847,7 @@ function equal (uriA, uriB, options) {
   const normalizedA = normalizeComparableURI(uriA, options)
   const normalizedB = normalizeComparableURI(uriB, options)
 
-  return normalizedA !== undefined && normalizedB !== undefined && normalizedA.toLowerCase() === normalizedB.toLowerCase()
+  return normalizedA !== undefined && normalizedB !== undefined && normalizedA === normalizedB
 }
 
 /**
@@ -11805,25 +11875,34 @@ function serialize (cmpts, opts) {
   const options = Object.assign({}, opts)
   const uriTokens = []
 
+  if (component.scheme) {
+    component.scheme = validateScheme(component.scheme)
+  }
+
   // find scheme handler
   const schemeHandler = getSchemeHandler(options.scheme || component.scheme)
 
   // perform scheme specific serialization
   if (schemeHandler && schemeHandler.serialize) schemeHandler.serialize(component, options)
 
+  const hasAuthority = component.userinfo !== undefined || component.host !== undefined || component.port !== undefined
+  // A reference with no emitted scheme is path-noscheme: a bare ':' in its
+  // first path segment would reparse as a scheme (RFC 3986 3.3/4.2). Enforced
+  // under skipEscape too (resolve()), so the reapply below gates on this flag.
+  const schemelessReference = (component.scheme === undefined || options.reference === 'suffix') && !hasAuthority
+  const pathNoScheme = !options.skipEscape && schemelessReference
+
   if (component.path !== undefined) {
     if (!options.skipEscape) {
-      component.path = escapePreservingEscapes(component.path)
-
-      if (component.scheme !== undefined) {
-        component.path = component.path.split('%3A').join(':')
-      }
+      component.path = serializePathEncoding(component.path, pathNoScheme)
     } else {
       component.path = normalizePercentEncoding(component.path)
     }
   }
 
   if (options.reference !== 'suffix' && component.scheme) {
+    // Scheme handlers may replace the scheme during serialization.
+    component.scheme = validateScheme(component.scheme)
     uriTokens.push(component.scheme, ':')
   }
 
@@ -11843,7 +11922,19 @@ function serialize (cmpts, opts) {
     let s = component.path
 
     if (!options.absolutePath && (!schemeHandler || !schemeHandler.absolutePath)) {
-      s = removeDotSegments(s)
+      // A relative-path reference keeps its unresolvable leading ".." segments
+      // and must never become root-relative (RFC 3986 section 5.2.4 applies to
+      // merged target paths, not to the reference itself).
+      s = schemelessReference && s[0] !== '/'
+        ? removeDotSegmentsRelative(s)
+        : removeDotSegments(s)
+    }
+
+    // Dot-segment removal can expose a colon that was not originally in the
+    // first segment (for example, "./a:b"). Reapply path-noscheme encoding so
+    // the serialized relative reference cannot be reparsed as a URI scheme.
+    if (schemelessReference) {
+      s = serializePathEncoding(s, true)
     }
 
     if (
@@ -11859,11 +11950,11 @@ function serialize (cmpts, opts) {
   }
 
   if (component.query !== undefined) {
-    uriTokens.push('?', component.query)
+    uriTokens.push('?', encodeQuery(component.query))
   }
 
   if (component.fragment !== undefined) {
-    uriTokens.push('#', component.fragment)
+    uriTokens.push('#', encodeFragment(component.fragment))
   }
   return uriTokens.join('')
 }
@@ -11901,9 +11992,136 @@ function getParseError (parsed, matches) {
 }
 
 /**
+ * Checks percent syntax without decoding the represented octets. RFC 3986
+ * percent-encoding is byte-oriented, so sequences such as `%FF` are valid even
+ * though they are not independently valid UTF-8.
+ *
+ * @param {string|undefined} component
+ * @returns {boolean}
+ */
+function hasMalformedPercentEncoding (component) {
+  if (component === undefined) return false
+
+  let percent = component.indexOf('%')
+  while (percent !== -1) {
+    if (percent + 2 >= component.length || !/^[\da-f]{2}$/iu.test(component.slice(percent + 1, percent + 3))) {
+      return true
+    }
+    percent = component.indexOf('%', percent + 3)
+  }
+
+  return false
+}
+
+/**
+ * Whether the host is a bracketed IP literal (RFC 3986 `IP-literal`).
+ * An unterminated `[` is not a literal, so it must still be validated as a
+ * reg-name instead of being waved through as an IP.
+ *
+ * @param {string} host
+ * @returns {boolean}
+ */
+function isIPLiteral (host) {
+  return host[0] === '[' && host[host.length - 1] === ']'
+}
+
+/**
+ * @param {RegExpMatchArray} matches
+ * @returns {boolean}
+ */
+function hasMalformedComponentPercentEncoding (matches) {
+  // Bracketed IP literals use a raw "%" as the zone separator for historical
+  // compatibility. Their parsing is intentionally left to normalizeIPv6.
+  const host = matches[4]
+  return hasMalformedPercentEncoding(matches[3]) ||
+    (host !== undefined && !isIPLiteral(host) && hasMalformedPercentEncoding(host)) ||
+    hasMalformedPercentEncoding(matches[6]) ||
+    hasMalformedPercentEncoding(matches[7]) ||
+    hasMalformedPercentEncoding(matches[8])
+}
+
+/**
+ * @param {import('./types/index').URIComponent} parsed
+ * @param {import('./types/index').Options} options
+ * @param {{ domainHost?: boolean, unicodeSupport?: boolean }|undefined} schemeHandler
+ * @param {boolean} isIP
+ * @returns {boolean} whether host conversion failed
+ */
+function canonicalizeHost (parsed, options, schemeHandler, isIP) {
+  if (hasForbiddenDomainHost(parsed, options, schemeHandler, isIP)) {
+    parsed.error = parsed.error || MALFORMED_HOST_ERROR
+    return true
+  }
+
+  if (
+    !options.unicodeSupport &&
+    (!schemeHandler || !schemeHandler.unicodeSupport) &&
+    parsed.host &&
+    !isIPLiteral(parsed.host) &&
+    (options.domainHost || (schemeHandler && schemeHandler.domainHost)) &&
+    isIP === false &&
+    nonSimpleDomain(parsed.host)
+  ) {
+    let url
+    try {
+      url = new URL('http://' + parsed.host)
+    } catch (e) {
+      parsed.error = parsed.error || "Host's domain name can not be converted to ASCII: " + e
+      return true
+    }
+    // The WHATWG parser must have read the whole input as a host. Anything
+    // else means it found a delimiter fast-uri did not, so its hostname would
+    // describe a different authority.
+    if (!isHostOnlyURL(url)) {
+      parsed.error = parsed.error || MALFORMED_HOST_ERROR
+      return true
+    }
+    parsed.host = url.hostname
+  }
+  return false
+}
+
+/**
+ * Whether a domain host contains an ASCII character that RFC 3986 does not
+ * allow in a reg-name (unreserved, sub-delims, or pct-encoded). Such a host is
+ * rejected instead of being handed to the WHATWG URL parser, which would treat
+ * "@" as a userinfo delimiter (silently dropping the data before it) and strip
+ * TAB, LF, and CR. Non-ASCII characters remain allowed for IDNs.
+ *
+ * @param {import('./types/index').URIComponent} parsed
+ * @param {import('./types/index').Options} options
+ * @param {{ domainHost?: boolean }|undefined} schemeHandler
+ * @param {boolean} isIP
+ * @returns {boolean}
+ */
+function hasForbiddenDomainHost (parsed, options, schemeHandler, isIP) {
+  return Boolean(
+    parsed.host &&
+    isIP === false &&
+    !isIPLiteral(parsed.host) &&
+    (options.domainHost || (schemeHandler && schemeHandler.domainHost)) &&
+    FORBIDDEN_DOMAIN_HOST_CHARACTER.test(parsed.host)
+  )
+}
+
+/**
+ * @param {URL} url
+ * @returns {boolean}
+ */
+function isHostOnlyURL (url) {
+  return url.username === '' &&
+    url.password === '' &&
+    url.port === '' &&
+    url.pathname === '/' &&
+    url.search === '' &&
+    url.hash === '' &&
+    url.hostname !== ''
+}
+
+/**
  * @param {string} uri
  * @param {import('./types/index').Options} [opts]
- * @returns {{ parsed: import('./types/index').URIComponent, malformedAuthorityOrPort: boolean }}
+ * @returns {{ parsed: import('./types/index').URIComponent, malformedAuthorityOrPort: boolean, malformedPercentEncoding: boolean, malformedSchemeSpecific: boolean, malformedHost: boolean, malformedScheme: boolean }}
  */
 function parseWithStatus (uri, opts) {
   const options = Object.assign({}, opts)
@@ -11919,6 +12137,11 @@ function parseWithStatus (uri, opts) {
   }
 
   let malformedAuthorityOrPort = false
+  let malformedPercentEncoding = false
+  let malformedSchemeSpecific = false
+  let malformedHost = false
+  let malformedIPLiteral = false
+  let malformedScheme = false
 
   let isIP = false
   if (options.reference === 'suffix') {
@@ -11976,6 +12199,20 @@ function parseWithStatus (uri, opts) {
     parsed.query = matches[7]
     parsed.fragment = matches[8]
 
+    if (parsed.scheme !== undefined) {
+      if (VALID_SCHEME.test(parsed.scheme)) {
+        parsed.scheme = parsed.scheme.toLowerCase()
+      } else {
+        parsed.error = parsed.error || MALFORMED_SCHEME_ERROR
+        malformedScheme = true
+      }
+    }
+
+    malformedPercentEncoding = hasMalformedComponentPercentEncoding(matches)
+    if (malformedPercentEncoding) {
+      parsed.error = parsed.error || 'URI contains malformed percent-encoding.'
+    }
+
     // fix port number
     if (isNaN(parsed.port)) {
       parsed.port = matches[5]
@@ -11990,9 +12227,17 @@ function parseWithStatus (uri, opts) {
     if (parsed.host) {
       const ipv4result = isIPv4(parsed.host)
       if (ipv4result === false) {
+        const bracketedIPLiteral = isIPLiteral(parsed.host)
+        const hasIPLiteralBracket = parsed.host.indexOf('[') !== -1 || parsed.host.indexOf(']') !== -1
         const ipv6result = normalizeIPv6(parsed.host)
-        parsed.host = ipv6result.host.toLowerCase()
-        isIP = ipv6result.isIPV6
+        isIP = ipv6result.isIPV6 || ipv6result.isIPVFuture === true
+        malformedIPLiteral = hasIPLiteralBracket && (!bracketedIPLiteral || ipv6result.error === true)
+        parsed.host = isIP ? ipv6result.host : ipv6result.host.toLowerCase()
+
+        if (malformedIPLiteral) {
+          parsed.error = parsed.error || MALFORMED_HOST_ERROR
+          malformedAuthorityOrPort = true
+        }
       } else {
         isIP = true
       }
@@ -12015,49 +12260,48 @@ function parseWithStatus (uri, opts) {
     // find scheme handler
     const schemeHandler = getSchemeHandler(options.scheme || parsed.scheme)
 
-    // check if scheme can't handle IRIs
-    if (!options.unicodeSupport && (!schemeHandler || !schemeHandler.unicodeSupport)) {
-      // if host component is a domain name
-      if (parsed.host && (options.domainHost || (schemeHandler && schemeHandler.domainHost)) && isIP === false && nonSimpleDomain(parsed.host)) {
-        // convert Unicode IDN -> ASCII IDN
-        try {
-          parsed.host = new URL('http://' + parsed.host).hostname
-        } catch (e) {
-          parsed.error = parsed.error || "Host's domain name can not be converted to ASCII: " + e
-        }
+    // convert Unicode IDN -> ASCII IDN when the effective scheme uses domain hosts
+    if (!malformedIPLiteral) {
+      malformedHost = canonicalizeHost(parsed, options, schemeHandler, isIP)
+    }
+
+    if (uri.indexOf('%') !== -1 && parsed.host !== undefined && !malformedIPLiteral) {
+      let host = isIP ? parsed.host : normalizePercentEncoding(parsed.host, true)
+      if (!isIP) {
+        // Fold reg-name case after decoding unreserved octets. The second
+        // pass only restores uppercase hex in escapes that remain encoded.
+        host = normalizePercentEncoding(host.toLowerCase())
       }
-      // convert IRI -> URI
+      // Resolution parses both inputs with the internal `null` scheme before
+      // the effective scheme is known. Keep raw host delimiters for that step
+      // so resolve() can reject them for domain-host schemes; the resolved
+      // authority is encoded when it is serialized.
+      parsed.host = isIP || options.scheme !== 'null' ? reescapeHostDelimiters(host, isIP) : host
     }
 
     if (!schemeHandler || (schemeHandler && !schemeHandler.skipNormalize)) {
-      if (uri.indexOf('%') !== -1) {
-        if (parsed.scheme !== undefined) {
-          parsed.scheme = unescape(parsed.scheme)
-        }
-        if (parsed.host !== undefined) {
-          parsed.host = reescapeHostDelimiters(unescape(parsed.host), isIP)
-        }
-      }
       if (parsed.path) {
         parsed.path = normalizePathEncoding(parsed.path)
       }
+      if (parsed.query) {
+        parsed.query = normalizeQueryFragmentEncoding(parsed.query)
+      }
       if (parsed.fragment) {
-        try {
-          parsed.fragment = encodeURI(decodeURIComponent(parsed.fragment))
-        } catch {
-          parsed.error = parsed.error || 'URI malformed'
-        }
+        parsed.fragment = normalizeQueryFragmentEncoding(parsed.fragment)
       }
     }
 
     // perform scheme specific parsing
     if (schemeHandler && schemeHandler.parse) {
       schemeHandler.parse(parsed, options)
+      if (schemeHandler === SCHEMES.urn && parsed.nid === undefined) {
+        malformedSchemeSpecific = true
+      }
     }
   } else {
     parsed.error = parsed.error || 'URI can not be parsed.'
   }
-  return { parsed, malformedAuthorityOrPort }
+  return { parsed, malformedAuthorityOrPort, malformedPercentEncoding, malformedSchemeSpecific, malformedHost, malformedScheme }
 }
 
 /**
@@ -12081,13 +12325,17 @@ function normalizeString (uri, opts) {
 /**
  * @param {string} uri
  * @param {import('./types/index').Options} [opts]
- * @returns {{ normalized: string, malformedAuthorityOrPort: boolean }}
+ * @returns {{ normalized: string, malformedAuthorityOrPort: boolean, malformedPercentEncoding: boolean, malformedSchemeSpecific: boolean, malformedHost: boolean, malformedScheme: boolean }}
  */
 function normalizeStringWithStatus (uri, opts) {
-  const { parsed, malformedAuthorityOrPort } = parseWithStatus(uri, opts)
+  const { parsed, malformedAuthorityOrPort, malformedPercentEncoding, malformedSchemeSpecific, malformedHost, malformedScheme } = parseWithStatus(uri, opts)
   return {
-    normalized: malformedAuthorityOrPort ? uri : serialize(parsed, opts),
-    malformedAuthorityOrPort
+    normalized: malformedAuthorityOrPort || malformedPercentEncoding || malformedSchemeSpecific || malformedHost || malformedScheme ? uri : serialize(parsed, opts),
+    malformedAuthorityOrPort,
+    malformedPercentEncoding,
+    malformedSchemeSpecific,
+    malformedHost,
+    malformedScheme
   }
 }
 
@@ -12097,14 +12345,18 @@ function normalizeStringWithStatus (uri, opts) {
  * @returns {string|undefined}
  */
 function normalizeComparableURI (uri, opts) {
-  if (typeof uri === 'string') {
-    const { normalized, malformedAuthorityOrPort } = normalizeStringWithStatus(uri, opts)
-    return malformedAuthorityOrPort ? undefined : normalized
+  if (typeof uri !== 'string' && typeof uri !== 'object') {
+    return undefined
   }
 
-  if (typeof uri === 'object') {
-    return serialize(uri, opts)
+  let value
+  try {
+    value = typeof uri === 'string' ? uri : serialize(uri, opts)
+  } catch {
+    return undefined
   }
+  const { normalized, malformedAuthorityOrPort, malformedPercentEncoding, malformedSchemeSpecific, malformedHost, malformedScheme } = normalizeStringWithStatus(value, opts)
+  return malformedAuthorityOrPort || malformedPercentEncoding || malformedSchemeSpecific || malformedHost || malformedScheme ? undefined : normalized
 }
 
 const fastUri = {
@@ -12130,7 +12382,7 @@ module.exports.fastUri = fastUri
 
 
 const { isUUID } = __nccwpck_require__(5077)
-const URN_REG = /([\da-z][\d\-a-z]{0,31}):((?:[\w!$'()*+,\-.:;=@]|%[\da-f]{2})+)/iu
+const URN_REG = /^([\da-z][\d\-a-z]{0,31}):((?:[\w!$'()*+,\-./:;=@]|%[\da-f]{2})+)$/iu
 
 const supportedSchemeNames = /** @type {const} */ (['http', 'https', 'ws',
   'wss', 'urn', 'urn:uuid'])
@@ -12242,9 +12494,14 @@ function wsSerialize (wsComponent) {
 
   // reconstruct path from resource name
   if (wsComponent.resourceName) {
-    const [path, query] = wsComponent.resourceName.split('?')
+    const queryIndex = wsComponent.resourceName.indexOf('?')
+    const path = queryIndex === -1
+      ? wsComponent.resourceName
+      : wsComponent.resourceName.slice(0, queryIndex)
     wsComponent.path = (path && path !== '/' ? path : undefined)
-    wsComponent.query = query
+    wsComponent.query = queryIndex === -1
+      ? undefined
+      : wsComponent.resourceName.slice(queryIndex + 1)
     wsComponent.resourceName = undefined
   }
 
@@ -12261,7 +12518,7 @@ function urnParse (urnComponent, options) {
     return urnComponent
   }
   const matches = urnComponent.path.match(URN_REG)
-  if (matches) {
+  if (matches && matches[0] === urnComponent.path) {
     const scheme = options.scheme || urnComponent.scheme || 'urn'
     urnComponent.nid = matches[1].toLowerCase()
     urnComponent.nss = matches[2]
@@ -12410,13 +12667,45 @@ const isUUID = RegExp.prototype.test.bind(/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\d
 const isIPv4 = RegExp.prototype.test.bind(/^(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)$/u)
 
 /** @type {(value: string) => boolean} */
+const isPort = RegExp.prototype.test.bind(/^\d*$/u)
+
+/** @type {(value: string) => boolean} */
 const isHexPair = RegExp.prototype.test.bind(/^[\da-f]{2}$/iu)
 
 /** @type {(value: string) => boolean} */
 const isUnreserved = RegExp.prototype.test.bind(/^[\da-z\-._~]$/iu)
 
 /** @type {(value: string) => boolean} */
-const isPathCharacter = RegExp.prototype.test.bind(/^[\da-z\-._~!$&'()*+,;=:@/]$/iu)
+const isPathCharacter = RegExp.prototype.test.bind(/^[A-Za-z0-9\-._~!$&'()*+,;=:@/]$/u)
+
+/** @type {(value: string) => boolean} */
+const isQueryFragmentCharacter = RegExp.prototype.test.bind(/^[A-Za-z0-9\-._~!$&'()*+,;=:@/?]$/u)
+
+/** @type {(value: string) => boolean} */
+const isUserinfoCharacter = RegExp.prototype.test.bind(/^[A-Za-z0-9\-._~!$&'()*+,;=:]$/u)
+
+const BYTE_HEX = new Array(256)
+{
+  const HEX_DIGITS = '0123456789ABCDEF'
+  for (let i = 0; i < 256; i++) {
+    BYTE_HEX[i] = '%' + HEX_DIGITS[i >> 4] + HEX_DIGITS[i & 0xF]
+  }
+}
+function percentEncodeNonAscii (cp) {
+  if (cp < 0x800) {
+    return BYTE_HEX[0xC0 | (cp >> 6)] +
+           BYTE_HEX[0x80 | (cp & 0x3F)]
+  }
+  if (cp < 0x10000) {
+    return BYTE_HEX[0xE0 | (cp >> 12)] +
+           BYTE_HEX[0x80 | ((cp >> 6) & 0x3F)] +
+           BYTE_HEX[0x80 | (cp & 0x3F)]
+  }
+  return BYTE_HEX[0xF0 | (cp >> 18)] +
+         BYTE_HEX[0x80 | ((cp >> 12) & 0x3F)] +
+         BYTE_HEX[0x80 | ((cp >> 6) & 0x3F)] +
+         BYTE_HEX[0x80 | (cp & 0x3F)]
+}
 
 /**
  * @param {Array<string>} input
@@ -12449,12 +12738,14 @@ function stringArrayToHexStripped (input) {
   return acc
 }
 
-/**
- * @typedef {Object} GetIPV6Result
- * @property {boolean} error - Indicates if there was an error parsing the IPv6 address.
- * @property {string} address - The parsed IPv6 address.
- * @property {string} [zone] - The zone identifier, if present.
- */
+/** @type {(value: string) => boolean} */
+const isHextet = RegExp.prototype.test.bind(/^[\dA-Fa-f]{1,4}$/)
+
+/** @type {(value: string) => boolean} */
+const isIPvFuture = RegExp.prototype.test.bind(/^[vV][\dA-Fa-f]+\.[A-Za-z\d\-._~!$&'()*+,;=:]+$/)
+
+/** @type {(value: string) => boolean} */
+const isZoneCharacter = RegExp.prototype.test.bind(/^[A-Za-z\d\-._~]$/)
 
 /**
  * @param {string} value
@@ -12463,88 +12754,104 @@ function stringArrayToHexStripped (input) {
 const nonSimpleDomain = RegExp.prototype.test.bind(/[^!"$&'()*+,\-.;=_`a-z{}~]/u)
 
 /**
- * @param {Array<string>} buffer
+ * @param {string} zone
  * @returns {boolean}
  */
-function consumeIsZone (buffer) {
-  buffer.length = 0
-  return true
-}
+function isZoneIdentifier (zone) {
+  if (zone.length === 0) return false
 
-/**
- * @param {Array<string>} buffer
- * @param {Array<string>} address
- * @param {GetIPV6Result} output
- * @returns {boolean}
- */
-function consumeHextets (buffer, address, output) {
-  if (buffer.length) {
-    const hex = stringArrayToHexStripped(buffer)
-    if (hex !== '') {
-      address.push(hex)
-    } else {
-      output.error = true
-      return false
+  for (let i = 0; i < zone.length; i++) {
+    if (isZoneCharacter(zone[i])) continue
+    if (zone[i] === '%' && i + 2 < zone.length && isHexPair(zone.slice(i + 1, i + 3))) {
+      i += 2
+      continue
     }
-    buffer.length = 0
+    return false
   }
+
   return true
 }
 
 /**
+ * Compresses the longest run of zero hextets to "::" per RFC 5952. A run of a
+ * single zero hextet is left uncompressed. On ties the leftmost run wins.
+ *
+ * @param {string[]} hextets
+ * @returns {string}
+ */
+function compressIPv6ZeroRun (hextets) {
+  let bestStart = -1
+  let bestLength = 0
+  let runStart = -1
+  let runLength = 0
+  for (let i = 0; i < hextets.length; i++) {
+    if (hextets[i] === '0') {
+      if (runStart === -1) runStart = i
+      runLength++
+      if (runLength > bestLength) {
+        bestLength = runLength
+        bestStart = runStart
+      }
+    } else {
+      runStart = -1
+      runLength = 0
+    }
+  }
+
+  if (bestLength < 2) return hextets.join(':')
+
+  const head = hextets.slice(0, bestStart).join(':')
+  const tail = hextets.slice(bestStart + bestLength).join(':')
+  return head + '::' + tail
+}
+
+/**
+ * Validates an IPv6 address against the alternatives in RFC 3986 section
+ * 3.2.2 and returns the same address with leading hextet zeroes removed.
+ * An embedded IPv4 address counts as two hextets and is only valid at the end.
+ *
  * @param {string} input
- * @returns {GetIPV6Result}
+ * @returns {string|undefined}
  */
-function getIPV6 (input) {
-  let tokenCount = 0
-  const output = { error: false, address: '', zone: '' }
-  /** @type {Array<string>} */
-  const address = []
-  /** @type {Array<string>} */
-  const buffer = []
-  let endipv6Encountered = false
-  let endIpv6 = false
+function normalizeIPv6Address (input) {
+  const compression = input.indexOf('::')
+  if (compression !== -1 && input.indexOf('::', compression + 1) !== -1) return undefined
 
-  let consume = consumeHextets
+  const left = compression === -1 ? input.split(':') : input.slice(0, compression).split(':')
+  const right = compression === -1 ? [] : input.slice(compression + 2).split(':')
+  if (compression !== -1) {
+    if (left.length === 1 && left[0] === '') left.length = 0
+    if (right.length === 1 && right[0] === '') right.length = 0
+  }
 
-  for (let i = 0; i < input.length; i++) {
-    const cursor = input[i]
-    if (cursor === '[' || cursor === ']') { continue }
-    if (cursor === ':') {
-      if (endipv6Encountered === true) {
-        endIpv6 = true
-      }
-      if (!consume(buffer, address, output)) { break }
-      if (++tokenCount > 7) {
-        // not valid
-        output.error = true
-        break
-      }
-      if (i > 0 && input[i - 1] === ':') {
-        endipv6Encountered = true
-      }
-      address.push(':')
-      continue
-    } else if (cursor === '%') {
-      if (!consume(buffer, address, output)) { break }
-      // switch to zone detection
-      consume = consumeIsZone
-    } else {
-      buffer.push(cursor)
+  const parts = left.concat(right)
+  let hextetCount = 0
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]
+    if (part === '') return undefined
+
+    if (part.indexOf('.') !== -1) {
+      if (i !== parts.length - 1 || (compression !== -1 && right.length === 0) || !isIPv4(part)) return undefined
+      hextetCount += 2
       continue
     }
+
+    if (!isHextet(part)) return undefined
+    parts[i] = parseInt(part, 16).toString(16)
+    hextetCount++
   }
-  if (buffer.length) {
-    if (consume === consumeIsZone) {
-      output.zone = buffer.join('')
-    } else if (endIpv6) {
-      address.push(buffer.join(''))
-    } else {
-      address.push(stringArrayToHexStripped(buffer))
-    }
+
+  if (compression === -1) {
+    if (hextetCount !== 8) return undefined
+    return compressIPv6ZeroRun(parts)
   }
-  output.address = address.join('')
-  return output
+  if (hextetCount >= 8) return undefined
+
+  // expand "::" then re-compress the longest run for a canonical result
+  const expanded = parts.slice(0, left.length)
+  for (let i = hextetCount; i < 8; i++) expanded.push('0')
+  for (let i = left.length; i < parts.length; i++) expanded.push(parts[i])
+  return compressIPv6ZeroRun(expanded)
 }
 
 /**
@@ -12552,26 +12859,49 @@ function getIPV6 (input) {
  * @property {string} host - The normalized host.
  * @property {string} [escapedHost] - The escaped host.
  * @property {boolean} isIPV6 - Indicates if the host is an IPv6 address.
+ * @property {boolean} [isIPVFuture] - Indicates if the host is an IPvFuture literal.
+ * @property {boolean} [error] - Indicates if a bracketed IP literal is malformed.
  */
 
 /**
+ * Validates and normalizes a bracketed IP literal. Raw zone separators remain
+ * accepted for backwards compatibility, while encoded separators and zone
+ * contents follow RFC 6874.
+ *
  * @param {string} host
  * @returns {NormalizeIPv6Result}
  */
 function normalizeIPv6 (host) {
-  if (findToken(host, ':') < 2) { return { host, isIPV6: false } }
-  const ipv6 = getIPV6(host)
+  const bracketed = host[0] === '[' && host[host.length - 1] === ']'
+  const hasBracket = host[0] === '[' || host[host.length - 1] === ']'
+  if (hasBracket && !bracketed) return { host, isIPV6: false, error: true }
 
-  if (!ipv6.error) {
-    let newHost = ipv6.address
-    let escapedHost = ipv6.address
-    if (ipv6.zone) {
-      newHost += '%' + ipv6.zone
-      escapedHost += '%25' + ipv6.zone
-    }
-    return { host: newHost, isIPV6: true, escapedHost }
-  } else {
-    return { host, isIPV6: false }
+  let input = bracketed ? host.slice(1, -1) : host
+  if (bracketed && isIPvFuture(input)) {
+    input = input.toLowerCase()
+    return { host: `[${input}]`, escapedHost: input, isIPV6: false, isIPVFuture: true }
+  }
+
+  if (findToken(input, ':') < 2) {
+    return { host, isIPV6: false, error: bracketed }
+  }
+
+  let zoneIdentifier = ''
+  const zoneSeparator = input.indexOf('%')
+  if (zoneSeparator !== -1) {
+    const separatorLength = input.slice(zoneSeparator, zoneSeparator + 3).toLowerCase() === '%25' ? 3 : 1
+    zoneIdentifier = input.slice(zoneSeparator + separatorLength)
+    if (!isZoneIdentifier(zoneIdentifier)) return { host, isIPV6: false, error: true }
+    input = input.slice(0, zoneSeparator)
+  }
+
+  const address = normalizeIPv6Address(input)
+  if (address === undefined) return { host, isIPV6: false, error: true }
+
+  return {
+    host: address + (zoneIdentifier ? '%' + zoneIdentifier : ''),
+    escapedHost: address + (zoneIdentifier ? '%25' + zoneIdentifier : ''),
+    isIPV6: true
   }
 }
 
@@ -12676,6 +13006,57 @@ function removeDotSegments (path) {
 }
 
 /**
+ * Removes dot segments from the path of a relative reference (a path that does
+ * not start with "/") without changing what it resolves to against any base.
+ * Unlike `removeDotSegments`, leading ".." segments that cannot be collapsed
+ * are kept, the result never becomes root-relative, and a result that would be
+ * empty or start with an empty segment is prefixed with "." (an empty path
+ * means "same document" and a leading "//" would introduce an authority).
+ *
+ * @param {string} path
+ * @returns {string}
+ */
+function removeDotSegmentsRelative (path) {
+  if (path === '' || path[0] === '/') {
+    return removeDotSegments(path)
+  }
+
+  const segments = path.split('/')
+  const last = segments.length - 1
+  /** @type {string[]} */
+  const output = []
+  let trailingDirectory = false
+
+  for (let i = 0; i <= last; i++) {
+    const segment = segments[i]
+    if (segment === '.' || segment === '..') {
+      if (segment === '..') {
+        if (output.length !== 0 && output[output.length - 1] !== '..') {
+          output.pop()
+        } else {
+          output.push('..')
+        }
+      }
+      trailingDirectory = i === last
+    } else {
+      output.push(segment)
+    }
+  }
+
+  if (trailingDirectory && output[output.length - 1] !== '..') {
+    output.push('')
+  }
+  if (output.length === 0 || output[0] === '' || output[0].includes(':')) {
+    // An empty path, a leading empty segment ("//"), or a first segment
+    // containing ":" (which would be mistaken for a scheme, RFC 3986 section
+    // 4.2) must stay behind a "." segment so the reference keeps its meaning.
+    output.unshift('.')
+  }
+
+  return output.join('/')
+}
+
+/**
  * Re-escape RFC 3986 gen-delims that must not appear literally in the host.
  * After the URI regex parses, these characters cannot be literal in the host
  * field, so any that appear after decoding came from percent-encoding and
@@ -12697,7 +13078,7 @@ function reescapeHostDelimiters (host, isIP) {
 
 /**
  * Normalizes percent escapes and optionally decodes only unreserved ASCII bytes.
- * Reserved delimiters such as `%2F` and `%2E` stay escaped.
+ * Reserved delimiters such as `%2F` stay escaped; `%2E` is unreserved.
  *
  * @param {string} input
  * @param {boolean} [decodeUnreserved=false]
@@ -12746,7 +13127,8 @@ function normalizePathEncoding (input) {
   let output = ''
 
   for (let i = 0; i < input.length; i++) {
-    if (input[i] === '%' && i + 2 < input.length) {
+    const ch = input[i]
+    if (ch === '%' && i + 2 < input.length) {
       const hex = input.slice(i + 1, i + 3)
       if (isHexPair(hex)) {
         const normalizedHex = hex.toUpperCase()
@@ -12763,10 +13145,225 @@ function normalizePathEncoding (input) {
       }
     }
 
-    if (isPathCharacter(input[i])) {
-      output += input[i]
+    if (isPathCharacter(ch)) {
+      output += ch
     } else {
-      output += escape(input[i])
+      const code = input.charCodeAt(i)
+      if (code < 0x80) {
+        output += isEscapeSafe(code) ? ch : BYTE_HEX[code]
+      } else if (code < 0xD800 || code > 0xDFFF) {
+        output += percentEncodeNonAscii(code)
+      } else if (code <= 0xDBFF && i + 1 < input.length) {
+        const low = input.charCodeAt(i + 1)
+        if (low >= 0xDC00 && low <= 0xDFFF) {
+          output += percentEncodeNonAscii(0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00))
+          i++
+        } else {
+          output += percentEncodeNonAscii(0xFFFD)
+        }
+      } else {
+        output += percentEncodeNonAscii(0xFFFD)
+      }
+    }
+  }
+
+  return output
+}
+
+/**
+ * Serializes a path without rewriting reserved data. Raw RFC 3986 path
+ * characters remain literal, valid escapes are preserved and uppercased, and
+ * everything else is UTF-8 percent-encoded. In a path-noscheme, a colon in the
+ * first segment must be escaped so the result cannot be parsed as a scheme.
+ *
+ * @param {string} input
+ * @param {boolean} [pathNoScheme=false]
+ * @returns {string}
+ */
+function serializePathEncoding (input, pathNoScheme = false) {
+  let output = ''
+  let firstSegment = pathNoScheme && input[0] !== '/'
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i]
+    if (ch === '%' && i + 2 < input.length) {
+      const hex = input.slice(i + 1, i + 3)
+      if (isHexPair(hex)) {
+        output += '%' + hex.toUpperCase()
+        i += 2
+        continue
+      }
+    }
+
+    if (ch === '/') {
+      firstSegment = false
+    }
+
+    if (isPathCharacter(ch) && (ch !== ':' || !firstSegment)) {
+      output += ch
+    } else {
+      const code = input.charCodeAt(i)
+      if (code < 0x80) {
+        output += BYTE_HEX[code]
+      } else if (code < 0xD800 || code > 0xDFFF) {
+        output += percentEncodeNonAscii(code)
+      } else if (code <= 0xDBFF && i + 1 < input.length) {
+        const low = input.charCodeAt(i + 1)
+        if (low >= 0xDC00 && low <= 0xDFFF) {
+          output += percentEncodeNonAscii(0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00))
+          i++
+        } else {
+          output += percentEncodeNonAscii(0xFFFD)
+        }
+      } else {
+        output += percentEncodeNonAscii(0xFFFD)
+      }
+    }
+  }
+
+  return output
+}
+
+/**
+ * Percent-encodes a URI component using its RFC 3986 literal character set.
+ * Existing valid escapes are preserved and normalized to uppercase hex.
+ *
+ * @param {string} input
+ * @param {(value: string) => boolean} isAllowed
+ * @returns {string}
+ */
+function encodeComponent (input, isAllowed) {
+  let output = ''
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i]
+    if (ch === '%' && i + 2 < input.length) {
+      const hex = input.slice(i + 1, i + 3)
+      if (isHexPair(hex)) {
+        output += '%' + hex.toUpperCase()
+        i += 2
+        continue
+      }
+    }
+
+    if (isAllowed(ch)) {
+      output += ch
+    } else {
+      const code = input.charCodeAt(i)
+      if (code < 0x80) {
+        output += BYTE_HEX[code]
+      } else if (code < 0xD800 || code > 0xDFFF) {
+        output += percentEncodeNonAscii(code)
+      } else if (code <= 0xDBFF && i + 1 < input.length) {
+        const low = input.charCodeAt(i + 1)
+        if (low >= 0xDC00 && low <= 0xDFFF) {
+          output += percentEncodeNonAscii(0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00))
+          i++
+        } else {
+          output += percentEncodeNonAscii(0xFFFD)
+        }
+      } else {
+        output += percentEncodeNonAscii(0xFFFD)
+      }
+    }
+  }
+
+  return output
+}
+
+/**
+ * Encodes userinfo while preserving its RFC 3986 §3.2.1 literal characters.
+ * In particular, authority delimiters such as `@`, `/`, `?`, and `#` are data.
+ *
+ * @param {string} input
+ * @returns {string}
+ */
+function encodeUserinfo (input) {
+  return encodeComponent(input, isUserinfoCharacter)
+}
+
+/**
+ * Encodes query data using the RFC 3986 §3.4 grammar. A literal `#` must be
+ * escaped because it would otherwise begin the fragment component.
+ *
+ * @param {string} input
+ * @returns {string}
+ */
+function encodeQuery (input) {
+  return encodeComponent(input, isQueryFragmentCharacter)
+}
+
+/**
+ * Encodes fragment data using the RFC 3986 §3.5 grammar.
+ *
+ * @param {string} input
+ * @returns {string}
+ */
+function encodeFragment (input) {
+  return encodeComponent(input, isQueryFragmentCharacter)
+}
+
+function isEscapeSafe (cp) {
+  return (
+    (cp >= 0x30 && cp <= 0x39) ||
+    (cp >= 0x41 && cp <= 0x5A) ||
+    (cp >= 0x61 && cp <= 0x7A) ||
+    cp === 0x2A || cp === 0x2B || cp === 0x2D || cp === 0x2E ||
+    cp === 0x2F || cp === 0x40 || cp === 0x5F
+  )
+}
+
+/**
+ * Normalizes the percent-encoding of a query or fragment component.
+ *
+ * Like `normalizePathEncoding`, but uses the query/fragment character set
+ * (which additionally allows `?`) and decodes `.` since it has no dot-segment
+ * meaning outside of a path.
+ *
+ * @param {string} input
+ * @returns {string}
+ */
+function normalizeQueryFragmentEncoding (input) {
+  let output = ''
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i]
+    if (ch === '%' && i + 2 < input.length) {
+      const hex = input.slice(i + 1, i + 3)
+      if (isHexPair(hex)) {
+        const normalizedHex = hex.toUpperCase()
+        const decoded = String.fromCharCode(parseInt(normalizedHex, 16))
+
+        if (isUnreserved(decoded)) {
+          output += decoded
+        } else {
+          output += '%' + normalizedHex
+        }
+
+        i += 2
+        continue
+      }
+    }
+
+    if (isQueryFragmentCharacter(ch)) {
+      output += ch
+    } else {
+      const code = input.charCodeAt(i)
+      if (code < 0x80) {
+        output += isEscapeSafe(code) ? ch : BYTE_HEX[code]
+      } else if (code < 0xD800 || code > 0xDFFF) {
+        output += percentEncodeNonAscii(code)
+      } else if (code <= 0xDBFF && i + 1 < input.length) {
+        const low = input.charCodeAt(i + 1)
+        if (low >= 0xDC00 && low <= 0xDFFF) {
+          output += percentEncodeNonAscii(0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00))
+          i++
+        } else {
+          output += percentEncodeNonAscii(0xFFFD)
+        }
+      } else {
+        output += percentEncodeNonAscii(0xFFFD)
+      }
     }
   }
 
@@ -12806,15 +13403,21 @@ function recomposeAuthority (component) {
   const uriTokens = []
 
   if (component.userinfo !== undefined) {
-    uriTokens.push(component.userinfo)
+    uriTokens.push(encodeUserinfo(component.userinfo))
     uriTokens.push('@')
   }
 
   if (component.host !== undefined) {
-    let host = unescape(component.host)
+    let host = component.host
     if (!isIPv4(host)) {
-      const ipV6res = normalizeIPv6(host)
-      if (ipV6res.isIPV6 === true) {
+      let ipV6res = normalizeIPv6(host)
+      if (ipV6res.isIPV6 !== true && ipV6res.isIPVFuture !== true) {
+        // Decode only unreserved bytes, once. In particular, keep %25 encoded
+        // so it cannot introduce a second escape during recomposition.
+        host = normalizePercentEncoding(host, true)
+        ipV6res = normalizeIPv6(host)
+      }
+      if (ipV6res.isIPV6 === true || ipV6res.isIPVFuture === true) {
         host = `[${ipV6res.escapedHost}]`
       } else {
         host = reescapeHostDelimiters(host, false)
@@ -12824,8 +13427,12 @@ function recomposeAuthority (component) {
   }
 
   if (typeof component.port === 'number' || typeof component.port === 'string') {
+    const port = String(component.port)
+    if (!isPort(port)) {
+      throw new TypeError('URI port is malformed.')
+    }
     uriTokens.push(':')
-    uriTokens.push(String(component.port))
+    uriTokens.push(port)
   }
 
   return uriTokens.length ? uriTokens.join('') : undefined
@@ -12837,8 +13444,14 @@ module.exports = {
   reescapeHostDelimiters,
   normalizePercentEncoding,
   normalizePathEncoding,
+  serializePathEncoding,
+  normalizeQueryFragmentEncoding,
+  encodeUserinfo,
+  encodeQuery,
+  encodeFragment,
   escapePreservingEscapes,
   removeDotSegments,
+  removeDotSegmentsRelative,
   isIPv4,
   isUUID,
   normalizeIPv6,
@@ -24296,6 +24909,10 @@ class Protocol {
             this.setRequestHandler(GetTaskPayloadRequestSchema, async (request, extra) => {
                 const handleTaskResult = async () => {
                     const taskId = request.params.taskId;
+                    // Look the task up for this session first; queued messages are only delivered for a task it can see.
+                    if (!(await this._taskStore.getTask(taskId, extra.sessionId))) {
+                        throw new McpError(ErrorCode.InvalidParams, `Task not found: ${taskId}`);
+                    }
                     // Deliver queued messages
                     if (this._taskMessageQueue) {
                         let queuedMessage;
@@ -24341,14 +24958,14 @@ class Protocol {
                     // Block if task is not terminal (we've already delivered all queued messages above)
                     if (!isTerminal(task.status)) {
                         // Wait for status change or new messages
-                        await this._waitForTaskUpdate(taskId, extra.signal);
+                        await this._waitForTaskUpdate(taskId, extra.signal, extra.sessionId);
                         // After waking up, recursively call to deliver any new messages or result
                         return await handleTaskResult();
                     }
                     // If task is terminal, return the result
                     if (isTerminal(task.status)) {
                         const result = await this._taskStore.getTaskResult(taskId, extra.sessionId);
-                        this._clearTaskQueue(taskId);
+                        this._clearTaskQueue(taskId, extra.sessionId);
                         return {
                             ...result,
                             _meta: {
@@ -24389,7 +25006,7 @@ class Protocol {
                         throw new McpError(ErrorCode.InvalidParams, `Cannot cancel task in terminal status: ${task.status}`);
                     }
                     await this._taskStore.updateTaskStatus(request.params.taskId, 'cancelled', 'Client cancelled task execution.', extra.sessionId);
-                    this._clearTaskQueue(request.params.taskId);
+                    this._clearTaskQueue(request.params.taskId, extra.sessionId);
                     const cancelledTask = await this._taskStore.getTask(request.params.taskId, extra.sessionId);
                     if (!cancelledTask) {
                         // Task was deleted during cancellation (e.g., cleanup happened)
@@ -24531,6 +25148,20 @@ class Protocol {
         const capturedTransport = this._transport;
         // Extract taskId from request metadata if present (needed early for method not found case)
         const relatedTaskId = request.params?._meta?.[RELATED_TASK_META_KEY]?.taskId;
+        // With a session, the related task is looked up for that session first; replies are queued for it only if it is found.
+        const sessionId = capturedTransport?.sessionId;
+        const store = this._taskStore;
+        let relatedTaskFound = true;
+        let relatedTaskLookup;
+        if (relatedTaskId && store && this._taskMessageQueue && sessionId !== undefined) {
+            relatedTaskFound = false;
+            relatedTaskLookup = (async () => {
+                if (!(await store.getTask(relatedTaskId, sessionId))) {
+                    throw new McpError(ErrorCode.InvalidParams, `Task not found: ${relatedTaskId}`);
+                }
+                relatedTaskFound = true;
+            })();
+        }
         if (handler === undefined) {
             const errorResponse = {
                 jsonrpc: '2.0',
@@ -24541,7 +25172,13 @@ class Protocol {
                 }
             };
             // Queue or send the error response based on whether this is a task-related request
-            if (relatedTaskId && this._taskMessageQueue) {
+            if (relatedTaskId && relatedTaskLookup) {
+                const queuedError = { type: 'error', message: errorResponse, timestamp: Date.now() };
+                relatedTaskLookup
+                    .then(() => this._enqueueTaskMessage(relatedTaskId, queuedError, sessionId), () => capturedTransport?.send(errorResponse))
+                    .catch(error => this._onerror(new Error(`Failed to send an error response: ${error}`)));
+            }
+            else if (relatedTaskId && this._taskMessageQueue) {
                 this._enqueueTaskMessage(relatedTaskId, {
                     type: 'error',
                     message: errorResponse,
@@ -24600,8 +25237,12 @@ class Protocol {
             closeStandaloneSSEStream: extra?.closeStandaloneSSEStream
         };
         // Starting with Promise.resolve() puts any synchronous errors into the monad as well.
-        Promise.resolve()
+        (relatedTaskLookup ?? Promise.resolve())
             .then(() => {
+            // A request cancelled while its related task was looked up does not start its handler; nothing is replied.
+            if (relatedTaskLookup && abortController.signal.aborted) {
+                throw new McpError(ErrorCode.ConnectionClosed, 'Request was cancelled');
+            }
             // If this request asked for task creation, check capability first
             if (taskCreationParams) {
                 // Check if the request method supports task creation
@@ -24645,7 +25286,7 @@ class Protocol {
                 }
             };
             // Queue or send the error response based on whether this is a task-related request
-            if (relatedTaskId && this._taskMessageQueue) {
+            if (relatedTaskId && this._taskMessageQueue && relatedTaskFound) {
                 await this._enqueueTaskMessage(relatedTaskId, {
                     type: 'error',
                     message: errorResponse,
@@ -25195,7 +25836,8 @@ class Protocol {
             throw new Error('Cannot enqueue task message: taskStore and taskMessageQueue are not configured');
         }
         const maxQueueSize = this._options?.maxTaskQueueSize;
-        await this._taskMessageQueue.enqueue(taskId, message, sessionId, maxQueueSize);
+        // Messages queued by local code carry the session of the current connection, like the ones queued for a request.
+        await this._taskMessageQueue.enqueue(taskId, message, sessionId ?? this._transport?.sessionId, maxQueueSize);
     }
     /**
      * Clears the message queue for a task and rejects any pending request resolvers.
@@ -25228,13 +25870,14 @@ class Protocol {
      * Uses polling to check for updates at the task's configured poll interval.
      * @param taskId The task ID to wait for
      * @param signal Abort signal to cancel the wait
+     * @param sessionId Session of the request that waits, passed to the task store
      * @returns Promise that resolves when an update occurs or rejects if aborted
      */
-    async _waitForTaskUpdate(taskId, signal) {
+    async _waitForTaskUpdate(taskId, signal, sessionId) {
         // Get the task's poll interval, falling back to default
         let interval = this._options?.defaultTaskPollInterval ?? 1000;
         try {
-            const task = await this._taskStore?.getTask(taskId);
+            const task = await this._taskStore?.getTask(taskId, sessionId);
             if (task?.pollInterval) {
                 interval = task.pollInterval;
             }
@@ -27173,7 +27816,7 @@ const SEARCH_RECORDS_SCHEMA = {
         limit: { type: "number", description: "Maximum number of records to return (defaults to 10)." },
         offset: { type: "number", description: "Number of records to skip (for pagination, defaults to 0)." },
         order: { type: "string", description: 'Order by clause (e.g., "name asc", "create_date desc").' },
-        with_translations: { type: "boolean", description: "If True, translatable fields are enriched with their 'Forgiving' format (Matrix)." },
+        with_translations: { type: "boolean", description: "If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model"],
@@ -27197,7 +27840,7 @@ const GET_RECORD_SCHEMA = {
         show_all_fields: { type: "boolean", description: "Force inclusion of EVERY field defined on the model." },
         for_user_id: { type: "number", description: "Evaluate security and data as a specific user ID." },
         rel_limit: { type: "number", description: "Limit the number of sub-lines or linked records resolved." },
-        with_translations: { type: "boolean", description: "If True, translatable fields are returned in translation matrix." },
+        with_translations: { type: "boolean", description: "If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     description: "MANDATORY for retrieving a comprehensive 360-degree dashboard report for a single Odoo record. Highly superior to search_records for single record lookups as it resolves sub-lines, relation display names, and chatter threads in one call. Use this immediately once you have a target record ID.",
@@ -27220,7 +27863,7 @@ const GET_RECORDS_SCHEMA = {
         show_all_fields: { type: "boolean", description: "Force inclusion of EVERY field defined on the model." },
         for_user_id: { type: "number", description: "Evaluate security and data as a specific user ID." },
         rel_limit: { type: "number", description: "Limit the number of sub-lines or linked records resolved." },
-        with_translations: { type: "boolean", description: "If True, translatable fields are returned in translation matrix." },
+        with_translations: { type: "boolean", description: "If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model"],
@@ -27252,7 +27895,7 @@ const CREATE_RECORD_SCHEMA = {
         model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
         values: { type: "string", description: "JSON-serialized string of field values: '{\"field_name\": value}'. Use inspect_model to find writable fields. MULTI-COMPANY: If the model is company-scoped (has a company_id field), keep 'company_id' consistent with related records (e.g. journals, accounts) to avoid multi-company validation errors. Not all models have company_id — do not add it blindly." },
         justification: { type: "string", description: "MANDATORY: Explain WHY this record is being created. This is logged to Odoo Chatter and local audit logs." },
-        with_translations: { type: "boolean", description: "If True, translatable fields can be provided as strings (sync to all) or expanded lists." },
+        with_translations: { type: "boolean", description: "If True, a plain string written to a translatable field is applied to ALL active languages, and a [{value, langs}] list targets specific ones; the result lists the languages written. Without this flag only the user's language changes and other languages keep their old text." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "values", "justification"],
@@ -27265,7 +27908,7 @@ const WRITE_RECORD_SCHEMA = {
         id: { type: "number", description: "The database ID of the record to update." },
         values: { type: "string", description: "JSON-serialized string of fields to update: '{\"field_name\": value}'. PRO TIP: We take a 'Before Snapshot' automatically for reversibility. MULTI-COMPANY: For company-scoped models, do not mix records from different companies; ensure any relational values linked match the record's company_id." },
         justification: { type: "string", description: "MANDATORY: Explain WHY this update is necessary. Logged for audit and safety." },
-        with_translations: { type: "boolean", description: "If True, translatable fields can be provided as strings (sync to all) or expanded lists." },
+        with_translations: { type: "boolean", description: "If True, a plain string written to a translatable field is applied to ALL active languages, and a [{value, langs}] list targets specific ones; the result lists the languages written. Without this flag only the user's language changes and other languages keep their old text." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "id", "values", "justification"],
@@ -28297,61 +28940,12 @@ class OdooOrchestrator {
     /**
      * Fetches all translations for a set of records and fields,
      * returning them in the 'Forgiving' format.
+     * Failures are swallowed (returns {}); use readTranslations when the caller
+     * must be able to tell "identical everywhere" from "not fetched".
      */
     async fetchTranslationMatrix(model, resIds, fieldNames) {
-        if (!fieldNames.length || !resIds.length)
-            return {};
         try {
-            const langs = await this.client.executeKw('res.lang', 'search_read', [[['active', '=', true]]], { fields: ['code'] });
-            const langCodes = langs.map((l) => l.code);
-            // Matrix: { res_id: { field_name: { lang_code: value } } }
-            const matrix = {};
-            for (const rid of resIds) {
-                matrix[rid] = {};
-                for (const fname of fieldNames) {
-                    matrix[rid][fname] = {};
-                }
-            }
-            // Batch fetch per language
-            for (const lang of langCodes) {
-                const langData = await this.client.executeKw(model, 'read', [resIds], { fields: fieldNames, context: { lang } });
-                for (const rec of langData) {
-                    const rid = rec.id;
-                    for (const fname of fieldNames) {
-                        matrix[rid][fname][lang] = rec[fname];
-                    }
-                }
-            }
-            // Simplify Phase into "Forgiving Format"
-            const results = {};
-            for (const rid of resIds) {
-                results[rid] = {};
-                for (const fname of fieldNames) {
-                    const values = matrix[rid][fname];
-                    const uniqueValues = {};
-                    for (const [lang, val] of Object.entries(values)) {
-                        const key = JSON.stringify(val);
-                        if (!uniqueValues[key])
-                            uniqueValues[key] = [];
-                        uniqueValues[key].push(lang);
-                    }
-                    const entries = Object.entries(uniqueValues);
-                    if (entries.length <= 1) {
-                        // All identical (Clean case)
-                        results[rid][fname] = entries.length > 0 ? JSON.parse(entries[0][0]) : false;
-                    }
-                    else {
-                        // Divergent (Expanded case)
-                        // Sort by popularity to find the most common as "fallback"
-                        entries.sort((a, b) => b[1].length - a[1].length);
-                        results[rid][fname] = entries.map(([valJson, lList], index) => ({
-                            value: JSON.parse(valJson),
-                            langs: index === 0 ? [] : lList // First one is the fallback
-                        }));
-                    }
-                }
-            }
-            return results;
+            return (await this.buildTranslationMatrix(model, resIds, fieldNames)).results;
         }
         catch (e) {
             console.error(`Translation matrix fetch failed: ${e}`);
@@ -28359,12 +28953,97 @@ class OdooOrchestrator {
         }
     }
     /**
+     * Like fetchTranslationMatrix, but also returns a note for the agent saying
+     * how to read the values — or, if the fetch failed, that the values shown are
+     * in the user's language only. A plain value is otherwise ambiguous.
+     */
+    async readTranslations(model, resIds, fieldNames) {
+        try {
+            const { langCodes, results } = await this.buildTranslationMatrix(model, resIds, fieldNames);
+            return {
+                values: results,
+                note: {
+                    fields: fieldNames,
+                    languages: langCodes,
+                    reading: `A plain value is identical in all ${langCodes.length} active languages. A [{value, langs}] list means they differ; the entry with empty langs is the fallback for every language not listed.`
+                }
+            };
+        }
+        catch (e) {
+            return {
+                values: {},
+                note: {
+                    fields: fieldNames,
+                    error: `Translations could not be fetched: ${e?.message || e}`,
+                    reading: "Values shown are in the user's language only. Do not assume other languages match."
+                }
+            };
+        }
+    }
+    async buildTranslationMatrix(model, resIds, fieldNames) {
+        if (!fieldNames.length || !resIds.length)
+            return { langCodes: [], results: {} };
+        const langs = await this.client.executeKw('res.lang', 'search_read', [[['active', '=', true]]], { fields: ['code'] });
+        const langCodes = langs.map((l) => l.code);
+        // Matrix: { res_id: { field_name: { lang_code: value } } }
+        const matrix = {};
+        for (const rid of resIds) {
+            matrix[rid] = {};
+            for (const fname of fieldNames) {
+                matrix[rid][fname] = {};
+            }
+        }
+        // Batch fetch per language
+        for (const lang of langCodes) {
+            const langData = await this.client.executeKw(model, 'read', [resIds], { fields: fieldNames, context: { lang } });
+            for (const rec of langData) {
+                const rid = rec.id;
+                for (const fname of fieldNames) {
+                    matrix[rid][fname][lang] = rec[fname];
+                }
+            }
+        }
+        // Simplify Phase into "Forgiving Format"
+        const results = {};
+        for (const rid of resIds) {
+            results[rid] = {};
+            for (const fname of fieldNames) {
+                const values = matrix[rid][fname];
+                const uniqueValues = {};
+                for (const [lang, val] of Object.entries(values)) {
+                    const key = JSON.stringify(val);
+                    if (!uniqueValues[key])
+                        uniqueValues[key] = [];
+                    uniqueValues[key].push(lang);
+                }
+                const entries = Object.entries(uniqueValues);
+                if (entries.length <= 1) {
+                    // All identical (Clean case)
+                    results[rid][fname] = entries.length > 0 ? JSON.parse(entries[0][0]) : false;
+                }
+                else {
+                    // Divergent (Expanded case)
+                    // Sort by popularity to find the most common as "fallback"
+                    entries.sort((a, b) => b[1].length - a[1].length);
+                    results[rid][fname] = entries.map(([valJson, lList], index) => ({
+                        value: JSON.parse(valJson),
+                        langs: index === 0 ? [] : lList // First one is the fallback
+                    }));
+                }
+            }
+        }
+        return { langCodes, results };
+    }
+    /**
      * Processes input values for a write/create operation, handling translatable fields.
      * Performs "Broadcast Writing" to keep languages in sync.
+     * Returns the record ID plus, per translatable field, the languages written
+     * and any requested languages skipped because they are not active.
      */
     async applyBroadcastWrite(model, resId, values, transFields) {
         const mainWrite = {};
         const translationWrites = {};
+        const skipped = {};
         const langs = await this.client.executeKw('res.lang', 'search_read', [[['active', '=', true]]], { fields: ['code'] });
         const langCodes = langs.map((l) => l.code);
         for (const lcode of langCodes)
@@ -28385,6 +29064,8 @@ class OdooOrchestrator {
                             for (const lcode of targetLangs) {
                                 if (translationWrites[lcode])
                                     translationWrites[lcode][fname] = bucket.value;
+                                else
+                                    (skipped[fname] ??= []).push(lcode);
                             }
                         }
                     }
@@ -28411,12 +29092,15 @@ class OdooOrchestrator {
             await this.client.executeKw(model, 'write', [[resId], mainWrite]);
         }
         // Apply translations
+        const languagesWritten = {};
         for (const [lcode, vals] of Object.entries(translationWrites)) {
             if (Object.keys(vals).length > 0) {
                 await this.client.executeKw(model, 'write', [[resultId], vals], { context: { lang: lcode } });
+                for (const fname of Object.keys(vals))
+                    (languagesWritten[fname] ??= []).push(lcode);
             }
         }
-        return resultId;
+        return { id: resultId, languagesWritten, skipped };
     }
     /**
      * Enhances records with label expansions for Many2one fields.
@@ -28752,7 +29436,7 @@ const SearchRecordsSchema = object({
     limit: coerce_number().optional().describe('Maximum number of records to return (defaults to 10)'),
     offset: coerce_number().optional().describe('Number of records to skip (for pagination)'),
     order: schemas_string().optional().describe('Sort order (e.g., "id desc", "write_date desc")'),
-    with_translations: schemas_boolean().optional().default(false).describe("If True, translatable fields are enriched with their 'Forgiving' format."),
+    with_translations: schemas_boolean().optional().default(false).describe("If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only."),
     instance_alias: schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -28818,6 +29502,7 @@ async function searchRecords(manager, input) {
         }
     }
     // 3. Translate if requested
+    let translationNote;
     if (with_translations && activeRecords.length > 0) {
         const orchestrator = new OdooOrchestrator(client);
         const transFieldRecs = await client.executeKw('ir.model.fields', 'search_read', [[
@@ -28828,10 +29513,11 @@ async function searchRecords(manager, input) {
         const transFieldNames = transFieldRecs.map((f) => f.name);
         if (transFieldNames.length > 0) {
             const resIds = activeRecords.map((r) => r.id);
-            const matrix = await orchestrator.fetchTranslationMatrix(model, resIds, transFieldNames);
+            const { values, note } = await orchestrator.readTranslations(model, resIds, transFieldNames);
+            translationNote = note;
             for (const rec of activeRecords) {
-                if (matrix[rec.id]) {
-                    Object.assign(rec, matrix[rec.id]);
+                if (values[rec.id]) {
+                    Object.assign(rec, values[rec.id]);
                 }
             }
         }
@@ -28851,6 +29537,7 @@ async function searchRecords(manager, input) {
         offset: targetOffset,
         limit: targetLimit,
         ...(advice.length > 0 ? { optimization_advice: advice } : {}),
+        ...(translationNote ? { translations: translationNote } : {}),
         leads: activeRecords.reduce((acc, r) => {
             acc[String(r.id)] = r.display_name || r.name || `ID ${r.id}`;
             return acc;
@@ -28883,7 +29570,7 @@ const GetRecordSchema = object({
     show_all_fields: schemas_boolean().optional().default(false).describe('Force inclusion of EVERY field defined on the model.'),
     for_user_id: coerce_number().optional().describe('Evaluate security and data as a specific user ID.'),
     rel_limit: coerce_number().optional().default(20).describe('Limit the number of sub-lines or linked records resolved.'),
-    with_translations: schemas_boolean().optional().default(false).describe('If True, translatable fields are returned in translation dictionary matrix.'),
+    with_translations: schemas_boolean().optional().default(false).describe("If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only."),
     instance_alias: schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 const GetRecordsSchema = object({
@@ -28922,7 +29609,7 @@ const GetRecordsSchema = object({
     show_all_fields: schemas_boolean().optional().default(false).describe('Force inclusion of EVERY field.'),
     for_user_id: coerce_number().optional().describe('Evaluate as a specific user ID.'),
     rel_limit: coerce_number().optional().default(20).describe('Limit the number of sub-lines/links resolved.'),
-    with_translations: schemas_boolean().optional().default(false).describe('If True, translatable fields are returned in translation matrix.'),
+    with_translations: schemas_boolean().optional().default(false).describe("If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only."),
     instance_alias: schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -28972,10 +29659,11 @@ async function fetchSingleRecordDetail(client, instanceAlias, model, resId, flag
             ]], { fields: ['name'] });
         const transFieldNames = transFieldRecs.map((f) => f.name);
         if (transFieldNames.length > 0) {
-            const matrix = await orchestrator.fetchTranslationMatrix(model, [resId], transFieldNames);
-            if (matrix[resId]) {
-                Object.assign(record, matrix[resId]);
+            const { values, note } = await orchestrator.readTranslations(model, [resId], transFieldNames);
+            if (values[resId]) {
+                Object.assign(record, values[resId]);
             }
+            record._translations = note;
         }
     }
     // 4. Resolve sub-line records (One2many / Many2many full sub-rows)
@@ -29168,7 +29856,7 @@ const CreateRecordSchema = object({
         return val;
     }, record(schemas_string(), any())).describe('A dictionary of field values.'),
     justification: schemas_string().min(1).describe('Business justification for creating this record.'),
-    with_translations: schemas_boolean().optional().default(false).describe("If True, translatable fields can be provided as strings (sync to all) or expanded lists."),
+    with_translations: schemas_boolean().optional().default(false).describe("If True, a plain string written to a translatable field is applied to ALL active languages, and a [{value, langs}] list targets specific ones; the result lists the languages written. Without this flag only the user's language changes and other languages keep their old text."),
     instance_alias: schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -29195,13 +29883,20 @@ async function createRecord(manager, input) {
     }
     // Resolve natural language values (names to IDs, objects to command tuples)
     const resolvedValues = await orchestrator.resolveFieldValues(model, values);
-    const recordId = await orchestrator.applyBroadcastWrite(model, null, resolvedValues, transFieldNames);
+    const { id: recordId, languagesWritten, skipped } = await orchestrator.applyBroadcastWrite(model, null, resolvedValues, transFieldNames);
     // Log locally for agent history
     await audit.logLocalAction('create', model, recordId, resolvedValues, justification);
     // Log to global system logs
     await audit.logSystemEvent(`Created ${model}(${recordId}): ${justification}`);
     // Log to chatter (if supported by model)
     await audit.postChatterMessage(model, recordId, `<p>Created record with justification: ${justification}</p>`);
+    // Confirm which languages a translated create reached; plain creates keep the bare ID
+    if (Object.keys(languagesWritten).length > 0) {
+        return {
+            id: recordId,
+            translations: { languages_written: languagesWritten, ...(Object.keys(skipped).length > 0 ? { skipped_inactive: skipped } : {}) }
+        };
+    }
     return recordId;
 }
 
@@ -29227,7 +29922,7 @@ const WriteRecordSchema = object({
         return val;
     }, record(schemas_string(), any())).describe('A dictionary of fields to update.'),
     justification: schemas_string().min(1).describe('Business justification for the change.'),
-    with_translations: schemas_boolean().optional().default(false).describe("If True, translatable fields can be provided as strings (sync to all) or expanded lists."),
+    with_translations: schemas_boolean().optional().default(false).describe("If True, a plain string written to a translatable field is applied to ALL active languages, and a [{value, langs}] list targets specific ones; the result lists the languages written. Without this flag only the user's language changes and other languages keep their old text."),
     instance_alias: schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -29273,7 +29968,7 @@ async function writeRecord(manager, input) {
         before = beforeRecords && beforeRecords.length > 0 ? beforeRecords[0] : {};
     }
     // 4. Execute the orchestrated write
-    const resultId = await orchestrator.applyBroadcastWrite(model, id, resolvedValues, transFieldNames);
+    const { id: resultId, languagesWritten, skipped } = await orchestrator.applyBroadcastWrite(model, id, resolvedValues, transFieldNames);
     const success = !!resultId;
     // 5. Audit and store reversibility context
     if (success) {
@@ -29281,6 +29976,13 @@ async function writeRecord(manager, input) {
         const body = audit.formatWriteSnapshot(before, justification);
         await audit.postChatterMessage(model, id, body);
         await audit.logSystemEvent(`Modified ${model}(${id}): ${justification}`);
+    }
+    // Confirm which languages a translated write reached; plain writes keep the bare boolean
+    if (success && Object.keys(languagesWritten).length > 0) {
+        return {
+            success,
+            translations: { languages_written: languagesWritten, ...(Object.keys(skipped).length > 0 ? { skipped_inactive: skipped } : {}) }
+        };
     }
     return success;
 }
@@ -30600,7 +31302,7 @@ async function getAuditLog(manager, input) {
 
 const mcp_server_dirname = external_path_default().dirname((0,external_url_.fileURLToPath)(import.meta.url));
 // Read package.json for metadata
-let mcp_server_version = "2.1.0";
+let mcp_server_version = "2.1.1";
 try {
     // Try both possible locations (source vs bundled)
     const pkgPaths = [

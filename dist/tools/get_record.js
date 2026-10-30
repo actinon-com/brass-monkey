@@ -21,7 +21,7 @@ export const GetRecordSchema = z.object({
     show_all_fields: z.boolean().optional().default(false).describe('Force inclusion of EVERY field defined on the model.'),
     for_user_id: z.coerce.number().optional().describe('Evaluate security and data as a specific user ID.'),
     rel_limit: z.coerce.number().optional().default(20).describe('Limit the number of sub-lines or linked records resolved.'),
-    with_translations: z.boolean().optional().default(false).describe('If True, translatable fields are returned in translation dictionary matrix.'),
+    with_translations: z.boolean().optional().default(false).describe("If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only."),
     instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 export const GetRecordsSchema = z.object({
@@ -60,7 +60,7 @@ export const GetRecordsSchema = z.object({
     show_all_fields: z.boolean().optional().default(false).describe('Force inclusion of EVERY field.'),
     for_user_id: z.coerce.number().optional().describe('Evaluate as a specific user ID.'),
     rel_limit: z.coerce.number().optional().default(20).describe('Limit the number of sub-lines/links resolved.'),
-    with_translations: z.boolean().optional().default(false).describe('If True, translatable fields are returned in translation matrix.'),
+    with_translations: z.boolean().optional().default(false).describe("If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only."),
     instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -110,10 +110,11 @@ async function fetchSingleRecordDetail(client, instanceAlias, model, resId, flag
             ]], { fields: ['name'] });
         const transFieldNames = transFieldRecs.map((f) => f.name);
         if (transFieldNames.length > 0) {
-            const matrix = await orchestrator.fetchTranslationMatrix(model, [resId], transFieldNames);
-            if (matrix[resId]) {
-                Object.assign(record, matrix[resId]);
+            const { values, note } = await orchestrator.readTranslations(model, [resId], transFieldNames);
+            if (values[resId]) {
+                Object.assign(record, values[resId]);
             }
+            record._translations = note;
         }
     }
     // 4. Resolve sub-line records (One2many / Many2many full sub-rows)

@@ -19,4 +19,10 @@ export type WriteRecordInput = z.infer<typeof WriteRecordSchema>;
  * @param input The WriteRecordInput parameters.
  * @returns Boolean true on success.
  */
-export declare function writeRecord(manager: InstanceManager, input: WriteRecordInput): Promise<boolean>;
+export declare function writeRecord(manager: InstanceManager, input: WriteRecordInput): Promise<boolean | {
+    success: true;
+    translations: {
+        skipped_inactive?: Record<string, string[]> | undefined;
+        languages_written: Record<string, string[]>;
+    };
+}>;
