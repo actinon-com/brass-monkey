@@ -30,6 +30,12 @@ updates:
         update-types:
           - version-update:semver-major
           - version-update:semver-minor
+      # TypeScript 7 drops the JS compiler API that ncc's ts-loader calls, so
+      # `npm run bundle` fails ("reading 'fileExists'"). Held until the bundler
+      # question is settled — see issue #85, and remove this entry then.
+      - dependency-name: "typescript"
+        update-types:
+          - version-update:semver-major
 
     # Grouping is deliberately broad. The first configuration only grouped dev
     # minor/patch and production *patch*, which left every production **minor**
