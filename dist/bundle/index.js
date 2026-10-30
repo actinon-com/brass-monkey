@@ -27173,7 +27173,7 @@ const SEARCH_RECORDS_SCHEMA = {
         limit: { type: "number", description: "Maximum number of records to return (defaults to 10)." },
         offset: { type: "number", description: "Number of records to skip (for pagination, defaults to 0)." },
         order: { type: "string", description: 'Order by clause (e.g., "name asc", "create_date desc").' },
-        with_translations: { type: "boolean", description: "If True, translatable fields are enriched with their 'Forgiving' format (Matrix)." },
+        with_translations: { type: "boolean", description: "If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model"],
@@ -27197,7 +27197,7 @@ const GET_RECORD_SCHEMA = {
         show_all_fields: { type: "boolean", description: "Force inclusion of EVERY field defined on the model." },
         for_user_id: { type: "number", description: "Evaluate security and data as a specific user ID." },
         rel_limit: { type: "number", description: "Limit the number of sub-lines or linked records resolved." },
-        with_translations: { type: "boolean", description: "If True, translatable fields are returned in translation matrix." },
+        with_translations: { type: "boolean", description: "If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     description: "MANDATORY for retrieving a comprehensive 360-degree dashboard report for a single Odoo record. Highly superior to search_records for single record lookups as it resolves sub-lines, relation display names, and chatter threads in one call. Use this immediately once you have a target record ID.",
@@ -27220,7 +27220,7 @@ const GET_RECORDS_SCHEMA = {
         show_all_fields: { type: "boolean", description: "Force inclusion of EVERY field defined on the model." },
         for_user_id: { type: "number", description: "Evaluate security and data as a specific user ID." },
         rel_limit: { type: "number", description: "Limit the number of sub-lines or linked records resolved." },
-        with_translations: { type: "boolean", description: "If True, translatable fields are returned in translation matrix." },
+        with_translations: { type: "boolean", description: "If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model"],
@@ -27252,7 +27252,7 @@ const CREATE_RECORD_SCHEMA = {
         model: { type: "string", description: 'Technical name of the model (e.g., "res.partner").' },
         values: { type: "string", description: "JSON-serialized string of field values: '{\"field_name\": value}'. Use inspect_model to find writable fields. MULTI-COMPANY: If the model is company-scoped (has a company_id field), keep 'company_id' consistent with related records (e.g. journals, accounts) to avoid multi-company validation errors. Not all models have company_id — do not add it blindly." },
         justification: { type: "string", description: "MANDATORY: Explain WHY this record is being created. This is logged to Odoo Chatter and local audit logs." },
-        with_translations: { type: "boolean", description: "If True, translatable fields can be provided as strings (sync to all) or expanded lists." },
+        with_translations: { type: "boolean", description: "If True, a plain string written to a translatable field is applied to ALL active languages, and a [{value, langs}] list targets specific ones; the result lists the languages written. Without this flag only the user's language changes and other languages keep their old text." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "values", "justification"],
@@ -27265,7 +27265,7 @@ const WRITE_RECORD_SCHEMA = {
         id: { type: "number", description: "The database ID of the record to update." },
         values: { type: "string", description: "JSON-serialized string of fields to update: '{\"field_name\": value}'. PRO TIP: We take a 'Before Snapshot' automatically for reversibility. MULTI-COMPANY: For company-scoped models, do not mix records from different companies; ensure any relational values linked match the record's company_id." },
         justification: { type: "string", description: "MANDATORY: Explain WHY this update is necessary. Logged for audit and safety." },
-        with_translations: { type: "boolean", description: "If True, translatable fields can be provided as strings (sync to all) or expanded lists." },
+        with_translations: { type: "boolean", description: "If True, a plain string written to a translatable field is applied to ALL active languages, and a [{value, langs}] list targets specific ones; the result lists the languages written. Without this flag only the user's language changes and other languages keep their old text." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "id", "values", "justification"],
@@ -28297,61 +28297,12 @@ class OdooOrchestrator {
     /**
      * Fetches all translations for a set of records and fields,
      * returning them in the 'Forgiving' format.
+     * Failures are swallowed (returns {}); use readTranslations when the caller
+     * must be able to tell "identical everywhere" from "not fetched".
      */
     async fetchTranslationMatrix(model, resIds, fieldNames) {
-        if (!fieldNames.length || !resIds.length)
-            return {};
         try {
-            const langs = await this.client.executeKw('res.lang', 'search_read', [[['active', '=', true]]], { fields: ['code'] });
-            const langCodes = langs.map((l) => l.code);
-            // Matrix: { res_id: { field_name: { lang_code: value } } }
-            const matrix = {};
-            for (const rid of resIds) {
-                matrix[rid] = {};
-                for (const fname of fieldNames) {
-                    matrix[rid][fname] = {};
-                }
-            }
-            // Batch fetch per language
-            for (const lang of langCodes) {
-                const langData = await this.client.executeKw(model, 'read', [resIds], { fields: fieldNames, context: { lang } });
-                for (const rec of langData) {
-                    const rid = rec.id;
-                    for (const fname of fieldNames) {
-                        matrix[rid][fname][lang] = rec[fname];
-                    }
-                }
-            }
-            // Simplify Phase into "Forgiving Format"
-            const results = {};
-            for (const rid of resIds) {
-                results[rid] = {};
-                for (const fname of fieldNames) {
-                    const values = matrix[rid][fname];
-                    const uniqueValues = {};
-                    for (const [lang, val] of Object.entries(values)) {
-                        const key = JSON.stringify(val);
-                        if (!uniqueValues[key])
-                            uniqueValues[key] = [];
-                        uniqueValues[key].push(lang);
-                    }
-                    const entries = Object.entries(uniqueValues);
-                    if (entries.length <= 1) {
-                        // All identical (Clean case)
-                        results[rid][fname] = entries.length > 0 ? JSON.parse(entries[0][0]) : false;
-                    }
-                    else {
-                        // Divergent (Expanded case)
-                        // Sort by popularity to find the most common as "fallback"
-                        entries.sort((a, b) => b[1].length - a[1].length);
-                        results[rid][fname] = entries.map(([valJson, lList], index) => ({
-                            value: JSON.parse(valJson),
-                            langs: index === 0 ? [] : lList // First one is the fallback
-                        }));
-                    }
-                }
-            }
-            return results;
+            return (await this.buildTranslationMatrix(model, resIds, fieldNames)).results;
         }
         catch (e) {
             console.error(`Translation matrix fetch failed: ${e}`);
@@ -28359,12 +28310,97 @@ class OdooOrchestrator {
         }
     }
     /**
+     * Like fetchTranslationMatrix, but also returns a note for the agent saying
+     * how to read the values — or, if the fetch failed, that the values shown are
+     * in the user's language only. A plain value is otherwise ambiguous.
+     */
+    async readTranslations(model, resIds, fieldNames) {
+        try {
+            const { langCodes, results } = await this.buildTranslationMatrix(model, resIds, fieldNames);
+            return {
+                values: results,
+                note: {
+                    fields: fieldNames,
+                    languages: langCodes,
+                    reading: `A plain value is identical in all ${langCodes.length} active languages. A [{value, langs}] list means they differ; the entry with empty langs is the fallback for every language not listed.`
+                }
+            };
+        }
+        catch (e) {
+            return {
+                values: {},
+                note: {
+                    fields: fieldNames,
+                    error: `Translations could not be fetched: ${e?.message || e}`,
+                    reading: "Values shown are in the user's language only. Do not assume other languages match."
+                }
+            };
+        }
+    }
+    async buildTranslationMatrix(model, resIds, fieldNames) {
+        if (!fieldNames.length || !resIds.length)
+            return { langCodes: [], results: {} };
+        const langs = await this.client.executeKw('res.lang', 'search_read', [[['active', '=', true]]], { fields: ['code'] });
+        const langCodes = langs.map((l) => l.code);
+        // Matrix: { res_id: { field_name: { lang_code: value } } }
+        const matrix = {};
+        for (const rid of resIds) {
+            matrix[rid] = {};
+            for (const fname of fieldNames) {
+                matrix[rid][fname] = {};
+            }
+        }
+        // Batch fetch per language
+        for (const lang of langCodes) {
+            const langData = await this.client.executeKw(model, 'read', [resIds], { fields: fieldNames, context: { lang } });
+            for (const rec of langData) {
+                const rid = rec.id;
+                for (const fname of fieldNames) {
+                    matrix[rid][fname][lang] = rec[fname];
+                }
+            }
+        }
+        // Simplify Phase into "Forgiving Format"
+        const results = {};
+        for (const rid of resIds) {
+            results[rid] = {};
+            for (const fname of fieldNames) {
+                const values = matrix[rid][fname];
+                const uniqueValues = {};
+                for (const [lang, val] of Object.entries(values)) {
+                    const key = JSON.stringify(val);
+                    if (!uniqueValues[key])
+                        uniqueValues[key] = [];
+                    uniqueValues[key].push(lang);
+                }
+                const entries = Object.entries(uniqueValues);
+                if (entries.length <= 1) {
+                    // All identical (Clean case)
+                    results[rid][fname] = entries.length > 0 ? JSON.parse(entries[0][0]) : false;
+                }
+                else {
+                    // Divergent (Expanded case)
+                    // Sort by popularity to find the most common as "fallback"
+                    entries.sort((a, b) => b[1].length - a[1].length);
+                    results[rid][fname] = entries.map(([valJson, lList], index) => ({
+                        value: JSON.parse(valJson),
+                        langs: index === 0 ? [] : lList // First one is the fallback
+                    }));
+                }
+            }
+        }
+        return { langCodes, results };
+    }
+    /**
      * Processes input values for a write/create operation, handling translatable fields.
      * Performs "Broadcast Writing" to keep languages in sync.
+     * Returns the record ID plus, per translatable field, the languages written
+     * and any requested languages skipped because they are not active.
      */
     async applyBroadcastWrite(model, resId, values, transFields) {
         const mainWrite = {};
         const translationWrites = {};
+        const skipped = {};
         const langs = await this.client.executeKw('res.lang', 'search_read', [[['active', '=', true]]], { fields: ['code'] });
         const langCodes = langs.map((l) => l.code);
         for (const lcode of langCodes)
@@ -28385,6 +28421,8 @@ class OdooOrchestrator {
                             for (const lcode of targetLangs) {
                                 if (translationWrites[lcode])
                                     translationWrites[lcode][fname] = bucket.value;
+                                else
+                                    (skipped[fname] ??= []).push(lcode);
                             }
                         }
                     }
@@ -28411,12 +28449,15 @@ class OdooOrchestrator {
             await this.client.executeKw(model, 'write', [[resId], mainWrite]);
         }
         // Apply translations
+        const languagesWritten = {};
         for (const [lcode, vals] of Object.entries(translationWrites)) {
             if (Object.keys(vals).length > 0) {
                 await this.client.executeKw(model, 'write', [[resultId], vals], { context: { lang: lcode } });
+                for (const fname of Object.keys(vals))
+                    (languagesWritten[fname] ??= []).push(lcode);
             }
         }
-        return resultId;
+        return { id: resultId, languagesWritten, skipped };
     }
     /**
      * Enhances records with label expansions for Many2one fields.
@@ -28752,7 +28793,7 @@ const SearchRecordsSchema = object({
     limit: coerce_number().optional().describe('Maximum number of records to return (defaults to 10)'),
     offset: coerce_number().optional().describe('Number of records to skip (for pagination)'),
     order: schemas_string().optional().describe('Sort order (e.g., "id desc", "write_date desc")'),
-    with_translations: schemas_boolean().optional().default(false).describe("If True, translatable fields are enriched with their 'Forgiving' format."),
+    with_translations: schemas_boolean().optional().default(false).describe("If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only."),
     instance_alias: schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -28818,6 +28859,7 @@ async function searchRecords(manager, input) {
         }
     }
     // 3. Translate if requested
+    let translationNote;
     if (with_translations && activeRecords.length > 0) {
         const orchestrator = new OdooOrchestrator(client);
         const transFieldRecs = await client.executeKw('ir.model.fields', 'search_read', [[
@@ -28828,10 +28870,11 @@ async function searchRecords(manager, input) {
         const transFieldNames = transFieldRecs.map((f) => f.name);
         if (transFieldNames.length > 0) {
             const resIds = activeRecords.map((r) => r.id);
-            const matrix = await orchestrator.fetchTranslationMatrix(model, resIds, transFieldNames);
+            const { values, note } = await orchestrator.readTranslations(model, resIds, transFieldNames);
+            translationNote = note;
             for (const rec of activeRecords) {
-                if (matrix[rec.id]) {
-                    Object.assign(rec, matrix[rec.id]);
+                if (values[rec.id]) {
+                    Object.assign(rec, values[rec.id]);
                 }
             }
         }
@@ -28851,6 +28894,7 @@ async function searchRecords(manager, input) {
         offset: targetOffset,
         limit: targetLimit,
         ...(advice.length > 0 ? { optimization_advice: advice } : {}),
+        ...(translationNote ? { translations: translationNote } : {}),
         leads: activeRecords.reduce((acc, r) => {
             acc[String(r.id)] = r.display_name || r.name || `ID ${r.id}`;
             return acc;
@@ -28883,7 +28927,7 @@ const GetRecordSchema = object({
     show_all_fields: schemas_boolean().optional().default(false).describe('Force inclusion of EVERY field defined on the model.'),
     for_user_id: coerce_number().optional().describe('Evaluate security and data as a specific user ID.'),
     rel_limit: coerce_number().optional().default(20).describe('Limit the number of sub-lines or linked records resolved.'),
-    with_translations: schemas_boolean().optional().default(false).describe('If True, translatable fields are returned in translation dictionary matrix.'),
+    with_translations: schemas_boolean().optional().default(false).describe("If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only."),
     instance_alias: schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 const GetRecordsSchema = object({
@@ -28922,7 +28966,7 @@ const GetRecordsSchema = object({
     show_all_fields: schemas_boolean().optional().default(false).describe('Force inclusion of EVERY field.'),
     for_user_id: coerce_number().optional().describe('Evaluate as a specific user ID.'),
     rel_limit: coerce_number().optional().default(20).describe('Limit the number of sub-lines/links resolved.'),
-    with_translations: schemas_boolean().optional().default(false).describe('If True, translatable fields are returned in translation matrix.'),
+    with_translations: schemas_boolean().optional().default(false).describe("If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only."),
     instance_alias: schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -28972,10 +29016,11 @@ async function fetchSingleRecordDetail(client, instanceAlias, model, resId, flag
             ]], { fields: ['name'] });
         const transFieldNames = transFieldRecs.map((f) => f.name);
         if (transFieldNames.length > 0) {
-            const matrix = await orchestrator.fetchTranslationMatrix(model, [resId], transFieldNames);
-            if (matrix[resId]) {
-                Object.assign(record, matrix[resId]);
+            const { values, note } = await orchestrator.readTranslations(model, [resId], transFieldNames);
+            if (values[resId]) {
+                Object.assign(record, values[resId]);
             }
+            record._translations = note;
         }
     }
     // 4. Resolve sub-line records (One2many / Many2many full sub-rows)
@@ -29168,7 +29213,7 @@ const CreateRecordSchema = object({
         return val;
     }, record(schemas_string(), any())).describe('A dictionary of field values.'),
     justification: schemas_string().min(1).describe('Business justification for creating this record.'),
-    with_translations: schemas_boolean().optional().default(false).describe("If True, translatable fields can be provided as strings (sync to all) or expanded lists."),
+    with_translations: schemas_boolean().optional().default(false).describe("If True, a plain string written to a translatable field is applied to ALL active languages, and a [{value, langs}] list targets specific ones; the result lists the languages written. Without this flag only the user's language changes and other languages keep their old text."),
     instance_alias: schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -29195,13 +29240,20 @@ async function createRecord(manager, input) {
     }
     // Resolve natural language values (names to IDs, objects to command tuples)
     const resolvedValues = await orchestrator.resolveFieldValues(model, values);
-    const recordId = await orchestrator.applyBroadcastWrite(model, null, resolvedValues, transFieldNames);
+    const { id: recordId, languagesWritten, skipped } = await orchestrator.applyBroadcastWrite(model, null, resolvedValues, transFieldNames);
     // Log locally for agent history
     await audit.logLocalAction('create', model, recordId, resolvedValues, justification);
     // Log to global system logs
     await audit.logSystemEvent(`Created ${model}(${recordId}): ${justification}`);
     // Log to chatter (if supported by model)
     await audit.postChatterMessage(model, recordId, `<p>Created record with justification: ${justification}</p>`);
+    // Confirm which languages a translated create reached; plain creates keep the bare ID
+    if (Object.keys(languagesWritten).length > 0) {
+        return {
+            id: recordId,
+            translations: { languages_written: languagesWritten, ...(Object.keys(skipped).length > 0 ? { skipped_inactive: skipped } : {}) }
+        };
+    }
     return recordId;
 }
 
@@ -29227,7 +29279,7 @@ const WriteRecordSchema = object({
         return val;
     }, record(schemas_string(), any())).describe('A dictionary of fields to update.'),
     justification: schemas_string().min(1).describe('Business justification for the change.'),
-    with_translations: schemas_boolean().optional().default(false).describe("If True, translatable fields can be provided as strings (sync to all) or expanded lists."),
+    with_translations: schemas_boolean().optional().default(false).describe("If True, a plain string written to a translatable field is applied to ALL active languages, and a [{value, langs}] list targets specific ones; the result lists the languages written. Without this flag only the user's language changes and other languages keep their old text."),
     instance_alias: schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -29273,7 +29325,7 @@ async function writeRecord(manager, input) {
         before = beforeRecords && beforeRecords.length > 0 ? beforeRecords[0] : {};
     }
     // 4. Execute the orchestrated write
-    const resultId = await orchestrator.applyBroadcastWrite(model, id, resolvedValues, transFieldNames);
+    const { id: resultId, languagesWritten, skipped } = await orchestrator.applyBroadcastWrite(model, id, resolvedValues, transFieldNames);
     const success = !!resultId;
     // 5. Audit and store reversibility context
     if (success) {
@@ -29281,6 +29333,13 @@ async function writeRecord(manager, input) {
         const body = audit.formatWriteSnapshot(before, justification);
         await audit.postChatterMessage(model, id, body);
         await audit.logSystemEvent(`Modified ${model}(${id}): ${justification}`);
+    }
+    // Confirm which languages a translated write reached; plain writes keep the bare boolean
+    if (success && Object.keys(languagesWritten).length > 0) {
+        return {
+            success,
+            translations: { languages_written: languagesWritten, ...(Object.keys(skipped).length > 0 ? { skipped_inactive: skipped } : {}) }
+        };
     }
     return success;
 }
@@ -30600,7 +30659,7 @@ async function getAuditLog(manager, input) {
 
 const mcp_server_dirname = external_path_default().dirname((0,external_url_.fileURLToPath)(import.meta.url));
 // Read package.json for metadata
-let mcp_server_version = "2.1.0";
+let mcp_server_version = "2.1.1";
 try {
     // Try both possible locations (source vs bundled)
     const pkgPaths = [

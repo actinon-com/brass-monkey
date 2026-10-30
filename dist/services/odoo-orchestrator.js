@@ -10,61 +10,12 @@ export class OdooOrchestrator {
     /**
      * Fetches all translations for a set of records and fields,
      * returning them in the 'Forgiving' format.
+     * Failures are swallowed (returns {}); use readTranslations when the caller
+     * must be able to tell "identical everywhere" from "not fetched".
      */
     async fetchTranslationMatrix(model, resIds, fieldNames) {
-        if (!fieldNames.length || !resIds.length)
-            return {};
         try {
-            const langs = await this.client.executeKw('res.lang', 'search_read', [[['active', '=', true]]], { fields: ['code'] });
-            const langCodes = langs.map((l) => l.code);
-            // Matrix: { res_id: { field_name: { lang_code: value } } }
-            const matrix = {};
-            for (const rid of resIds) {
-                matrix[rid] = {};
-                for (const fname of fieldNames) {
-                    matrix[rid][fname] = {};
-                }
-            }
-            // Batch fetch per language
-            for (const lang of langCodes) {
-                const langData = await this.client.executeKw(model, 'read', [resIds], { fields: fieldNames, context: { lang } });
-                for (const rec of langData) {
-                    const rid = rec.id;
-                    for (const fname of fieldNames) {
-                        matrix[rid][fname][lang] = rec[fname];
-                    }
-                }
-            }
-            // Simplify Phase into "Forgiving Format"
-            const results = {};
-            for (const rid of resIds) {
-                results[rid] = {};
-                for (const fname of fieldNames) {
-                    const values = matrix[rid][fname];
-                    const uniqueValues = {};
-                    for (const [lang, val] of Object.entries(values)) {
-                        const key = JSON.stringify(val);
-                        if (!uniqueValues[key])
-                            uniqueValues[key] = [];
-                        uniqueValues[key].push(lang);
-                    }
-                    const entries = Object.entries(uniqueValues);
-                    if (entries.length <= 1) {
-                        // All identical (Clean case)
-                        results[rid][fname] = entries.length > 0 ? JSON.parse(entries[0][0]) : false;
-                    }
-                    else {
-                        // Divergent (Expanded case)
-                        // Sort by popularity to find the most common as "fallback"
-                        entries.sort((a, b) => b[1].length - a[1].length);
-                        results[rid][fname] = entries.map(([valJson, lList], index) => ({
-                            value: JSON.parse(valJson),
-                            langs: index === 0 ? [] : lList // First one is the fallback
-                        }));
-                    }
-                }
-            }
-            return results;
+            return (await this.buildTranslationMatrix(model, resIds, fieldNames)).results;
         }
         catch (e) {
             console.error(`Translation matrix fetch failed: ${e}`);
@@ -72,12 +23,97 @@ export class OdooOrchestrator {
         }
     }
     /**
+     * Like fetchTranslationMatrix, but also returns a note for the agent saying
+     * how to read the values — or, if the fetch failed, that the values shown are
+     * in the user's language only. A plain value is otherwise ambiguous.
+     */
+    async readTranslations(model, resIds, fieldNames) {
+        try {
+            const { langCodes, results } = await this.buildTranslationMatrix(model, resIds, fieldNames);
+            return {
+                values: results,
+                note: {
+                    fields: fieldNames,
+                    languages: langCodes,
+                    reading: `A plain value is identical in all ${langCodes.length} active languages. A [{value, langs}] list means they differ; the entry with empty langs is the fallback for every language not listed.`
+                }
+            };
+        }
+        catch (e) {
+            return {
+                values: {},
+                note: {
+                    fields: fieldNames,
+                    error: `Translations could not be fetched: ${e?.message || e}`,
+                    reading: "Values shown are in the user's language only. Do not assume other languages match."
+                }
+            };
+        }
+    }
+    async buildTranslationMatrix(model, resIds, fieldNames) {
+        if (!fieldNames.length || !resIds.length)
+            return { langCodes: [], results: {} };
+        const langs = await this.client.executeKw('res.lang', 'search_read', [[['active', '=', true]]], { fields: ['code'] });
+        const langCodes = langs.map((l) => l.code);
+        // Matrix: { res_id: { field_name: { lang_code: value } } }
+        const matrix = {};
+        for (const rid of resIds) {
+            matrix[rid] = {};
+            for (const fname of fieldNames) {
+                matrix[rid][fname] = {};
+            }
+        }
+        // Batch fetch per language
+        for (const lang of langCodes) {
+            const langData = await this.client.executeKw(model, 'read', [resIds], { fields: fieldNames, context: { lang } });
+            for (const rec of langData) {
+                const rid = rec.id;
+                for (const fname of fieldNames) {
+                    matrix[rid][fname][lang] = rec[fname];
+                }
+            }
+        }
+        // Simplify Phase into "Forgiving Format"
+        const results = {};
+        for (const rid of resIds) {
+            results[rid] = {};
+            for (const fname of fieldNames) {
+                const values = matrix[rid][fname];
+                const uniqueValues = {};
+                for (const [lang, val] of Object.entries(values)) {
+                    const key = JSON.stringify(val);
+                    if (!uniqueValues[key])
+                        uniqueValues[key] = [];
+                    uniqueValues[key].push(lang);
+                }
+                const entries = Object.entries(uniqueValues);
+                if (entries.length <= 1) {
+                    // All identical (Clean case)
+                    results[rid][fname] = entries.length > 0 ? JSON.parse(entries[0][0]) : false;
+                }
+                else {
+                    // Divergent (Expanded case)
+                    // Sort by popularity to find the most common as "fallback"
+                    entries.sort((a, b) => b[1].length - a[1].length);
+                    results[rid][fname] = entries.map(([valJson, lList], index) => ({
+                        value: JSON.parse(valJson),
+                        langs: index === 0 ? [] : lList // First one is the fallback
+                    }));
+                }
+            }
+        }
+        return { langCodes, results };
+    }
+    /**
      * Processes input values for a write/create operation, handling translatable fields.
      * Performs "Broadcast Writing" to keep languages in sync.
+     * Returns the record ID plus, per translatable field, the languages written
+     * and any requested languages skipped because they are not active.
      */
     async applyBroadcastWrite(model, resId, values, transFields) {
         const mainWrite = {};
         const translationWrites = {};
+        const skipped = {};
         const langs = await this.client.executeKw('res.lang', 'search_read', [[['active', '=', true]]], { fields: ['code'] });
         const langCodes = langs.map((l) => l.code);
         for (const lcode of langCodes)
@@ -98,6 +134,8 @@ export class OdooOrchestrator {
                             for (const lcode of targetLangs) {
                                 if (translationWrites[lcode])
                                     translationWrites[lcode][fname] = bucket.value;
+                                else
+                                    (skipped[fname] ??= []).push(lcode);
                             }
                         }
                     }
@@ -124,12 +162,15 @@ export class OdooOrchestrator {
             await this.client.executeKw(model, 'write', [[resId], mainWrite]);
         }
         // Apply translations
+        const languagesWritten = {};
         for (const [lcode, vals] of Object.entries(translationWrites)) {
             if (Object.keys(vals).length > 0) {
                 await this.client.executeKw(model, 'write', [[resultId], vals], { context: { lang: lcode } });
+                for (const fname of Object.keys(vals))
+                    (languagesWritten[fname] ??= []).push(lcode);
             }
         }
-        return resultId;
+        return { id: resultId, languagesWritten, skipped };
     }
     /**
      * Enhances records with label expansions for Many2one fields.

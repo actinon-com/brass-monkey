@@ -18,4 +18,10 @@ export type CreateRecordInput = z.infer<typeof CreateRecordSchema>;
  * @param input The CreateRecordInput parameters.
  * @returns The database ID of the newly created record.
  */
-export declare function createRecord(manager: InstanceManager, input: CreateRecordInput): Promise<number | null>;
+export declare function createRecord(manager: InstanceManager, input: CreateRecordInput): Promise<number | {
+    id: number | null;
+    translations: {
+        skipped_inactive?: Record<string, string[]> | undefined;
+        languages_written: Record<string, string[]>;
+    };
+} | null>;

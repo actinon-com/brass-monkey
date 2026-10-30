@@ -26,7 +26,7 @@ The `inspect_model` tool uses a compressed "Lean Property Encoding" strategy. De
 - `readonly`: The field is managed by the system and cannot be manually written.
 - `company-dependent`: The field value is stored per-company (via `ir.property`).
 - `not-stored`: The field is computed on-the-fly and cannot be used in direct SQL-like searches unless it is explicitly marked as stored.
-- `translatable`: The field supports multiple languages. The server handles language synchronization for you.
+- `translatable`: The field supports multiple languages. Pass `with_translations: true` to read or write all languages; without it you only see and change the user's language. See `odoo-data-ops` §9.
 
 ### 3. Orchestrated Field Metadata
 Beyond basic properties, `inspect_model` provides middleware-driven enhancements:

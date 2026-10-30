@@ -15,7 +15,7 @@ export const CreateRecordSchema = z.object({
     return val;
   }, z.record(z.string(), z.any())).describe('A dictionary of field values.'),
   justification: z.string().min(1).describe('Business justification for creating this record.'),
-  with_translations: z.boolean().optional().default(false).describe("If True, translatable fields can be provided as strings (sync to all) or expanded lists."),
+  with_translations: z.boolean().optional().default(false).describe("If True, a plain string written to a translatable field is applied to ALL active languages, and a [{value, langs}] list targets specific ones; the result lists the languages written. Without this flag only the user's language changes and other languages keep their old text."),
   instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 
@@ -48,7 +48,7 @@ export async function createRecord(manager: InstanceManager, input: CreateRecord
   // Resolve natural language values (names to IDs, objects to command tuples)
   const resolvedValues = await orchestrator.resolveFieldValues(model, values);
 
-  const recordId = await orchestrator.applyBroadcastWrite(model, null, resolvedValues, transFieldNames);
+  const { id: recordId, languagesWritten, skipped } = await orchestrator.applyBroadcastWrite(model, null, resolvedValues, transFieldNames);
 
   // Log locally for agent history
   await audit.logLocalAction('create', model, recordId as number, resolvedValues, justification);
@@ -59,5 +59,12 @@ export async function createRecord(manager: InstanceManager, input: CreateRecord
   // Log to chatter (if supported by model)
   await audit.postChatterMessage(model, recordId as number, `<p>Created record with justification: ${justification}</p>`);
 
+  // Confirm which languages a translated create reached; plain creates keep the bare ID
+  if (Object.keys(languagesWritten).length > 0) {
+    return {
+      id: recordId,
+      translations: { languages_written: languagesWritten, ...(Object.keys(skipped).length > 0 ? { skipped_inactive: skipped } : {}) }
+    };
+  }
   return recordId;
 }

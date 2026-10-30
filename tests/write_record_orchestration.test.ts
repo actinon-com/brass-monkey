@@ -37,7 +37,7 @@ describe('writeRecord Orchestration', () => {
       .mockResolvedValueOnce([{ code: 'en_US' }, { code: 'fr_FR' }]) // broadcast: fetch langs
       .mockResolvedValueOnce(1); // broadcast: main write success
 
-    await writeRecord(mockManager, {
+    const result = await writeRecord(mockManager, {
       model: 'product.template',
       id: 1,
       values: { name: 'New Apple' },
@@ -48,5 +48,8 @@ describe('writeRecord Orchestration', () => {
     // Verify broadcast calls
     expect(mockClient.executeKw).toHaveBeenCalledWith('product.template', 'write', [[1], { name: 'New Apple' }], { context: { lang: 'en_US' } });
     expect(mockClient.executeKw).toHaveBeenCalledWith('product.template', 'write', [[1], { name: 'New Apple' }], { context: { lang: 'fr_FR' } });
+
+    // Result confirms the broadcast reached every language
+    expect(result).toEqual({ success: true, translations: { languages_written: { name: ['en_US', 'fr_FR'] } } });
   });
 });

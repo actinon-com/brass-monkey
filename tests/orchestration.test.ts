@@ -48,6 +48,32 @@ describe('OdooOrchestrator', () => {
     });
   });
 
+  describe('readTranslations', () => {
+    it('should state how to read a plain value and list the languages', async () => {
+      mockClient.executeKw
+        .mockResolvedValueOnce([{ code: 'en_US' }, { code: 'en_AU' }]) // langs
+        .mockResolvedValueOnce([{ id: 1, name: 'Product' }]) // read en_US
+        .mockResolvedValueOnce([{ id: 1, name: 'Product' }]); // read en_AU
+
+      const { values, note } = await orchestrator.readTranslations('product.template', [1], ['name']);
+
+      expect(values[1].name).toBe('Product');
+      expect(note.languages).toEqual(['en_US', 'en_AU']);
+      expect(note.reading).toMatch(/identical in all 2 active languages/);
+      expect(note).not.toHaveProperty('error');
+    });
+
+    it('should report a failed fetch instead of passing it off as identical', async () => {
+      mockClient.executeKw.mockRejectedValue(new Error('Access Denied'));
+
+      const { values, note } = await orchestrator.readTranslations('product.template', [1], ['name']);
+
+      expect(values).toEqual({});
+      expect(note.error).toMatch(/Access Denied/);
+      expect(note.reading).toMatch(/user's language only/);
+    });
+  });
+
   describe('resolveFieldValues', () => {
     beforeEach(() => {
       mockClient.executeKw.mockResolvedValue([
@@ -141,6 +167,25 @@ describe('OdooOrchestrator', () => {
       // Verify translation writes
       expect(mockClient.executeKw).toHaveBeenCalledWith('product.template', 'write', [[1], { name: 'Apple' }], { context: { lang: 'en_US' } });
       expect(mockClient.executeKw).toHaveBeenCalledWith('product.template', 'write', [[1], { name: 'Pomme' }], { context: { lang: 'fr_FR' } });
+    });
+
+    it('should report languages written and skip inactive ones', async () => {
+      mockClient.executeKw
+        .mockResolvedValueOnce([{ code: 'en_US' }, { code: 'fr_FR' }]) // langs
+        .mockResolvedValueOnce(1); // main write success
+
+      const values = {
+        name: [
+          { value: 'Apple', langs: [] },
+          { value: 'Apfel', langs: ['de_DE'] }
+        ]
+      };
+
+      const result = await orchestrator.applyBroadcastWrite('product.template', 1, values, ['name']);
+
+      expect(result.id).toBe(1);
+      expect(result.languagesWritten).toEqual({ name: ['en_US', 'fr_FR'] });
+      expect(result.skipped).toEqual({ name: ['de_DE'] });
     });
   });
 });

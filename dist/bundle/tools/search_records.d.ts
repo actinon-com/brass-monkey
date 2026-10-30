@@ -33,6 +33,7 @@ export declare function searchRecords(manager: InstanceManager, input: SearchRec
 } | {
     leads: any;
     results: any;
+    translations?: Record<string, any> | undefined;
     optimization_advice?: string[] | undefined;
     model: string;
     count: any;
