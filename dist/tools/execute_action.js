@@ -44,7 +44,8 @@ const CANDIDATE_ACTION_FIELDS = [
     'value',
     'webhook_url',
     'binding_model_id',
-    'groups_id',
+    'groups_id', // Odoo 18 and earlier
+    'group_ids', // Odoo 19+
     'sequence',
 ];
 /**

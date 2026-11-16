@@ -31,8 +31,13 @@ export async function getEnvironment(manager: InstanceManager, input: GetEnviron
   const uid = client.activeUid;
   if (!uid) throw new Error("Not authenticated");
 
+  // Odoo 19 renamed res.users.groups_id to group_ids. Only fetched when asked for.
+  const groupsField = (client.majorVersion || 0) >= 19 ? 'group_ids' : 'groups_id';
+  const userFields = ['name', 'login', 'lang', 'company_id', 'company_ids'];
+  if (show_security) userFields.push(groupsField);
+
   const userData = await client.executeKw('res.users', 'read', [[uid]], {
-    fields: ['name', 'login', 'lang', 'company_id', 'company_ids', 'groups_id']
+    fields: userFields
   });
   const user = userData[0];
 
@@ -89,7 +94,7 @@ export async function getEnvironment(manager: InstanceManager, input: GetEnviron
   };
 
   if (show_security) {
-    const groups = await client.executeKw('res.groups', 'read', [user.groups_id], {
+    const groups = await client.executeKw('res.groups', 'read', [user[groupsField] || []], {
       fields: ['full_name']
     });
     res.user.security_groups = groups.reduce((acc: any, g: any) => {
