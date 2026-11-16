@@ -48,6 +48,36 @@ describe('Discovery Tools', () => {
       expect(result.environment.user.accessible_companies[0].name).toBe('MyCompany');
       expect(result.environment.organization.companies[0].name).toBe('MyCompany');
     });
+
+    it('reads group_ids, not groups_id, on Odoo 19', async () => {
+      mockClient.majorVersion = 19;
+      mockClient.executeKw
+        .mockResolvedValueOnce([{ name: 'Admin', login: 'admin', lang: 'en_US', company_id: [1, 'MyCompany'], company_ids: [1], group_ids: [10] }]) // user
+        .mockResolvedValueOnce([{ id: 1, name: 'MyCompany', currency_id: [2, 'USD'], country_id: [3, 'US'] }]) // companies
+        .mockResolvedValueOnce([{ name: 'English', code: 'en_US' }]) // languages
+        .mockResolvedValueOnce([{ id: 10, full_name: 'Settings / Administrator' }]); // groups
+
+      const result = await getEnvironment(mockManager, { show_security: true, show_manifest: false });
+
+      const userFields = mockClient.executeKw.mock.calls[0][3].fields;
+      expect(userFields).toContain('group_ids');
+      expect(userFields).not.toContain('groups_id');
+      expect(mockClient.executeKw.mock.calls[3][2]).toEqual([[10]]);
+      expect(result.environment.user.security_groups).toEqual({ 'Settings / Administrator': 10 });
+    });
+
+    it('does not request the groups field unless security is asked for', async () => {
+      mockClient.executeKw
+        .mockResolvedValueOnce([{ name: 'Admin', login: 'admin', lang: 'en_US', company_id: [1, 'MyCompany'], company_ids: [1] }])
+        .mockResolvedValueOnce([{ id: 1, name: 'MyCompany', currency_id: [2, 'USD'], country_id: [3, 'US'] }])
+        .mockResolvedValueOnce([]);
+
+      await getEnvironment(mockManager, { show_security: false, show_manifest: false });
+
+      const userFields = mockClient.executeKw.mock.calls[0][3].fields;
+      expect(userFields).not.toContain('groups_id');
+      expect(userFields).not.toContain('group_ids');
+    });
   });
 
   describe('inspectModel', () => {
