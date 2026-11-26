@@ -33174,7 +33174,7 @@ async function getAuditLog(manager, input) {
 
 const mcp_server_dirname = external_path_default().dirname((0,external_url_.fileURLToPath)(import.meta.url));
 // Read package.json for metadata
-let mcp_server_version = "2.1.2";
+let mcp_server_version = "2.1.3";
 try {
     // Try both possible locations (source vs bundled)
     const pkgPaths = [
