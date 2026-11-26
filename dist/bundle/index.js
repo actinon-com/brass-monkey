@@ -28778,7 +28778,419 @@ class StdioServerTransport {
 // EXTERNAL MODULE: ./node_modules/xmlrpc/lib/xmlrpc.js
 var xmlrpc = __nccwpck_require__(1014);
 var xmlrpc_default = /*#__PURE__*/__nccwpck_require__.n(xmlrpc);
+;// CONCATENATED MODULE: ./src/services/metadata-cache.ts
+/**
+ * Service to cache Odoo model layouts in memory during the active session.
+ * Cuts N+1 query latency down to 0ms for default searches and model inspections.
+ */
+class MetadataCache {
+    static instance = null;
+    cache = new Map();
+    constructor() { }
+    static getInstance() {
+        if (!MetadataCache.instance) {
+            MetadataCache.instance = new MetadataCache();
+        }
+        return MetadataCache.instance;
+    }
+    getKey(instanceAlias, model) {
+        return `${instanceAlias || 'default'}:${model}`;
+    }
+    get(instanceAlias, model) {
+        return this.cache.get(this.getKey(instanceAlias, model)) || null;
+    }
+    set(instanceAlias, model, metadata) {
+        this.cache.set(this.getKey(instanceAlias, model), metadata);
+    }
+    /** Drops a model's entry under every alias, so the next use rebuilds it. */
+    invalidateModel(model) {
+        for (const key of Array.from(this.cache.keys())) {
+            if (key.endsWith(`:${model}`))
+                this.cache.delete(key);
+        }
+    }
+    clear() {
+        this.cache.clear();
+    }
+}
+
+;// CONCATENATED MODULE: ./src/services/metadata-resolver.ts
+
+/**
+ * Registry of Expert Domains and their associated Odoo model prefixes
+ * used to resolve skill gate breadcrumbs for model listings.
+ */
+const SKILL_DOMAIN_MAP = {
+    'odoo-sales': ['sale.*', 'crm.*'],
+    'odoo-finance': ['account.*', 'payment.*'],
+    'odoo-inventory': ['stock.*', 'product.*'],
+    'odoo-relations': ['res.partner', 'res.partner.category'],
+    'odoo-projects': ['project.*', 'project.task'],
+    'odoo-mrp': ['mrp.*'],
+    'odoo-plm': ['mrp.eco.*'],
+    'odoo-hr': ['hr.*', 'hr.employee'],
+    'odoo-attendance': ['hr.attendance'],
+    'odoo-helpdesk': ['helpdesk.*'],
+    'odoo-knowledge': ['knowledge.*'],
+    'odoo-documents': ['documents.*'],
+    'odoo-get-started': ['ir.model', 'ir.model.fields', 'ir.module.module'],
+};
+/**
+ * Definitively identifies the origin module of a Odoo model using ir.model.data (XML ID).
+ */
+async function resolveBaseModule(client, modelId, moduleListStr) {
+    const moduleList = moduleListStr.split(',').map(m => m.trim());
+    try {
+        const mDatas = await client.executeKw('ir.model.data', 'search_read', [
+            [['model', '=', 'ir.model'], ['res_id', '=', modelId]]
+        ], {
+            fields: ['module']
+        });
+        const allOriginMods = mDatas.map((m) => m.module);
+        if (allOriginMods.includes('base')) {
+            return 'base';
+        }
+        else if (allOriginMods.length > 0) {
+            // Return the shortest module name (e.g., 'sale' vs 'sale_management')
+            const sorted = [...allOriginMods].sort((a, b) => a.length - b.length);
+            return sorted[0];
+        }
+        else {
+            return moduleList[0];
+        }
+    }
+    catch (error) {
+        return moduleList[0];
+    }
+}
+/**
+ * Columns we would like to read from `ir.model.fields`. Some are NOT present on
+ * every Odoo version: `company_dependent`, in particular, is absent from
+ * `ir.model.fields` on older instances (observed on Odoo 15.0), where requesting
+ * it makes the whole `search_read` fail with
+ * "Invalid field 'company_dependent' on model 'ir.model.fields'" — taking down
+ * `inspect_model` entirely. We therefore probe the instance's actual columns once
+ * and request only the ones that exist, rather than assuming the newest schema.
+ */
+const DESIRED_FIELD_COLUMNS = [
+    'name', 'field_description', 'ttype', 'relation', 'required', 'readonly',
+    'store', 'translate', 'company_dependent', 'help', 'domain', 'modules',
+    'compute', 'related'
+];
+/** Per-client cache of the columns actually available on `ir.model.fields`. */
+const irModelFieldsColumns = new WeakMap();
+/**
+ * Returns the subset of DESIRED_FIELD_COLUMNS that this instance's
+ * `ir.model.fields` model actually exposes, probing once per client via
+ * `fields_get` and caching the result. If the probe itself fails, we fall back
+ * to the full desired list (preserving prior behaviour) rather than guessing.
+ */
+async function getAvailableFieldColumns(client) {
+    let available = irModelFieldsColumns.get(client);
+    if (!available) {
+        try {
+            const schema = await client.executeKw('ir.model.fields', 'fields_get', [], { attributes: [] });
+            available = new Set(Object.keys(schema || {}));
+        }
+        catch {
+            available = new Set();
+        }
+        irModelFieldsColumns.set(client, available);
+    }
+    if (available.size === 0)
+        return DESIRED_FIELD_COLUMNS;
+    return DESIRED_FIELD_COLUMNS.filter(c => available.has(c));
+}
+/**
+ * Builds, categorizes, and resolves complete metadata layout for a model,
+ * including auto-detecting the "Belonging Relation" and background warming parent modules.
+ */
+async function buildModelMetadata(client, model, instanceAlias = 'default') {
+    // 1. Resolve Model metadata
+    const modelInfo = await client.executeKw('ir.model', 'search_read', [[['model', '=', model]]], {
+        fields: ['id', 'name', 'modules', 'transient'],
+        limit: 1
+    });
+    if (!modelInfo || modelInfo.length === 0)
+        throw new Error(`Model not found: ${model}`);
+    const m = modelInfo[0];
+    const baseModule = await resolveBaseModule(client, m.id, m.modules || '');
+    // 2. Fetch Fields and Filter — request only columns this Odoo version exposes
+    //    (see getAvailableFieldColumns; guards against version schema drift).
+    const fieldColumns = await getAvailableFieldColumns(client);
+    const fRecords = await client.executeKw('ir.model.fields', 'search_read', [[['model_id.model', '=', model]]], {
+        fields: fieldColumns
+    });
+    // 2b. Ask the running Odoo which fields it has loaded. This is what Odoo
+    //     accepts in a domain or read, and can differ from the field table after a
+    //     module upgrade. If it fails, fall back to the field table alone.
+    let loaded = null;
+    try {
+        loaded = await client.executeKw(model, 'fields_get', [], {
+            attributes: ['type', 'relation', 'company_dependent']
+        });
+        if (!loaded || typeof loaded !== 'object' || Object.keys(loaded).length === 0)
+            loaded = null;
+    }
+    catch {
+        loaded = null;
+    }
+    const buckets = { base: {}, extended: {}, computed: {}, related: {}, relational: {}, lines: {} };
+    const baseFields = ['id'];
+    const allFields = {};
+    const tableOnlyFields = [];
+    if (loaded) {
+        for (const [name, def] of Object.entries(loaded)) {
+            allFields[name] = {
+                type: def.type,
+                relation: def.relation || undefined,
+                ...(def.company_dependent ? { companyDependent: true } : {}),
+            };
+        }
+    }
+    for (const f of fRecords) {
+        const companyDependent = !!(f.company_dependent || loaded?.[f.name]?.company_dependent);
+        if (!loaded) {
+            allFields[f.name] = { type: f.ttype, relation: f.relation || undefined, ...(companyDependent ? { companyDependent: true } : {}) };
+        }
+        else if (!(f.name in loaded)) {
+            // Odoo would reject a read or search naming this field, so keep it out of
+            // every list brass-monkey reads from; inspect_model reports it separately.
+            tableOnlyFields.push(f.name);
+            continue;
+        }
+        // A. Exclude chatter and activity system fields (aligning with Python chatter category bypass)
+        if (f.name.startsWith('message_') || f.name.startsWith('activity_')) {
+            continue;
+        }
+        const isBase = f.modules.split(',').map((mod) => mod.trim()).includes(baseModule);
+        const props = [];
+        if (f.required)
+            props.push('required');
+        if (f.readonly)
+            props.push('readonly');
+        if (!f.store)
+            props.push('not-stored');
+        if (f.translate)
+            props.push('translatable');
+        if (companyDependent)
+            props.push('company-dependent');
+        const fieldData = {
+            type: f.ttype,
+            string: f.field_description,
+            relation: f.relation || undefined,
+            properties: props.length > 0 ? props : undefined,
+            help: f.help || undefined,
+        };
+        if (f.domain && f.domain !== '[]') {
+            fieldData.hint = `Search Filter: ${f.domain}`;
+        }
+        // B. Strict if/else-if categorization cascade
+        if (f.related) {
+            buckets.related[f.name] = fieldData;
+        }
+        else if (!f.store) {
+            buckets.computed[f.name] = fieldData;
+        }
+        else if (f.ttype === 'one2many') {
+            buckets.lines[f.name] = fieldData;
+        }
+        else if (['many2one', 'many2many', 'reference'].includes(f.ttype)) {
+            buckets.relational[f.name] = fieldData;
+        }
+        else if (!isBase) {
+            buckets.extended[f.name] = fieldData;
+        }
+        else {
+            buckets.base[f.name] = fieldData;
+        }
+    }
+    // 3. Assemble High-Signal Default Search Fields (Breadth Layout)
+    //    Only from fields the running Odoo has loaded.
+    const usable = loaded ? fRecords.filter((f) => f.name in loaded) : fRecords;
+    // Essential baseline fields
+    const hasDisplayName = usable.some((f) => f.name === 'display_name');
+    const hasName = usable.some((f) => f.name === 'name');
+    if (hasDisplayName)
+        baseFields.push('display_name');
+    if (hasName && !baseFields.includes('name'))
+        baseFields.push('name');
+    // Add state/lifecycle fields if they exist
+    const stateFields = ['state', 'active', 'stage_id', 'status'];
+    for (const sf of stateFields) {
+        if (usable.some((f) => f.name === sf)) {
+            baseFields.push(sf);
+        }
+    }
+    // Add freshness fields if they exist
+    const freshnessFields = ['write_date', 'create_date'];
+    for (const ff of freshnessFields) {
+        if (usable.some((f) => f.name === ff)) {
+            baseFields.push(ff);
+        }
+    }
+    // 4. Dynamically Identify the Hierarchical "Belonging Relation" parent (M2O)
+    // Check for many2one fields that link this record to its parent namespace or compositional parent
+    const m2oFields = usable.filter((f) => f.ttype === 'many2one');
+    const namespacePrefix = model.split('.')[0]; // e.g. 'project' from 'project.task'
+    let belongingRelation = null;
+    // Step 1: Look for exact relation with parent namespace (e.g. project_id on project.task)
+    const prefixMatch = m2oFields.find((f) => f.name === `${namespacePrefix}_id`);
+    if (prefixMatch) {
+        belongingRelation = prefixMatch.name;
+    }
+    else {
+        // Step 2: Fallback to standard composition names
+        const compMatch = m2oFields.find((f) => ['parent_id', 'order_id', 'move_id', 'invoice_id', 'group_id'].includes(f.name));
+        if (compMatch) {
+            belongingRelation = compMatch.name;
+        }
+    }
+    if (belongingRelation) {
+        baseFields.push(belongingRelation);
+        // 5. Related Model Warming: silently warm parent metadata asynchronously
+        const parentField = m2oFields.find((f) => f.name === belongingRelation);
+        if (parentField && parentField.relation) {
+            const parentModel = parentField.relation;
+            // We spawn this asynchronously in the background so it warms up for future queries
+            buildModelMetadata(client, parentModel, instanceAlias)
+                .then((parentMeta) => {
+                MetadataCache.getInstance().set(instanceAlias, parentModel, parentMeta);
+            })
+                .catch(() => { });
+        }
+    }
+    // Deduplicate
+    const deduplicatedFields = Array.from(new Set(baseFields));
+    return {
+        baseModule,
+        id: m.id,
+        name: m.name,
+        transient: m.transient,
+        modules: m.modules || '',
+        baseFields: deduplicatedFields,
+        categorized: buckets,
+        allFields,
+        ...(tableOnlyFields.length > 0 ? { tableOnlyFields } : {})
+    };
+}
+/** Cached metadata for a model, building and caching it on first use. */
+async function getModelMetadata(client, instanceAlias, model) {
+    const cache = MetadataCache.getInstance();
+    let metadata = cache.get(instanceAlias, model);
+    if (!metadata) {
+        metadata = await buildModelMetadata(client, model, instanceAlias);
+        cache.set(instanceAlias, model, metadata);
+    }
+    return metadata;
+}
+
+;// CONCATENATED MODULE: ./src/services/schema-refresh.ts
+
+
+/**
+ * Keeping brass-monkey's copy of a model's fields in step with Odoo.
+ *
+ * The metadata cache lives for the session and was never refreshed, so after a
+ * module upgrade mid-session the copy stayed wrong and `inspect_model` repeated
+ * it. When Odoo (or the domain check) rejects a field, brass-monkey now
+ * re-reads the model once — what the agent would otherwise do by hand — and
+ * says what is actually wrong.
+ *
+ * Re-reads are rate-limited per model so an agent repeating the same mistake
+ * does not hammer the Odoo API: at most one automatic re-read per model every
+ * REFRESH_INTERVAL_MS. `inspect_model(refresh: true)` is explicit and always runs.
+ */
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+/** Last automatic re-read per model, keyed by the unscoped client (one per Odoo instance). */
+let lastRefresh = new WeakMap();
+function rootOf(client) {
+    return client?.root ?? client;
+}
+/**
+ * Claims the right to re-read `model` now. Returns false if it was re-read
+ * within the interval, so the caller must make do with what it has.
+ */
+function claimRefresh(client, model, now = Date.now()) {
+    const key = rootOf(client);
+    let perModel = lastRefresh.get(key);
+    if (!perModel) {
+        perModel = new Map();
+        lastRefresh.set(key, perModel);
+    }
+    const last = perModel.get(model);
+    if (last !== undefined && now - last < REFRESH_INTERVAL_MS)
+        return false;
+    perModel.set(model, now);
+    return true;
+}
+/** Test hook: forget all re-read times. */
+function resetRefreshLimits() {
+    lastRefresh = new WeakMap();
+}
+/**
+ * Re-reads a model's fields from Odoo, replacing every cached copy of it.
+ * Not rate-limited: callers decide (claimRefresh, or an explicit request).
+ */
+async function refreshModelMetadata(client, instanceAlias, model) {
+    const cache = MetadataCache.getInstance();
+    cache.invalidateModel(model);
+    const metadata = await buildModelMetadata(client, model, instanceAlias);
+    cache.set(instanceAlias, model, metadata);
+    return metadata;
+}
+/**
+ * Pulls the rejected field out of an Odoo "invalid field" error, across the
+ * wordings Odoo versions use:
+ *   - `Invalid field 'x_foo' on model 'account.move'`         (read, read_group, older domains)
+ *   - `Invalid field account.move.x_foo in leaf ('x_foo', …)`  (17/18 domains)
+ *   - `Invalid field account.move.x_foo in condition (…)`      (19 domains)
+ * The model in the message can differ from the model called: a dotted path
+ * fails on the related model. Returns null for any other error, including
+ * Odoo errors that merely mention a field.
+ */
+function rejectedFieldName(message, calledModel) {
+    const quoted = message.match(/Invalid field '([\w.]+)' on model '([\w.]+)'/);
+    if (quoted)
+        return { field: quoted[1], model: quoted[2] };
+    const dotted = message.match(/Invalid field ([\w.]+) in (?:leaf|condition)/);
+    if (dotted) {
+        const token = dotted[1];
+        const cut = token.lastIndexOf('.');
+        if (cut === -1)
+            return { field: token, model: calledModel };
+        return { field: token.slice(cut + 1), model: token.slice(0, cut) };
+    }
+    return null;
+}
+/**
+ * Works out why Odoo rejected `field` on `model`, re-reading the model once
+ * (rate-limited), and returns advice for the agent.
+ */
+async function diagnoseRejectedField(client, model, field) {
+    const inspect = `inspect_model(model: "${model}")`;
+    if (!claimRefresh(client, model)) {
+        return `Odoo does not accept field '${field}' on ${model}. brass-monkey re-checked this model's fields in the last ${REFRESH_INTERVAL_MS / 60000} minutes, so it has not checked again. Check the name with '${inspect}'.`;
+    }
+    // Drop every cached copy so the next tool call rebuilds it from Odoo.
+    MetadataCache.getInstance().invalidateModel(model);
+    const loaded = await client.executeKw(model, 'fields_get', [], { attributes: ['type'] });
+    if (loaded && field in loaded) {
+        return `Odoo has field '${field}' on ${model}, but rejected how it was used in this call (for example a path through it, or grouping or filtering it in a way the field does not support). Change the call, not the field name.`;
+    }
+    const listed = await client.executeKw('ir.model.fields', 'search_read', [[['model', '=', model], ['name', '=', field]]], {
+        fields: ['name', 'modules'],
+        limit: 1,
+    });
+    if (listed && listed.length > 0) {
+        const modules = listed[0].modules ? ` (defined by: ${listed[0].modules})` : '';
+        return `Odoo's field table lists '${field}' on ${model}${modules}, but the running Odoo does not have it loaded. The module that defines it probably needs upgrading in Odoo (Apps → Upgrade), or the server restarting. Retrying or refreshing will not fix this; tell the user.`;
+    }
+    return `Field '${field}' does not exist on ${model}. brass-monkey has refreshed its copy of this model; run '${inspect}' to see the valid fields.`;
+}
+
 ;// CONCATENATED MODULE: ./src/services/odoo-client.ts
+
 
 /**
  * Type-safe Odoo XML-RPC Client.
@@ -28791,6 +29203,11 @@ class OdooClient {
     uid = null;
     versionInfo = null;
     companyIds = [];
+    /** Set only on a company-scoped view made by withCompany(); see executeKw. */
+    activeCompanyId = null;
+    /** The unscoped client a withCompany() view was made from (itself when unscoped). */
+    scopeRoot = null;
+    companyNames = new Map();
     constructor(config) {
         this.config = config;
         const commonUrl = new URL('/xmlrpc/2/common', config.url).toString();
@@ -28812,6 +29229,53 @@ class OdooClient {
      * once authenticated.
      */
     get isMultiCompany() { return this.companyIds.length > 1; }
+    /** The unscoped client, shared by every withCompany() view. Use it as a cache key. */
+    get root() { return this.scopeRoot ?? this; }
+    /**
+     * The company Odoo treats as active for this client's calls: the one set by
+     * withCompany(), otherwise the first of the user's companies. Null before
+     * authentication or for a user with no companies.
+     */
+    get activeCompany() {
+        return this.activeCompanyId ?? this.companyIds[0] ?? null;
+    }
+    /**
+     * Returns a view of this client whose calls act for `companyId`, the same way
+     * Odoo's `with_company()` does: that company goes first in
+     * `allowed_company_ids` (Odoo's active company) and the user's other
+     * companies stay in the list, so cross-company reads still work.
+     *
+     * The view shares this client's login. It matters for company-dependent
+     * fields, which Odoo stores once per company and reads and writes for the
+     * active company only.
+     */
+    async withCompany(companyId) {
+        if (!this.uid) {
+            await this.authenticate();
+        }
+        if (!this.companyIds.includes(companyId)) {
+            throw new Error(`with_company: company ${companyId} is not one of this user's companies ` +
+                `(${this.companyIds.join(', ') || 'none'}). Run get_environment to list them.`);
+        }
+        const scoped = Object.create(this.root);
+        scoped.activeCompanyId = companyId;
+        scoped.scopeRoot = this.root;
+        return scoped;
+    }
+    /** Company name for messages; falls back to the ID if it cannot be read. */
+    async companyName(companyId) {
+        const names = this.root.companyNames;
+        if (!names.has(companyId)) {
+            try {
+                const recs = await this.executeKw('res.company', 'read', [[companyId]], { fields: ['name'] });
+                names.set(companyId, recs?.[0]?.name || `company ${companyId}`);
+            }
+            catch {
+                return `company ${companyId}`;
+            }
+        }
+        return names.get(companyId);
+    }
     /**
      * Returns the major version of the Odoo instance (e.g. 16).
      */
@@ -28899,21 +29363,50 @@ class OdooClient {
                 kwargs.body_is_html = true;
             }
         }
-        // Context Injection: Enable cross-company visibility by default
+        // Context Injection: Enable cross-company visibility by default. Odoo treats
+        // the first company as the active one, so a withCompany() view puts its
+        // company first and keeps the rest.
         if (this.companyIds.length > 0) {
             kwargs.context = kwargs.context || {};
             if (kwargs.context.allowed_company_ids === undefined) {
-                kwargs.context.allowed_company_ids = this.companyIds;
+                const active = this.activeCompanyId;
+                kwargs.context.allowed_company_ids = active === null
+                    ? this.companyIds
+                    : [active, ...this.companyIds.filter(id => id !== active)];
             }
         }
-        return new Promise((resolve, reject) => {
+        let rawError = null;
+        const result = await new Promise((resolve, reject) => {
             this.objectClient.methodCall('execute_kw', [db, this.uid, api_key, model, method, args, kwargs], (error, result) => {
                 if (error) {
-                    return reject(this.formatError(error, `${model}.${method}`));
+                    rawError = error;
+                    return reject(error);
                 }
                 resolve(result);
             });
-        });
+        }).catch(() => undefined);
+        if (rawError === null)
+            return result;
+        throw await this.explainError(rawError, model, method);
+    }
+    /**
+     * Turns an execute_kw failure into an actionable error. When Odoo rejects a
+     * field name, brass-monkey re-checks the model's fields (rate-limited per
+     * model, see schema-refresh.ts) so the advice says what is actually wrong
+     * instead of guessing.
+     */
+    async explainError(error, model, method) {
+        const formatted = this.formatError(error, `${model}.${method}`);
+        const rejected = rejectedFieldName(error.faultString || error.message || String(error), model);
+        if (!rejected || model.startsWith('ir.model') || rejected.model.startsWith('ir.model'))
+            return formatted;
+        try {
+            const advice = await diagnoseRejectedField(this, rejected.model, rejected.field);
+            return new Error(`${formatted.message}\n💡 ACTION: ${advice}`);
+        }
+        catch {
+            return new Error(`${formatted.message}\n💡 ACTION: Check the field name with 'inspect_model(model: "${rejected.model}")'.`);
+        }
     }
     /**
      * Cleans up raw Odoo tracebacks to return user-friendly business errors.
@@ -28933,16 +29426,14 @@ class OdooClient {
             const match = rawMessage.match(pattern);
             if (match && match[1]) {
                 const msg = match[1].trim();
-                // Enhanced Actionable Feedback
-                if (msg.includes('does not exist') || msg.includes('column') || msg.includes('field')) {
-                    // A rejected field on the metadata models themselves (ir.model / ir.model.fields)
-                    // is a Brass-Monkey schema-compatibility issue (a requested column absent on this
-                    // Odoo version), NOT a stale local cache — advising 'inspect_model' here would loop
-                    // on the very call that is failing.
-                    if (context.includes('ir.model')) {
-                        return new Error(`${msg}\n💡 ACTION: This is likely an Odoo version/schema difference during metadata discovery (a requested column may not exist on this Odoo version). Please report it.`);
-                    }
-                    return new Error(`${msg}\n💡 ACTION: Your local schema is stale. You MUST execute 'inspect_model' for this model to synchronize.`);
+                // A rejected field on the metadata models themselves (ir.model / ir.model.fields)
+                // is a Brass-Monkey schema-compatibility issue (a requested column absent on this
+                // Odoo version). Advice for a rejected field on any other model is added by
+                // explainError, which can re-check the model's fields. Other errors that merely
+                // mention a field (e.g. "has to be used on a property field") are Odoo's own
+                // business errors and pass through unchanged.
+                if (context.includes('ir.model') && rejectedFieldName(rawMessage, '') !== null) {
+                    return new Error(`${msg}\n💡 ACTION: This is likely an Odoo version/schema difference during metadata discovery (a requested column may not exist on this Odoo version). Please report it.`);
                 }
                 if (msg.includes('Access Denied') || msg.includes('permission')) {
                     return new Error(`${msg}\n💡 ACTION: You may be missing a required Skill or User Group. Verify with 'get_environment(show_security=true)'.`);
@@ -29592,6 +30083,7 @@ const INSPECT_MODEL_SCHEMA = {
         show_modules: { type: "boolean", description: "Include the list of modules that define/extend this model." },
         show_ui: { type: "boolean", description: "Include associated View IDs (Form, List, Search) and Window Actions for UI navigation." },
         show_methods: { type: "boolean", description: "Include available Server Actions and methods triggered by UI buttons." },
+        refresh: { type: "boolean", description: "Re-read the model's fields from Odoo instead of using brass-monkey's copy. Use after a module is installed or upgraded. brass-monkey also refreshes automatically when Odoo rejects a field." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model"],
@@ -29641,6 +30133,7 @@ const SEARCH_RECORDS_SCHEMA = {
         offset: { type: "number", description: "Number of records to skip (for pagination, defaults to 0)." },
         order: { type: "string", description: 'Order by clause (e.g., "name asc", "create_date desc").' },
         with_translations: { type: "boolean", description: "If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only." },
+        with_company: { type: "number", description: "Company ID to act for, like Odoo's with_company(). It goes first in allowed_company_ids (Odoo's active company); your other companies stay visible. Set it when reading or writing company-dependent fields (one value per company, e.g. property accounts, product project templates). Without it, the first of your companies is used." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model"],
@@ -29662,9 +30155,9 @@ const GET_RECORD_SCHEMA = {
         show_chatter: { type: "boolean", description: "Include message threads from Odoo Chatter." },
         include_binary: { type: "boolean", description: "Include raw base64 data for binary fields." },
         show_all_fields: { type: "boolean", description: "Force inclusion of EVERY field defined on the model." },
-        for_user_id: { type: "number", description: "Evaluate security and data as a specific user ID." },
         rel_limit: { type: "number", description: "Limit the number of sub-lines or linked records resolved." },
         with_translations: { type: "boolean", description: "If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only." },
+        with_company: { type: "number", description: "Company ID to act for, like Odoo's with_company(). It goes first in allowed_company_ids (Odoo's active company); your other companies stay visible. Set it when reading or writing company-dependent fields (one value per company, e.g. property accounts, product project templates). Without it, the first of your companies is used." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     description: "MANDATORY for retrieving a comprehensive 360-degree dashboard report for a single Odoo record. Highly superior to search_records for single record lookups as it resolves sub-lines, relation display names, and chatter threads in one call. Use this immediately once you have a target record ID.",
@@ -29685,9 +30178,9 @@ const GET_RECORDS_SCHEMA = {
         show_chatter: { type: "boolean", description: "Include message threads from Odoo Chatter." },
         include_binary: { type: "boolean", description: "Include raw base64 data for binary fields." },
         show_all_fields: { type: "boolean", description: "Force inclusion of EVERY field defined on the model." },
-        for_user_id: { type: "number", description: "Evaluate security and data as a specific user ID." },
         rel_limit: { type: "number", description: "Limit the number of sub-lines or linked records resolved." },
         with_translations: { type: "boolean", description: "If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only." },
+        with_company: { type: "number", description: "Company ID to act for, like Odoo's with_company(). It goes first in allowed_company_ids (Odoo's active company); your other companies stay visible. Set it when reading or writing company-dependent fields (one value per company, e.g. property accounts, product project templates). Without it, the first of your companies is used." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model"],
@@ -29701,6 +30194,7 @@ const AGGREGATE_RECORDS_SCHEMA = {
         fields: { type: "array", items: { type: "string" }, description: "Numeric/Monetary fields to sum (e.g., ['price_total']). Defaults to '__count' (record count per group)." },
         limit: { type: "number", description: "Maximum number of groups to return." },
         offset: { type: "number", description: "Number of groups to skip (for pagination)." },
+        with_company: { type: "number", description: "Company ID to act for, like Odoo's with_company(). It goes first in allowed_company_ids (Odoo's active company); your other companies stay visible. Set it when reading or writing company-dependent fields (one value per company, e.g. property accounts, product project templates). Without it, the first of your companies is used." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "groupby"],
@@ -29720,6 +30214,7 @@ const CREATE_RECORD_SCHEMA = {
         values: { type: "string", description: "JSON-serialized string of field values: '{\"field_name\": value}'. Use inspect_model to find writable fields. MULTI-COMPANY: If the model is company-scoped (has a company_id field), keep 'company_id' consistent with related records (e.g. journals, accounts) to avoid multi-company validation errors. Not all models have company_id — do not add it blindly." },
         justification: { type: "string", description: "MANDATORY: Explain WHY this record is being created. This is logged to Odoo Chatter and local audit logs." },
         with_translations: { type: "boolean", description: "If True, a plain string written to a translatable field is applied to ALL active languages, and a [{value, langs}] list targets specific ones; the result lists the languages written. Without this flag only the user's language changes and other languages keep their old text." },
+        with_company: { type: "number", description: "Company ID to act for, like Odoo's with_company(). It goes first in allowed_company_ids (Odoo's active company); your other companies stay visible. Set it when reading or writing company-dependent fields (one value per company, e.g. property accounts, product project templates). Without it, the first of your companies is used." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "values", "justification"],
@@ -29733,6 +30228,7 @@ const WRITE_RECORD_SCHEMA = {
         values: { type: "string", description: "JSON-serialized string of fields to update: '{\"field_name\": value}'. PRO TIP: We take a 'Before Snapshot' automatically for reversibility. MULTI-COMPANY: For company-scoped models, do not mix records from different companies; ensure any relational values linked match the record's company_id." },
         justification: { type: "string", description: "MANDATORY: Explain WHY this update is necessary. Logged for audit and safety." },
         with_translations: { type: "boolean", description: "If True, a plain string written to a translatable field is applied to ALL active languages, and a [{value, langs}] list targets specific ones; the result lists the languages written. Without this flag only the user's language changes and other languages keep their old text." },
+        with_company: { type: "number", description: "Company ID to act for, like Odoo's with_company(). It goes first in allowed_company_ids (Odoo's active company); your other companies stay visible. Set it when reading or writing company-dependent fields (one value per company, e.g. property accounts, product project templates). Without it, the first of your companies is used." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "id", "values", "justification"],
@@ -29776,6 +30272,7 @@ const EXECUTE_METHOD_SCHEMA = {
         acknowledge_unsafe: { type: "boolean", description: "Required for methods outside the action_/button_/toggle_ naming convention." },
         skip_view_validation: { type: "boolean", description: "Skip the check that the method is bound to a button in the model's views. Needed for conditionally rendered or runtime-injected buttons." },
         allow_empty_recordset: { type: "boolean", description: "Required to call a method against no specific record." },
+        with_company: { type: "number", description: "Company ID to act for, like Odoo's with_company(). It goes first in allowed_company_ids (Odoo's active company); your other companies stay visible. Set it when reading or writing company-dependent fields (one value per company, e.g. property accounts, product project templates). Without it, the first of your companies is used." },
         instance_alias: { type: "string", description: "Optional alias to use an instance other than the active one." },
     },
     required: ["model", "method", "justification"],
@@ -29831,260 +30328,6 @@ const ACTIVATE_SKILL_SCHEMA = {
     },
     required: ["skill_name"],
 };
-
-;// CONCATENATED MODULE: ./src/services/metadata-cache.ts
-/**
- * Service to cache Odoo model layouts in memory during the active session.
- * Cuts N+1 query latency down to 0ms for default searches and model inspections.
- */
-class MetadataCache {
-    static instance = null;
-    cache = new Map();
-    constructor() { }
-    static getInstance() {
-        if (!MetadataCache.instance) {
-            MetadataCache.instance = new MetadataCache();
-        }
-        return MetadataCache.instance;
-    }
-    getKey(instanceAlias, model) {
-        return `${instanceAlias || 'default'}:${model}`;
-    }
-    get(instanceAlias, model) {
-        return this.cache.get(this.getKey(instanceAlias, model)) || null;
-    }
-    set(instanceAlias, model, metadata) {
-        this.cache.set(this.getKey(instanceAlias, model), metadata);
-    }
-    clear() {
-        this.cache.clear();
-    }
-}
-
-;// CONCATENATED MODULE: ./src/services/metadata-resolver.ts
-
-/**
- * Registry of Expert Domains and their associated Odoo model prefixes
- * used to resolve skill gate breadcrumbs for model listings.
- */
-const SKILL_DOMAIN_MAP = {
-    'odoo-sales': ['sale.*', 'crm.*'],
-    'odoo-finance': ['account.*', 'payment.*'],
-    'odoo-inventory': ['stock.*', 'product.*'],
-    'odoo-relations': ['res.partner', 'res.partner.category'],
-    'odoo-projects': ['project.*', 'project.task'],
-    'odoo-mrp': ['mrp.*'],
-    'odoo-plm': ['mrp.eco.*'],
-    'odoo-hr': ['hr.*', 'hr.employee'],
-    'odoo-attendance': ['hr.attendance'],
-    'odoo-helpdesk': ['helpdesk.*'],
-    'odoo-knowledge': ['knowledge.*'],
-    'odoo-documents': ['documents.*'],
-    'odoo-get-started': ['ir.model', 'ir.model.fields', 'ir.module.module'],
-};
-/**
- * Definitively identifies the origin module of a Odoo model using ir.model.data (XML ID).
- */
-async function resolveBaseModule(client, modelId, moduleListStr) {
-    const moduleList = moduleListStr.split(',').map(m => m.trim());
-    try {
-        const mDatas = await client.executeKw('ir.model.data', 'search_read', [
-            [['model', '=', 'ir.model'], ['res_id', '=', modelId]]
-        ], {
-            fields: ['module']
-        });
-        const allOriginMods = mDatas.map((m) => m.module);
-        if (allOriginMods.includes('base')) {
-            return 'base';
-        }
-        else if (allOriginMods.length > 0) {
-            // Return the shortest module name (e.g., 'sale' vs 'sale_management')
-            const sorted = [...allOriginMods].sort((a, b) => a.length - b.length);
-            return sorted[0];
-        }
-        else {
-            return moduleList[0];
-        }
-    }
-    catch (error) {
-        return moduleList[0];
-    }
-}
-/**
- * Columns we would like to read from `ir.model.fields`. Some are NOT present on
- * every Odoo version: `company_dependent`, in particular, is absent from
- * `ir.model.fields` on older instances (observed on Odoo 15.0), where requesting
- * it makes the whole `search_read` fail with
- * "Invalid field 'company_dependent' on model 'ir.model.fields'" — taking down
- * `inspect_model` entirely. We therefore probe the instance's actual columns once
- * and request only the ones that exist, rather than assuming the newest schema.
- */
-const DESIRED_FIELD_COLUMNS = [
-    'name', 'field_description', 'ttype', 'relation', 'required', 'readonly',
-    'store', 'translate', 'company_dependent', 'help', 'domain', 'modules',
-    'compute', 'related'
-];
-/** Per-client cache of the columns actually available on `ir.model.fields`. */
-const irModelFieldsColumns = new WeakMap();
-/**
- * Returns the subset of DESIRED_FIELD_COLUMNS that this instance's
- * `ir.model.fields` model actually exposes, probing once per client via
- * `fields_get` and caching the result. If the probe itself fails, we fall back
- * to the full desired list (preserving prior behaviour) rather than guessing.
- */
-async function getAvailableFieldColumns(client) {
-    let available = irModelFieldsColumns.get(client);
-    if (!available) {
-        try {
-            const schema = await client.executeKw('ir.model.fields', 'fields_get', [], { attributes: [] });
-            available = new Set(Object.keys(schema || {}));
-        }
-        catch {
-            available = new Set();
-        }
-        irModelFieldsColumns.set(client, available);
-    }
-    if (available.size === 0)
-        return DESIRED_FIELD_COLUMNS;
-    return DESIRED_FIELD_COLUMNS.filter(c => available.has(c));
-}
-/**
- * Builds, categorizes, and resolves complete metadata layout for a model,
- * including auto-detecting the "Belonging Relation" and background warming parent modules.
- */
-async function buildModelMetadata(client, model, instanceAlias = 'default') {
-    // 1. Resolve Model metadata
-    const modelInfo = await client.executeKw('ir.model', 'search_read', [[['model', '=', model]]], {
-        fields: ['id', 'name', 'modules', 'transient'],
-        limit: 1
-    });
-    if (!modelInfo || modelInfo.length === 0)
-        throw new Error(`Model not found: ${model}`);
-    const m = modelInfo[0];
-    const baseModule = await resolveBaseModule(client, m.id, m.modules || '');
-    // 2. Fetch Fields and Filter — request only columns this Odoo version exposes
-    //    (see getAvailableFieldColumns; guards against version schema drift).
-    const fieldColumns = await getAvailableFieldColumns(client);
-    const fRecords = await client.executeKw('ir.model.fields', 'search_read', [[['model_id.model', '=', model]]], {
-        fields: fieldColumns
-    });
-    const buckets = { base: {}, extended: {}, computed: {}, related: {}, relational: {}, lines: {} };
-    const baseFields = ['id'];
-    const allFields = {};
-    for (const f of fRecords) {
-        allFields[f.name] = { type: f.ttype, relation: f.relation || undefined };
-        // A. Exclude chatter and activity system fields (aligning with Python chatter category bypass)
-        if (f.name.startsWith('message_') || f.name.startsWith('activity_')) {
-            continue;
-        }
-        const isBase = f.modules.split(',').map((mod) => mod.trim()).includes(baseModule);
-        const props = [];
-        if (f.required)
-            props.push('required');
-        if (f.readonly)
-            props.push('readonly');
-        if (!f.store)
-            props.push('not-stored');
-        if (f.translate)
-            props.push('translatable');
-        if (f.company_dependent)
-            props.push('company-dependent');
-        const fieldData = {
-            type: f.ttype,
-            string: f.field_description,
-            relation: f.relation || undefined,
-            properties: props.length > 0 ? props : undefined,
-            help: f.help || undefined,
-        };
-        if (f.domain && f.domain !== '[]') {
-            fieldData.hint = `Search Filter: ${f.domain}`;
-        }
-        // B. Strict if/else-if categorization cascade
-        if (f.related) {
-            buckets.related[f.name] = fieldData;
-        }
-        else if (!f.store) {
-            buckets.computed[f.name] = fieldData;
-        }
-        else if (f.ttype === 'one2many') {
-            buckets.lines[f.name] = fieldData;
-        }
-        else if (['many2one', 'many2many', 'reference'].includes(f.ttype)) {
-            buckets.relational[f.name] = fieldData;
-        }
-        else if (!isBase) {
-            buckets.extended[f.name] = fieldData;
-        }
-        else {
-            buckets.base[f.name] = fieldData;
-        }
-    }
-    // 3. Assemble High-Signal Default Search Fields (Breadth Layout)
-    // Essential baseline fields
-    const hasDisplayName = fRecords.some((f) => f.name === 'display_name');
-    const hasName = fRecords.some((f) => f.name === 'name');
-    if (hasDisplayName)
-        baseFields.push('display_name');
-    if (hasName && !baseFields.includes('name'))
-        baseFields.push('name');
-    // Add state/lifecycle fields if they exist
-    const stateFields = ['state', 'active', 'stage_id', 'status'];
-    for (const sf of stateFields) {
-        if (fRecords.some((f) => f.name === sf)) {
-            baseFields.push(sf);
-        }
-    }
-    // Add freshness fields if they exist
-    const freshnessFields = ['write_date', 'create_date'];
-    for (const ff of freshnessFields) {
-        if (fRecords.some((f) => f.name === ff)) {
-            baseFields.push(ff);
-        }
-    }
-    // 4. Dynamically Identify the Hierarchical "Belonging Relation" parent (M2O)
-    // Check for many2one fields that link this record to its parent namespace or compositional parent
-    const m2oFields = fRecords.filter((f) => f.ttype === 'many2one');
-    const namespacePrefix = model.split('.')[0]; // e.g. 'project' from 'project.task'
-    let belongingRelation = null;
-    // Step 1: Look for exact relation with parent namespace (e.g. project_id on project.task)
-    const prefixMatch = m2oFields.find((f) => f.name === `${namespacePrefix}_id`);
-    if (prefixMatch) {
-        belongingRelation = prefixMatch.name;
-    }
-    else {
-        // Step 2: Fallback to standard composition names
-        const compMatch = m2oFields.find((f) => ['parent_id', 'order_id', 'move_id', 'invoice_id', 'group_id'].includes(f.name));
-        if (compMatch) {
-            belongingRelation = compMatch.name;
-        }
-    }
-    if (belongingRelation) {
-        baseFields.push(belongingRelation);
-        // 5. Related Model Warming: silently warm parent metadata asynchronously
-        const parentField = m2oFields.find((f) => f.name === belongingRelation);
-        if (parentField && parentField.relation) {
-            const parentModel = parentField.relation;
-            // We spawn this asynchronously in the background so it warms up for future queries
-            buildModelMetadata(client, parentModel, instanceAlias)
-                .then((parentMeta) => {
-                MetadataCache.getInstance().set(instanceAlias, parentModel, parentMeta);
-            })
-                .catch(() => { });
-        }
-    }
-    // Deduplicate
-    const deduplicatedFields = Array.from(new Set(baseFields));
-    return {
-        baseModule,
-        id: m.id,
-        name: m.name,
-        transient: m.transient,
-        modules: m.modules || '',
-        baseFields: deduplicatedFields,
-        categorized: buckets,
-        allFields
-    };
-}
 
 ;// CONCATENATED MODULE: ./src/tools/setup_instance.ts
 
@@ -30342,6 +30585,7 @@ async function listModels(manager, input = { limit: 50, offset: 0 }) {
 
 
 
+
 /**
  * Zod schema for inspect_model tool input.
  * Full parity with original brass-compass flags for deep introspection.
@@ -30359,6 +30603,7 @@ const InspectModelSchema = object({
     show_modules: schemas_boolean().optional().default(false).describe("Include module lineage (Inheritance hierarchy)."),
     show_ui: schemas_boolean().optional().default(false).describe("Include associated View XML IDs and Window Actions."),
     show_methods: schemas_boolean().optional().default(false).describe("Include Server Actions and available execution points."),
+    refresh: schemas_boolean().optional().default(false).describe("Re-read the model's fields from Odoo instead of using brass-monkey's copy. Use after a module is installed or upgraded."),
     instance_alias: schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -30368,14 +30613,16 @@ const InspectModelSchema = object({
  */
 async function inspectModel(manager, input) {
     const parsedInput = InspectModelSchema.parse(input);
-    const { model, instance_alias, ...flags } = parsedInput;
+    const { model, instance_alias, refresh, ...flags } = parsedInput;
     const client = await manager.getClient(instance_alias);
     const alias = instance_alias || 'default';
     // 1. Resolve and cache metadata (or load from cache)
     const cache = MetadataCache.getInstance();
-    let metadata = cache.get(alias, model);
+    let metadata = refresh ? null : cache.get(alias, model);
     if (!metadata) {
-        metadata = await buildModelMetadata(client, model, alias);
+        metadata = refresh
+            ? await refreshModelMetadata(client, alias, model)
+            : await buildModelMetadata(client, model, alias);
         cache.set(alias, model, metadata);
     }
     const res = {
@@ -30389,6 +30636,12 @@ async function inspectModel(manager, input) {
     // Compile buckets based on requested flags
     const buckets = metadata.categorized;
     res.fields = {};
+    if (metadata.tableOnlyFields && metadata.tableOnlyFields.length > 0) {
+        res.fields_not_loaded = {
+            fields: metadata.tableOnlyFields,
+            note: "Listed in Odoo's field table but not loaded by the running Odoo, so Odoo rejects them in reads and searches. The module defining them probably needs upgrading in Odoo (Apps → Upgrade). Tell the user; do not use these fields.",
+        };
+    }
     if (flags.show_base)
         res.fields.base = buckets.base;
     if (flags.show_extended)
@@ -30992,6 +31245,7 @@ class OdooOrchestrator {
 ;// CONCATENATED MODULE: ./src/services/domain-validator.ts
 
 
+
 class DomainValidationService {
     /**
      * Main entry point to validate and potentially heal an Odoo domain array.
@@ -31063,32 +31317,23 @@ class DomainValidationService {
             }
         }
         // 4. Retrieve all valid fields from metadata.
-        //    Prefer `allFields` (every field on the model). `categorized` omits the
-        //    chatter/activity fields, which are still valid in a domain.
-        const validFields = new Set(Object.keys(metadata.allFields || {}));
-        if (metadata.categorized) {
-            Object.keys(metadata.categorized.base || {}).forEach(f => validFields.add(f));
-            Object.keys(metadata.categorized.extended || {}).forEach(f => validFields.add(f));
-            Object.keys(metadata.categorized.computed || {}).forEach(f => validFields.add(f));
-            Object.keys(metadata.categorized.related || {}).forEach(f => validFields.add(f));
-            Object.keys(metadata.categorized.relational || {}).forEach(f => validFields.add(f));
-            Object.keys(metadata.categorized.lines || {}).forEach(f => validFields.add(f));
+        let { validFields, allFieldDefinitions } = this.fieldSets(metadata);
+        // 4b. A field missing from the cached copy may be new since it was read
+        //     (module installed or upgraded mid-session). Re-read the model once,
+        //     rate-limited per model so repeated mistakes do not hammer the API.
+        const heads = domain
+            .filter((el) => Array.isArray(el) && typeof el[0] === 'string')
+            .map((el) => el[0].split('.')[0]);
+        if (heads.some((h) => !validFields.has(h)) && claimRefresh(client, model)) {
+            try {
+                metadata = await refreshModelMetadata(client, instanceAlias, model);
+                ({ validFields, allFieldDefinitions } = this.fieldSets(metadata));
+            }
+            catch {
+                // Keep the copy we have; the check below reports against it.
+            }
         }
-        validFields.add('id');
-        validFields.add('create_date');
-        validFields.add('write_date');
-        validFields.add('create_uid');
-        validFields.add('write_uid');
-        // Combine all fields to make checking easy
-        const allFieldDefinitions = {
-            ...(metadata.allFields || {}),
-            ...(metadata.categorized?.base || {}),
-            ...(metadata.categorized?.extended || {}),
-            ...(metadata.categorized?.computed || {}),
-            ...(metadata.categorized?.related || {}),
-            ...(metadata.categorized?.relational || {}),
-            ...(metadata.categorized?.lines || {}),
-        };
+        const tableOnly = new Set(metadata.tableOnlyFields || []);
         // 5. Run Triplet-level Validation & Hybrid Healing
         const healedDomain = [];
         // Mirrors Odoo's operator sets (odoo/orm/domains.py STANDARD_CONDITION_OPERATORS
@@ -31160,6 +31405,24 @@ class DomainValidationService {
                         }
                     };
                 }
+                if (typeof field === 'string' && tableOnly.has(pathHead)) {
+                    return {
+                        success: false,
+                        errorPayload: {
+                            isError: true,
+                            message: `Domain Validation Error: Field '${pathHead}' is listed in Odoo's field table for '${model}', but the running Odoo does not have it loaded, so Odoo would reject it.`,
+                            diagnostic_hints: {
+                                invalid_field: field,
+                                target_model: model,
+                                action_directives: [
+                                    "The module that defines this field probably needs upgrading in Odoo (Apps → Upgrade), or the server restarting. Retrying or refreshing will not fix it; tell the user.",
+                                    "To continue meanwhile, search without this field."
+                                ],
+                                explanation: `'${pathHead}' is in ir.model.fields but not in fields_get for '${model}'.`
+                            }
+                        }
+                    };
+                }
                 if (typeof field === 'string' && !validFields.has(pathHead)) {
                     // Perform simple substring fuzzy match
                     const suggestions = Array.from(validFields).filter(vf => field.toLowerCase().includes(vf.toLowerCase()) ||
@@ -31224,6 +31487,26 @@ class DomainValidationService {
         };
     }
     /**
+     * The fields a domain may name. `allFields` is what the running Odoo has
+     * loaded (fields_get) and is authoritative when present; the categorized
+     * buckets are a fallback for older cache entries and test fixtures.
+     */
+    static fieldSets(metadata) {
+        const validFields = new Set(Object.keys(metadata.allFields || {}));
+        const allFieldDefinitions = { ...(metadata.allFields || {}) };
+        if (!metadata.allFields && metadata.categorized) {
+            for (const bucket of Object.values(metadata.categorized)) {
+                for (const [name, def] of Object.entries(bucket || {})) {
+                    validFields.add(name);
+                    allFieldDefinitions[name] = def;
+                }
+            }
+        }
+        for (const f of ['id', 'create_date', 'write_date', 'create_uid', 'write_uid'])
+            validFields.add(f);
+        return { validFields, allFieldDefinitions };
+    }
+    /**
      * Arity/grammar check on prefix domains, following Odoo's normalize_domain
      * (odoo/osv/expression.py): when a complete expression is followed by more
      * terms, Odoo inserts an implicit '&'. So [A, B] is valid (= ['&', A, B]);
@@ -31262,7 +31545,65 @@ class DomainValidationService {
     }
 }
 
+;// CONCATENATED MODULE: ./src/services/company-scope.ts
+
+/**
+ * Shared `with_company` parameter. Named after Odoo's `with_company()`: the
+ * call acts for that company. It matters for company-dependent fields, which
+ * Odoo stores once per company and reads and writes for the active company only.
+ */
+const withCompanyParam = coerce_number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Company ID to act for, like Odoo's with_company(). It goes first in allowed_company_ids (Odoo's active company); your other companies stay visible. Set it when reading or writing company-dependent fields (one value per company, e.g. property accounts, product project templates). Without it, the first of your companies is used.");
+/** Returns `client` acting for `companyId`, or unchanged when none is given. */
+async function scopeClient(client, companyId) {
+    if (companyId === undefined)
+        return client;
+    return client.withCompany(companyId);
+}
+/** The company-dependent fields among `fieldNames`, per the model's metadata. */
+function companyDependentFields(metadata, fieldNames) {
+    const flagged = new Set();
+    for (const [name, def] of Object.entries(metadata.allFields || {})) {
+        if (def.companyDependent)
+            flagged.add(name);
+    }
+    for (const bucket of Object.values(metadata.categorized || {})) {
+        for (const [name, def] of Object.entries(bucket || {})) {
+            if (def?.properties?.includes('company-dependent'))
+                flagged.add(name);
+        }
+    }
+    return fieldNames.filter(f => flagged.has(f));
+}
+/**
+ * A note naming the company that company-dependent fields were read or written
+ * for. Undefined when there is nothing to say: no such fields, or the user has
+ * only one company.
+ */
+async function companyDependentNote(client, metadata, fieldNames, action) {
+    if (!client?.isMultiCompany)
+        return undefined;
+    const fields = companyDependentFields(metadata, fieldNames);
+    if (fields.length === 0)
+        return undefined;
+    const id = client.activeCompany;
+    if (id === null || id === undefined)
+        return undefined;
+    const name = await client.companyName(id);
+    const verb = action === 'read' ? 'read' : 'write';
+    return {
+        fields,
+        company: { id, name },
+        note: `These fields hold a separate value for each company. They were ${action} for ${name} (${id}) only. To ${verb} them for another company, repeat the call with with_company set to that company's ID.`,
+    };
+}
+
 ;// CONCATENATED MODULE: ./src/tools/search_records.ts
+
+
 
 
 
@@ -31303,6 +31644,7 @@ const SearchRecordsSchema = object({
     offset: coerce_number().optional().describe('Number of records to skip (for pagination)'),
     order: schemas_string().optional().describe('Sort order (e.g., "id desc", "write_date desc")'),
     with_translations: schemas_boolean().optional().default(false).describe("If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only."),
+    with_company: withCompanyParam,
     instance_alias: schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -31312,8 +31654,8 @@ const SearchRecordsSchema = object({
 async function searchRecords(manager, input) {
     // Enforce schema parsing to apply defaults and preprocessors
     const parsedInput = SearchRecordsSchema.parse(input);
-    const { model, domain, fields, limit, offset, order, with_translations, instance_alias } = parsedInput;
-    const client = await manager.getClient(instance_alias);
+    const { model, domain, fields, limit, offset, order, with_translations, with_company, instance_alias } = parsedInput;
+    const client = await scopeClient(await manager.getClient(instance_alias), with_company);
     const alias = instance_alias || 'default';
     // Validate and Heal Domain using decoupled DomainValidationService
     const validationResult = await DomainValidationService.validateAndHeal(client, model, domain, alias);
@@ -31388,7 +31730,13 @@ async function searchRecords(manager, input) {
             }
         }
     }
-    // 4. Construct high-signal Breadth Envelope
+    // 4. Name the company that company-dependent fields were read for
+    let companyNote;
+    if (client.isMultiCompany && activeRecords.length > 0) {
+        const metadata = await getModelMetadata(client, alias, model);
+        companyNote = await companyDependentNote(client, metadata, readFields, 'read');
+    }
+    // 5. Construct high-signal Breadth Envelope
     const advice = [];
     if (targetLimit === 1 || activeRecords.length === 1) {
         advice.push("SINGLE RECORD DETECTED: You retrieved a single record ID using search_records. This is highly inefficient. For single record lookups, you MUST use the 'get_record' tool, which provides a comprehensive 360-degree dashboard of sub-lines, relationships, display names, and chatter history in a single call.");
@@ -31404,6 +31752,7 @@ async function searchRecords(manager, input) {
         limit: targetLimit,
         ...(advice.length > 0 ? { optimization_advice: advice } : {}),
         ...(translationNote ? { translations: translationNote } : {}),
+        ...(companyNote ? { company_dependent: companyNote } : {}),
         leads: activeRecords.reduce((acc, r) => {
             acc[String(r.id)] = r.display_name || r.name || `ID ${r.id}`;
             return acc;
@@ -31413,6 +31762,7 @@ async function searchRecords(manager, input) {
 }
 
 ;// CONCATENATED MODULE: ./src/tools/get_record.ts
+
 
 
 
@@ -31434,9 +31784,9 @@ const GetRecordSchema = object({
     show_chatter: schemas_boolean().optional().default(false).describe('Include message threads from Odoo Chatter.'),
     include_binary: schemas_boolean().optional().default(false).describe('Include raw base64 data for binary fields.'),
     show_all_fields: schemas_boolean().optional().default(false).describe('Force inclusion of EVERY field defined on the model.'),
-    for_user_id: coerce_number().optional().describe('Evaluate security and data as a specific user ID.'),
     rel_limit: coerce_number().optional().default(20).describe('Limit the number of sub-lines or linked records resolved.'),
     with_translations: schemas_boolean().optional().default(false).describe("If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only."),
+    with_company: withCompanyParam,
     instance_alias: schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 const GetRecordsSchema = object({
@@ -31473,9 +31823,9 @@ const GetRecordsSchema = object({
     show_chatter: schemas_boolean().optional().default(false).describe('Include Odoo Chatter messages.'),
     include_binary: schemas_boolean().optional().default(false).describe('Include binary base64 data.'),
     show_all_fields: schemas_boolean().optional().default(false).describe('Force inclusion of EVERY field.'),
-    for_user_id: coerce_number().optional().describe('Evaluate as a specific user ID.'),
     rel_limit: coerce_number().optional().default(20).describe('Limit the number of sub-lines/links resolved.'),
     with_translations: schemas_boolean().optional().default(false).describe("If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only."),
+    with_company: withCompanyParam,
     instance_alias: schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -31611,6 +31961,10 @@ async function fetchSingleRecordDetail(client, instanceAlias, model, resId, flag
         }
         catch (e) { }
     }
+    // Name the company that company-dependent fields were read for
+    const companyNote = await companyDependentNote(client, metadata, activeFields, 'read');
+    if (companyNote)
+        record._company_dependent = companyNote;
     // Scrub large binary payload placeholders if not include_binary
     if (!flags.include_binary) {
         for (const f of activeFields) {
@@ -31628,8 +31982,8 @@ async function fetchSingleRecordDetail(client, instanceAlias, model, resId, flag
 async function getRecord(manager, input) {
     // Enforce schema parsing to apply default boolean flags and preprocessors
     const parsedInput = GetRecordSchema.parse(input);
-    const { model, res_id, xml_id, instance_alias, ...flags } = parsedInput;
-    const client = await manager.getClient(instance_alias);
+    const { model, res_id, xml_id, instance_alias, with_company, ...flags } = parsedInput;
+    const client = await scopeClient(await manager.getClient(instance_alias), with_company);
     const alias = instance_alias || 'default';
     let targetModel = model;
     let targetId = res_id;
@@ -31660,8 +32014,9 @@ async function getRecord(manager, input) {
  * Resolve batch records details.
  */
 async function getRecords(manager, input) {
-    const { model, res_ids = [], xml_ids = [], instance_alias, ...flags } = input;
-    const client = await manager.getClient(instance_alias);
+    const parsedInput = GetRecordsSchema.parse(input);
+    const { model, res_ids = [], xml_ids = [], instance_alias, with_company, ...flags } = parsedInput;
+    const client = await scopeClient(await manager.getClient(instance_alias), with_company);
     const alias = instance_alias || 'default';
     const resolvedIds = [];
     // Gather database IDs
@@ -31704,6 +32059,8 @@ async function getRecords(manager, input) {
 ;// CONCATENATED MODULE: ./src/tools/create_record.ts
 
 
+
+
 /**
  * Zod schema for create_record tool input.
  * Includes pre-processing to handle JSON-serialized values.
@@ -31723,6 +32080,7 @@ const CreateRecordSchema = object({
     }, record(schemas_string(), any())).describe('A dictionary of field values.'),
     justification: schemas_string().min(1).describe('Business justification for creating this record.'),
     with_translations: schemas_boolean().optional().default(false).describe("If True, a plain string written to a translatable field is applied to ALL active languages, and a [{value, langs}] list targets specific ones; the result lists the languages written. Without this flag only the user's language changes and other languages keep their old text."),
+    with_company: withCompanyParam,
     instance_alias: schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -31733,8 +32091,8 @@ const CreateRecordSchema = object({
  */
 async function createRecord(manager, input) {
     const parsedInput = CreateRecordSchema.parse(input);
-    const { model, values, justification, with_translations, instance_alias } = parsedInput;
-    const client = await manager.getClient(instance_alias);
+    const { model, values, justification, with_translations, with_company, instance_alias } = parsedInput;
+    const client = await scopeClient(await manager.getClient(instance_alias), with_company);
     const audit = await manager.getAudit(instance_alias);
     const orchestrator = new OdooOrchestrator(client);
     // Identify translatable fields if flag is set
@@ -31756,17 +32114,27 @@ async function createRecord(manager, input) {
     await audit.logSystemEvent(`Created ${model}(${recordId}): ${justification}`);
     // Log to chatter (if supported by model)
     await audit.postChatterMessage(model, recordId, `<p>Created record with justification: ${justification}</p>`);
+    // Name the company that company-dependent fields were written for
+    let companyNote;
+    if (client.isMultiCompany) {
+        const metadata = await getModelMetadata(client, instance_alias || 'default', model);
+        companyNote = await companyDependentNote(client, metadata, Object.keys(resolvedValues), 'written');
+    }
     // Confirm which languages a translated create reached; plain creates keep the bare ID
-    if (Object.keys(languagesWritten).length > 0) {
+    const hasTranslations = Object.keys(languagesWritten).length > 0;
+    if (hasTranslations || companyNote) {
         return {
             id: recordId,
-            translations: { languages_written: languagesWritten, ...(Object.keys(skipped).length > 0 ? { skipped_inactive: skipped } : {}) }
+            ...(hasTranslations ? { translations: { languages_written: languagesWritten, ...(Object.keys(skipped).length > 0 ? { skipped_inactive: skipped } : {}) } } : {}),
+            ...(companyNote ? { company_dependent: companyNote } : {})
         };
     }
     return recordId;
 }
 
 ;// CONCATENATED MODULE: ./src/tools/write_record.ts
+
+
 
 
 /**
@@ -31789,6 +32157,7 @@ const WriteRecordSchema = object({
     }, record(schemas_string(), any())).describe('A dictionary of fields to update.'),
     justification: schemas_string().min(1).describe('Business justification for the change.'),
     with_translations: schemas_boolean().optional().default(false).describe("If True, a plain string written to a translatable field is applied to ALL active languages, and a [{value, langs}] list targets specific ones; the result lists the languages written. Without this flag only the user's language changes and other languages keep their old text."),
+    with_company: withCompanyParam,
     instance_alias: schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -31799,8 +32168,9 @@ const WriteRecordSchema = object({
  */
 async function writeRecord(manager, input) {
     const parsedInput = WriteRecordSchema.parse(input);
-    const { model, id, values, justification, with_translations, instance_alias } = parsedInput;
-    const client = await manager.getClient(instance_alias);
+    const { model, id, values, justification, with_translations, with_company, instance_alias } = parsedInput;
+    // Scoped before the snapshot, so the before-values are read for the same company the write targets.
+    const client = await scopeClient(await manager.getClient(instance_alias), with_company);
     const audit = await manager.getAudit(instance_alias);
     const orchestrator = new OdooOrchestrator(client);
     // 1. Identify translatable fields if flag is set
@@ -31843,11 +32213,19 @@ async function writeRecord(manager, input) {
         await audit.postChatterMessage(model, id, body);
         await audit.logSystemEvent(`Modified ${model}(${id}): ${justification}`);
     }
+    // Name the company that company-dependent fields were written for
+    let companyNote;
+    if (success && client.isMultiCompany) {
+        const metadata = await getModelMetadata(client, instance_alias || 'default', model);
+        companyNote = await companyDependentNote(client, metadata, Object.keys(resolvedValues), 'written');
+    }
     // Confirm which languages a translated write reached; plain writes keep the bare boolean
-    if (success && Object.keys(languagesWritten).length > 0) {
+    const hasTranslations = success && Object.keys(languagesWritten).length > 0;
+    if (hasTranslations || companyNote) {
         return {
             success,
-            translations: { languages_written: languagesWritten, ...(Object.keys(skipped).length > 0 ? { skipped_inactive: skipped } : {}) }
+            ...(hasTranslations ? { translations: { languages_written: languagesWritten, ...(Object.keys(skipped).length > 0 ? { skipped_inactive: skipped } : {}) } } : {}),
+            ...(companyNote ? { company_dependent: companyNote } : {})
         };
     }
     return success;
@@ -32383,6 +32761,7 @@ async function runServerAction(client, actionId, model, ids) {
 ;// CONCATENATED MODULE: ./src/tools/execute_method.ts
 
 
+
 /**
  * Zod schema for execute_method tool input.
  * `ids` and `kwargs` accept JSON-serialized strings as well as native values.
@@ -32415,6 +32794,7 @@ const ExecuteMethodSchema = object({
         .optional()
         .default(false)
         .describe('Required to call a method against no specific record.'),
+    with_company: withCompanyParam,
     instance_alias: schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -32470,7 +32850,7 @@ const CANDIDATE_STATE_FIELDS = ['state', 'stage_id', 'active', 'status'];
  */
 async function executeMethod(manager, input) {
     const parsedInput = ExecuteMethodSchema.parse(input);
-    const { model, method, ids, kwargs, justification, dry_run, acknowledge_unsafe, skip_view_validation, allow_empty_recordset, instance_alias, } = parsedInput;
+    const { model, method, ids, kwargs, justification, dry_run, acknowledge_unsafe, skip_view_validation, allow_empty_recordset, with_company, instance_alias, } = parsedInput;
     // 1. Shape check before anything reaches the wire.
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(method)) {
         throw new Error(`"${method}" is not a valid Odoo method name. Expected an identifier such as "action_confirm".`);
@@ -32486,7 +32866,7 @@ async function executeMethod(manager, input) {
             `${deniedReason}. This restriction exists so execute_method cannot bypass the guards on ` +
             `the dedicated tools, and it cannot be overridden.`);
     }
-    const client = await manager.getClient(instance_alias);
+    const client = await scopeClient(await manager.getClient(instance_alias), with_company);
     const audit = await manager.getAudit(instance_alias);
     const guard = new ExecutionGuard(client, audit);
     // 3. Pre-flight. Runs on every call; dry_run merely stops afterwards.
@@ -32952,7 +33332,7 @@ async function getEnvironment(manager, input) {
             multi_company: isMultiCompany,
             visibility_scope: isMultiCompany ? "GLOBAL_CROSS_COMPANY" : "SINGLE_COMPANY",
             tip: isMultiCompany
-                ? "Brass-Monkey automatically injects 'allowed_company_ids' representing all your authorized companies into the context of every tool call. You have global read visibility. To filter for a specific company, use an explicit domain filter on company-scoped models, e.g., [['company_id', '=', ID]] or [['company_id', 'in', [ID1, ID2]]]."
+                ? "Brass-Monkey automatically injects 'allowed_company_ids' representing all your authorized companies into the context of every tool call. You have global read visibility. To filter for a specific company, use an explicit domain filter on company-scoped models, e.g., [['company_id', '=', ID]] or [['company_id', 'in', [ID1, ID2]]]. The FIRST company in the list is Odoo's active company: company-dependent fields (one value per company, e.g. property accounts, product project templates) are read and written for it only. To read or write them for another company, pass with_company: ID on the read/write tool."
                 : "You can access only one company. 'allowed_company_ids' is injected for consistency, but company filtering is generally unnecessary; only add a 'company_id' filter on models that actually have a company_id field."
         }
     };
@@ -33018,6 +33398,7 @@ async function traceUiPath(manager, input) {
 
 ;// CONCATENATED MODULE: ./src/tools/aggregate_records.ts
 
+
 /**
  * Zod schema for aggregate_records tool input.
  */
@@ -33051,6 +33432,7 @@ const AggregateRecordsSchema = object({
     fields: array(schemas_string()).optional().describe("Numeric/Monetary fields to aggregate (sum). Defaults to '__count'."),
     limit: coerce_number().optional().describe('Maximum number of groups to return'),
     offset: coerce_number().optional().describe('Number of groups to skip (for pagination)'),
+    with_company: withCompanyParam,
     instance_alias: schemas_string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -33060,8 +33442,8 @@ const AggregateRecordsSchema = object({
 async function aggregateRecords(manager, input) {
     // Enforce schema parsing to apply defaults and preprocessors (prevents undefined domain/fields crashes)
     const parsedInput = AggregateRecordsSchema.parse(input);
-    const { model, domain, groupby, fields, limit, offset, instance_alias } = parsedInput;
-    const client = await manager.getClient(instance_alias);
+    const { model, domain, groupby, fields, limit, offset, with_company, instance_alias } = parsedInput;
+    const client = await scopeClient(await manager.getClient(instance_alias), with_company);
     // Odoo read_group signature: (domain, fields, groupby, offset=0, limit=None, orderby=False, lazy=True)
     // We use lazy: false to get a flattened result set of all groupby levels.
     const options = {
@@ -33174,7 +33556,7 @@ async function getAuditLog(manager, input) {
 
 const mcp_server_dirname = external_path_default().dirname((0,external_url_.fileURLToPath)(import.meta.url));
 // Read package.json for metadata
-let mcp_server_version = "2.1.3";
+let mcp_server_version = "2.2.0";
 try {
     // Try both possible locations (source vs bundled)
     const pkgPaths = [

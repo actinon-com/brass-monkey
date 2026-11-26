@@ -13,3 +13,5 @@ export declare function resolveBaseModule(client: any, modelId: number, moduleLi
  * including auto-detecting the "Belonging Relation" and background warming parent modules.
  */
 export declare function buildModelMetadata(client: any, model: string, instanceAlias?: string): Promise<ModelMetadata>;
+/** Cached metadata for a model, building and caching it on first use. */
+export declare function getModelMetadata(client: any, instanceAlias: string, model: string): Promise<ModelMetadata>;

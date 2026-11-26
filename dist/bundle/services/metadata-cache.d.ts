@@ -21,7 +21,14 @@ export interface ModelMetadata {
     allFields?: Record<string, {
         type: string;
         relation?: string;
+        companyDependent?: boolean;
     }>;
+    /**
+     * Fields listed in Odoo's field table (`ir.model.fields`) that the running
+     * Odoo does not have loaded (absent from `fields_get`). Usually a module whose
+     * code and database disagree after an upgrade. Odoo rejects these in a domain.
+     */
+    tableOnlyFields?: string[];
 }
 /**
  * Service to cache Odoo model layouts in memory during the active session.
@@ -35,5 +42,7 @@ export declare class MetadataCache {
     private getKey;
     get(instanceAlias: string, model: string): ModelMetadata | null;
     set(instanceAlias: string, model: string, metadata: ModelMetadata): void;
+    /** Drops a model's entry under every alias, so the next use rebuilds it. */
+    invalidateModel(model: string): void;
     clear(): void;
 }

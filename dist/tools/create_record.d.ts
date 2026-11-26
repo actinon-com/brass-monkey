@@ -9,6 +9,7 @@ export declare const CreateRecordSchema: z.ZodObject<{
     values: z.ZodPreprocess<z.ZodRecord<z.ZodString, z.ZodAny>, unknown>;
     justification: z.ZodString;
     with_translations: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    with_company: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     instance_alias: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 export type CreateRecordInput = z.infer<typeof CreateRecordSchema>;
@@ -19,9 +20,17 @@ export type CreateRecordInput = z.infer<typeof CreateRecordSchema>;
  * @returns The database ID of the newly created record.
  */
 export declare function createRecord(manager: InstanceManager, input: CreateRecordInput): Promise<number | {
-    id: number | null;
-    translations: {
+    company_dependent?: {
+        fields: string[];
+        company: {
+            id: number;
+            name: string;
+        };
+        note: string;
+    } | undefined;
+    translations?: {
         skipped_inactive?: Record<string, string[]> | undefined;
         languages_written: Record<string, string[]>;
-    };
+    } | undefined;
+    id: number | null;
 } | null>;

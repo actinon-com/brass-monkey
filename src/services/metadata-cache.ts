@@ -20,7 +20,13 @@ export interface ModelMetadata {
    * `categorized`. Used by domain validation, which must accept any real field.
    * Optional so older cache entries (and test fixtures) still type-check.
    */
-  allFields?: Record<string, { type: string; relation?: string }>;
+  allFields?: Record<string, { type: string; relation?: string; companyDependent?: boolean }>;
+  /**
+   * Fields listed in Odoo's field table (`ir.model.fields`) that the running
+   * Odoo does not have loaded (absent from `fields_get`). Usually a module whose
+   * code and database disagree after an upgrade. Odoo rejects these in a domain.
+   */
+  tableOnlyFields?: string[];
 }
 
 /**
@@ -50,6 +56,13 @@ export class MetadataCache {
 
   public set(instanceAlias: string, model: string, metadata: ModelMetadata): void {
     this.cache.set(this.getKey(instanceAlias, model), metadata);
+  }
+
+  /** Drops a model's entry under every alias, so the next use rebuilds it. */
+  public invalidateModel(model: string): void {
+    for (const key of Array.from(this.cache.keys())) {
+      if (key.endsWith(`:${model}`)) this.cache.delete(key);
+    }
   }
 
   public clear(): void {

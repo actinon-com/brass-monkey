@@ -124,6 +124,10 @@ export declare const INSPECT_MODEL_SCHEMA: {
             type: string;
             description: string;
         };
+        refresh: {
+            type: string;
+            description: string;
+        };
         instance_alias: {
             type: string;
             description: string;
@@ -237,6 +241,10 @@ export declare const SEARCH_RECORDS_SCHEMA: {
             type: string;
             description: string;
         };
+        with_company: {
+            type: string;
+            description: string;
+        };
         instance_alias: {
             type: string;
             description: string;
@@ -300,15 +308,15 @@ export declare const GET_RECORD_SCHEMA: {
             type: string;
             description: string;
         };
-        for_user_id: {
-            type: string;
-            description: string;
-        };
         rel_limit: {
             type: string;
             description: string;
         };
         with_translations: {
+            type: string;
+            description: string;
+        };
+        with_company: {
             type: string;
             description: string;
         };
@@ -380,15 +388,15 @@ export declare const GET_RECORDS_SCHEMA: {
             type: string;
             description: string;
         };
-        for_user_id: {
-            type: string;
-            description: string;
-        };
         rel_limit: {
             type: string;
             description: string;
         };
         with_translations: {
+            type: string;
+            description: string;
+        };
+        with_company: {
             type: string;
             description: string;
         };
@@ -433,6 +441,10 @@ export declare const AGGREGATE_RECORDS_SCHEMA: {
             type: string;
             description: string;
         };
+        with_company: {
+            type: string;
+            description: string;
+        };
         instance_alias: {
             type: string;
             description: string;
@@ -473,6 +485,10 @@ export declare const CREATE_RECORD_SCHEMA: {
             type: string;
             description: string;
         };
+        with_company: {
+            type: string;
+            description: string;
+        };
         instance_alias: {
             type: string;
             description: string;
@@ -501,6 +517,10 @@ export declare const WRITE_RECORD_SCHEMA: {
             description: string;
         };
         with_translations: {
+            type: string;
+            description: string;
+        };
+        with_company: {
             type: string;
             description: string;
         };
@@ -610,6 +630,10 @@ export declare const EXECUTE_METHOD_SCHEMA: {
             description: string;
         };
         allow_empty_recordset: {
+            type: string;
+            description: string;
+        };
+        with_company: {
             type: string;
             description: string;
         };

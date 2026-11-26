@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MetadataCache } from '../services/metadata-cache.js';
+import { withCompanyParam, scopeClient, companyDependentNote } from '../services/company-scope.js';
 import { buildModelMetadata } from '../services/metadata-resolver.js';
 import { OdooOrchestrator } from '../services/odoo-orchestrator.js';
 /**
@@ -19,9 +20,9 @@ export const GetRecordSchema = z.object({
     show_chatter: z.boolean().optional().default(false).describe('Include message threads from Odoo Chatter.'),
     include_binary: z.boolean().optional().default(false).describe('Include raw base64 data for binary fields.'),
     show_all_fields: z.boolean().optional().default(false).describe('Force inclusion of EVERY field defined on the model.'),
-    for_user_id: z.coerce.number().optional().describe('Evaluate security and data as a specific user ID.'),
     rel_limit: z.coerce.number().optional().default(20).describe('Limit the number of sub-lines or linked records resolved.'),
     with_translations: z.boolean().optional().default(false).describe("If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only."),
+    with_company: withCompanyParam,
     instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 export const GetRecordsSchema = z.object({
@@ -58,9 +59,9 @@ export const GetRecordsSchema = z.object({
     show_chatter: z.boolean().optional().default(false).describe('Include Odoo Chatter messages.'),
     include_binary: z.boolean().optional().default(false).describe('Include binary base64 data.'),
     show_all_fields: z.boolean().optional().default(false).describe('Force inclusion of EVERY field.'),
-    for_user_id: z.coerce.number().optional().describe('Evaluate as a specific user ID.'),
     rel_limit: z.coerce.number().optional().default(20).describe('Limit the number of sub-lines/links resolved.'),
     with_translations: z.boolean().optional().default(false).describe("If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only."),
+    with_company: withCompanyParam,
     instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -196,6 +197,10 @@ async function fetchSingleRecordDetail(client, instanceAlias, model, resId, flag
         }
         catch (e) { }
     }
+    // Name the company that company-dependent fields were read for
+    const companyNote = await companyDependentNote(client, metadata, activeFields, 'read');
+    if (companyNote)
+        record._company_dependent = companyNote;
     // Scrub large binary payload placeholders if not include_binary
     if (!flags.include_binary) {
         for (const f of activeFields) {
@@ -213,8 +218,8 @@ async function fetchSingleRecordDetail(client, instanceAlias, model, resId, flag
 export async function getRecord(manager, input) {
     // Enforce schema parsing to apply default boolean flags and preprocessors
     const parsedInput = GetRecordSchema.parse(input);
-    const { model, res_id, xml_id, instance_alias, ...flags } = parsedInput;
-    const client = await manager.getClient(instance_alias);
+    const { model, res_id, xml_id, instance_alias, with_company, ...flags } = parsedInput;
+    const client = await scopeClient(await manager.getClient(instance_alias), with_company);
     const alias = instance_alias || 'default';
     let targetModel = model;
     let targetId = res_id;
@@ -245,8 +250,9 @@ export async function getRecord(manager, input) {
  * Resolve batch records details.
  */
 export async function getRecords(manager, input) {
-    const { model, res_ids = [], xml_ids = [], instance_alias, ...flags } = input;
-    const client = await manager.getClient(instance_alias);
+    const parsedInput = GetRecordsSchema.parse(input);
+    const { model, res_ids = [], xml_ids = [], instance_alias, with_company, ...flags } = parsedInput;
+    const client = await scopeClient(await manager.getClient(instance_alias), with_company);
     const alias = instance_alias || 'default';
     const resolvedIds = [];
     // Gather database IDs

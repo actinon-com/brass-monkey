@@ -15,6 +15,7 @@ export declare const ExecuteMethodSchema: z.ZodObject<{
     acknowledge_unsafe: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     skip_view_validation: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     allow_empty_recordset: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    with_company: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     instance_alias: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 export type ExecuteMethodInput = z.infer<typeof ExecuteMethodSchema>;

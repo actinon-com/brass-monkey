@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { MetadataCache } from '../services/metadata-cache.js';
 import { buildModelMetadata } from '../services/metadata-resolver.js';
+import { refreshModelMetadata } from '../services/schema-refresh.js';
 /**
  * Zod schema for inspect_model tool input.
  * Full parity with original brass-compass flags for deep introspection.
@@ -18,6 +19,7 @@ export const InspectModelSchema = z.object({
     show_modules: z.boolean().optional().default(false).describe("Include module lineage (Inheritance hierarchy)."),
     show_ui: z.boolean().optional().default(false).describe("Include associated View XML IDs and Window Actions."),
     show_methods: z.boolean().optional().default(false).describe("Include Server Actions and available execution points."),
+    refresh: z.boolean().optional().default(false).describe("Re-read the model's fields from Odoo instead of using brass-monkey's copy. Use after a module is installed or upgraded."),
     instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -27,14 +29,16 @@ export const InspectModelSchema = z.object({
  */
 export async function inspectModel(manager, input) {
     const parsedInput = InspectModelSchema.parse(input);
-    const { model, instance_alias, ...flags } = parsedInput;
+    const { model, instance_alias, refresh, ...flags } = parsedInput;
     const client = await manager.getClient(instance_alias);
     const alias = instance_alias || 'default';
     // 1. Resolve and cache metadata (or load from cache)
     const cache = MetadataCache.getInstance();
-    let metadata = cache.get(alias, model);
+    let metadata = refresh ? null : cache.get(alias, model);
     if (!metadata) {
-        metadata = await buildModelMetadata(client, model, alias);
+        metadata = refresh
+            ? await refreshModelMetadata(client, alias, model)
+            : await buildModelMetadata(client, model, alias);
         cache.set(alias, model, metadata);
     }
     const res = {
@@ -48,6 +52,12 @@ export async function inspectModel(manager, input) {
     // Compile buckets based on requested flags
     const buckets = metadata.categorized;
     res.fields = {};
+    if (metadata.tableOnlyFields && metadata.tableOnlyFields.length > 0) {
+        res.fields_not_loaded = {
+            fields: metadata.tableOnlyFields,
+            note: "Listed in Odoo's field table but not loaded by the running Odoo, so Odoo rejects them in reads and searches. The module defining them probably needs upgrading in Odoo (Apps → Upgrade). Tell the user; do not use these fields.",
+        };
+    }
     if (flags.show_base)
         res.fields.base = buckets.base;
     if (flags.show_extended)

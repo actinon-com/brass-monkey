@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { withCompanyParam, scopeClient } from '../services/company-scope.js';
 /**
  * Zod schema for aggregate_records tool input.
  */
@@ -32,6 +33,7 @@ export const AggregateRecordsSchema = z.object({
     fields: z.array(z.string()).optional().describe("Numeric/Monetary fields to aggregate (sum). Defaults to '__count'."),
     limit: z.coerce.number().optional().describe('Maximum number of groups to return'),
     offset: z.coerce.number().optional().describe('Number of groups to skip (for pagination)'),
+    with_company: withCompanyParam,
     instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -41,8 +43,8 @@ export const AggregateRecordsSchema = z.object({
 export async function aggregateRecords(manager, input) {
     // Enforce schema parsing to apply defaults and preprocessors (prevents undefined domain/fields crashes)
     const parsedInput = AggregateRecordsSchema.parse(input);
-    const { model, domain, groupby, fields, limit, offset, instance_alias } = parsedInput;
-    const client = await manager.getClient(instance_alias);
+    const { model, domain, groupby, fields, limit, offset, with_company, instance_alias } = parsedInput;
+    const client = await scopeClient(await manager.getClient(instance_alias), with_company);
     // Odoo read_group signature: (domain, fields, groupby, offset=0, limit=None, orderby=False, lazy=True)
     // We use lazy: false to get a flattened result set of all groupby levels.
     const options = {

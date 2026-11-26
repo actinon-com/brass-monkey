@@ -17,9 +17,9 @@ export declare const GetRecordSchema: z.ZodObject<{
     show_chatter: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     include_binary: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     show_all_fields: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
-    for_user_id: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     rel_limit: z.ZodDefault<z.ZodOptional<z.ZodCoercedNumber<unknown>>>;
     with_translations: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    with_company: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     instance_alias: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 export declare const GetRecordsSchema: z.ZodObject<{
@@ -36,9 +36,9 @@ export declare const GetRecordsSchema: z.ZodObject<{
     show_chatter: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     include_binary: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     show_all_fields: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
-    for_user_id: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     rel_limit: z.ZodDefault<z.ZodOptional<z.ZodCoercedNumber<unknown>>>;
     with_translations: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    with_company: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     instance_alias: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 export type GetRecordInput = z.infer<typeof GetRecordSchema>;

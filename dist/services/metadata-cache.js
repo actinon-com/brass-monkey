@@ -21,6 +21,13 @@ export class MetadataCache {
     set(instanceAlias, model, metadata) {
         this.cache.set(this.getKey(instanceAlias, model), metadata);
     }
+    /** Drops a model's entry under every alias, so the next use rebuilds it. */
+    invalidateModel(model) {
+        for (const key of Array.from(this.cache.keys())) {
+            if (key.endsWith(`:${model}`))
+                this.cache.delete(key);
+        }
+    }
     clear() {
         this.cache.clear();
     }

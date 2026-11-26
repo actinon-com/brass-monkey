@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { OdooOrchestrator } from '../services/odoo-orchestrator.js';
+import { withCompanyParam, scopeClient, companyDependentNote } from '../services/company-scope.js';
+import { getModelMetadata } from '../services/metadata-resolver.js';
 /**
  * Zod schema for write_record tool input.
  * Includes pre-processing to handle numeric strings and JSON-serialized values.
@@ -20,6 +22,7 @@ export const WriteRecordSchema = z.object({
     }, z.record(z.string(), z.any())).describe('A dictionary of fields to update.'),
     justification: z.string().min(1).describe('Business justification for the change.'),
     with_translations: z.boolean().optional().default(false).describe("If True, a plain string written to a translatable field is applied to ALL active languages, and a [{value, langs}] list targets specific ones; the result lists the languages written. Without this flag only the user's language changes and other languages keep their old text."),
+    with_company: withCompanyParam,
     instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -30,8 +33,9 @@ export const WriteRecordSchema = z.object({
  */
 export async function writeRecord(manager, input) {
     const parsedInput = WriteRecordSchema.parse(input);
-    const { model, id, values, justification, with_translations, instance_alias } = parsedInput;
-    const client = await manager.getClient(instance_alias);
+    const { model, id, values, justification, with_translations, with_company, instance_alias } = parsedInput;
+    // Scoped before the snapshot, so the before-values are read for the same company the write targets.
+    const client = await scopeClient(await manager.getClient(instance_alias), with_company);
     const audit = await manager.getAudit(instance_alias);
     const orchestrator = new OdooOrchestrator(client);
     // 1. Identify translatable fields if flag is set
@@ -74,11 +78,19 @@ export async function writeRecord(manager, input) {
         await audit.postChatterMessage(model, id, body);
         await audit.logSystemEvent(`Modified ${model}(${id}): ${justification}`);
     }
+    // Name the company that company-dependent fields were written for
+    let companyNote;
+    if (success && client.isMultiCompany) {
+        const metadata = await getModelMetadata(client, instance_alias || 'default', model);
+        companyNote = await companyDependentNote(client, metadata, Object.keys(resolvedValues), 'written');
+    }
     // Confirm which languages a translated write reached; plain writes keep the bare boolean
-    if (success && Object.keys(languagesWritten).length > 0) {
+    const hasTranslations = success && Object.keys(languagesWritten).length > 0;
+    if (hasTranslations || companyNote) {
         return {
             success,
-            translations: { languages_written: languagesWritten, ...(Object.keys(skipped).length > 0 ? { skipped_inactive: skipped } : {}) }
+            ...(hasTranslations ? { translations: { languages_written: languagesWritten, ...(Object.keys(skipped).length > 0 ? { skipped_inactive: skipped } : {}) } } : {}),
+            ...(companyNote ? { company_dependent: companyNote } : {})
         };
     }
     return success;

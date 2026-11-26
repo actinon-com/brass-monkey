@@ -1,5 +1,6 @@
 import xmlrpc from 'xmlrpc';
 import { type OdooConfig } from '../schemas/odoo-config.schema.js';
+import { diagnoseRejectedField, rejectedFieldName } from './schema-refresh.js';
 
 /**
  * Type-safe Odoo XML-RPC Client.
@@ -11,6 +12,11 @@ export class OdooClient {
   private uid: number | null = null;
   private versionInfo: any = null;
   private companyIds: number[] = [];
+  /** Set only on a company-scoped view made by withCompany(); see executeKw. */
+  private activeCompanyId: number | null = null;
+  /** The unscoped client a withCompany() view was made from (itself when unscoped). */
+  private scopeRoot: OdooClient | null = null;
+  private companyNames = new Map<number, string>();
 
   constructor(private config: OdooConfig) {
     const commonUrl = new URL('/xmlrpc/2/common', config.url).toString();
@@ -36,6 +42,58 @@ export class OdooClient {
    * once authenticated.
    */
   get isMultiCompany(): boolean { return this.companyIds.length > 1; }
+
+  /** The unscoped client, shared by every withCompany() view. Use it as a cache key. */
+  get root(): OdooClient { return this.scopeRoot ?? this; }
+
+  /**
+   * The company Odoo treats as active for this client's calls: the one set by
+   * withCompany(), otherwise the first of the user's companies. Null before
+   * authentication or for a user with no companies.
+   */
+  get activeCompany(): number | null {
+    return this.activeCompanyId ?? this.companyIds[0] ?? null;
+  }
+
+  /**
+   * Returns a view of this client whose calls act for `companyId`, the same way
+   * Odoo's `with_company()` does: that company goes first in
+   * `allowed_company_ids` (Odoo's active company) and the user's other
+   * companies stay in the list, so cross-company reads still work.
+   *
+   * The view shares this client's login. It matters for company-dependent
+   * fields, which Odoo stores once per company and reads and writes for the
+   * active company only.
+   */
+  async withCompany(companyId: number): Promise<OdooClient> {
+    if (!this.uid) {
+      await this.authenticate();
+    }
+    if (!this.companyIds.includes(companyId)) {
+      throw new Error(
+        `with_company: company ${companyId} is not one of this user's companies ` +
+        `(${this.companyIds.join(', ') || 'none'}). Run get_environment to list them.`
+      );
+    }
+    const scoped = Object.create(this.root) as OdooClient;
+    scoped.activeCompanyId = companyId;
+    scoped.scopeRoot = this.root;
+    return scoped;
+  }
+
+  /** Company name for messages; falls back to the ID if it cannot be read. */
+  async companyName(companyId: number): Promise<string> {
+    const names = this.root.companyNames;
+    if (!names.has(companyId)) {
+      try {
+        const recs = await this.executeKw('res.company', 'read', [[companyId]], { fields: ['name'] });
+        names.set(companyId, recs?.[0]?.name || `company ${companyId}`);
+      } catch {
+        return `company ${companyId}`;
+      }
+    }
+    return names.get(companyId)!;
+  }
 
   /**
    * Returns the major version of the Odoo instance (e.g. 16).
@@ -152,26 +210,54 @@ export class OdooClient {
       }
     }
 
-    // Context Injection: Enable cross-company visibility by default
+    // Context Injection: Enable cross-company visibility by default. Odoo treats
+    // the first company as the active one, so a withCompany() view puts its
+    // company first and keeps the rest.
     if (this.companyIds.length > 0) {
       kwargs.context = kwargs.context || {};
       if (kwargs.context.allowed_company_ids === undefined) {
-        kwargs.context.allowed_company_ids = this.companyIds;
+        const active = this.activeCompanyId;
+        kwargs.context.allowed_company_ids = active === null
+          ? this.companyIds
+          : [active, ...this.companyIds.filter(id => id !== active)];
       }
     }
 
-    return new Promise((resolve, reject) => {
+    let rawError: any = null;
+    const result = await new Promise((resolve, reject) => {
       this.objectClient.methodCall(
         'execute_kw',
         [db, this.uid, api_key, model, method, args, kwargs],
         (error: any, result: any) => {
           if (error) {
-            return reject(this.formatError(error, `${model}.${method}`));
+            rawError = error;
+            return reject(error);
           }
           resolve(result);
         }
       );
-    });
+    }).catch(() => undefined);
+
+    if (rawError === null) return result;
+    throw await this.explainError(rawError, model, method);
+  }
+
+  /**
+   * Turns an execute_kw failure into an actionable error. When Odoo rejects a
+   * field name, brass-monkey re-checks the model's fields (rate-limited per
+   * model, see schema-refresh.ts) so the advice says what is actually wrong
+   * instead of guessing.
+   */
+  private async explainError(error: any, model: string, method: string): Promise<Error> {
+    const formatted = this.formatError(error, `${model}.${method}`);
+    const rejected = rejectedFieldName(error.faultString || error.message || String(error), model);
+    if (!rejected || model.startsWith('ir.model') || rejected.model.startsWith('ir.model')) return formatted;
+    try {
+      const advice = await diagnoseRejectedField(this, rejected.model, rejected.field);
+      return new Error(`${formatted.message}\n💡 ACTION: ${advice}`);
+    } catch {
+      return new Error(`${formatted.message}\n💡 ACTION: Check the field name with 'inspect_model(model: "${rejected.model}")'.`);
+    }
   }
 
   /**
@@ -195,16 +281,14 @@ export class OdooClient {
       if (match && match[1]) {
         const msg = match[1].trim();
 
-        // Enhanced Actionable Feedback
-        if (msg.includes('does not exist') || msg.includes('column') || msg.includes('field')) {
-          // A rejected field on the metadata models themselves (ir.model / ir.model.fields)
-          // is a Brass-Monkey schema-compatibility issue (a requested column absent on this
-          // Odoo version), NOT a stale local cache — advising 'inspect_model' here would loop
-          // on the very call that is failing.
-          if (context.includes('ir.model')) {
-            return new Error(`${msg}\n💡 ACTION: This is likely an Odoo version/schema difference during metadata discovery (a requested column may not exist on this Odoo version). Please report it.`);
-          }
-          return new Error(`${msg}\n💡 ACTION: Your local schema is stale. You MUST execute 'inspect_model' for this model to synchronize.`);
+        // A rejected field on the metadata models themselves (ir.model / ir.model.fields)
+        // is a Brass-Monkey schema-compatibility issue (a requested column absent on this
+        // Odoo version). Advice for a rejected field on any other model is added by
+        // explainError, which can re-check the model's fields. Other errors that merely
+        // mention a field (e.g. "has to be used on a property field") are Odoo's own
+        // business errors and pass through unchanged.
+        if (context.includes('ir.model') && rejectedFieldName(rawMessage, '') !== null) {
+          return new Error(`${msg}\n💡 ACTION: This is likely an Odoo version/schema difference during metadata discovery (a requested column may not exist on this Odoo version). Please report it.`);
         }
         if (msg.includes('Access Denied') || msg.includes('permission')) {
           return new Error(`${msg}\n💡 ACTION: You may be missing a required Skill or User Group. Verify with 'get_environment(show_security=true)'.`);
