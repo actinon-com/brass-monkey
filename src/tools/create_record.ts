@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { InstanceManager } from '../services/instance-manager.js';
 import { OdooOrchestrator } from '../services/odoo-orchestrator.js';
+import { withCompanyParam, scopeClient, companyDependentNote } from '../services/company-scope.js';
+import { getModelMetadata } from '../services/metadata-resolver.js';
 
 /**
  * Zod schema for create_record tool input.
@@ -16,6 +18,7 @@ export const CreateRecordSchema = z.object({
   }, z.record(z.string(), z.any())).describe('A dictionary of field values.'),
   justification: z.string().min(1).describe('Business justification for creating this record.'),
   with_translations: z.boolean().optional().default(false).describe("If True, a plain string written to a translatable field is applied to ALL active languages, and a [{value, langs}] list targets specific ones; the result lists the languages written. Without this flag only the user's language changes and other languages keep their old text."),
+  with_company: withCompanyParam,
   instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 
@@ -29,8 +32,8 @@ export type CreateRecordInput = z.infer<typeof CreateRecordSchema>;
  */
 export async function createRecord(manager: InstanceManager, input: CreateRecordInput) {
   const parsedInput = CreateRecordSchema.parse(input);
-  const { model, values, justification, with_translations, instance_alias } = parsedInput;
-  const client = await manager.getClient(instance_alias);
+  const { model, values, justification, with_translations, with_company, instance_alias } = parsedInput;
+  const client = await scopeClient(await manager.getClient(instance_alias), with_company);
   const audit = await manager.getAudit(instance_alias);
   const orchestrator = new OdooOrchestrator(client);
 
@@ -59,11 +62,20 @@ export async function createRecord(manager: InstanceManager, input: CreateRecord
   // Log to chatter (if supported by model)
   await audit.postChatterMessage(model, recordId as number, `<p>Created record with justification: ${justification}</p>`);
 
+  // Name the company that company-dependent fields were written for
+  let companyNote: Awaited<ReturnType<typeof companyDependentNote>>;
+  if (client.isMultiCompany) {
+    const metadata = await getModelMetadata(client, instance_alias || 'default', model);
+    companyNote = await companyDependentNote(client, metadata, Object.keys(resolvedValues), 'written');
+  }
+
   // Confirm which languages a translated create reached; plain creates keep the bare ID
-  if (Object.keys(languagesWritten).length > 0) {
+  const hasTranslations = Object.keys(languagesWritten).length > 0;
+  if (hasTranslations || companyNote) {
     return {
       id: recordId,
-      translations: { languages_written: languagesWritten, ...(Object.keys(skipped).length > 0 ? { skipped_inactive: skipped } : {}) }
+      ...(hasTranslations ? { translations: { languages_written: languagesWritten, ...(Object.keys(skipped).length > 0 ? { skipped_inactive: skipped } : {}) } } : {}),
+      ...(companyNote ? { company_dependent: companyNote } : {})
     };
   }
   return recordId;

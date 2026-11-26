@@ -17,6 +17,7 @@ export declare const InspectModelSchema: z.ZodObject<{
     show_modules: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     show_ui: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     show_methods: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    refresh: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     instance_alias: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 export type InspectModelInput = z.infer<typeof InspectModelSchema>;

@@ -6,6 +6,7 @@ import {
   coerceIdList,
   coerceKwargs,
 } from '../services/execution-guard.js';
+import { withCompanyParam, scopeClient } from '../services/company-scope.js';
 
 /**
  * Zod schema for execute_method tool input.
@@ -45,6 +46,7 @@ export const ExecuteMethodSchema = z.object({
     .optional()
     .default(false)
     .describe('Required to call a method against no specific record.'),
+  with_company: withCompanyParam,
   instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 
@@ -117,6 +119,7 @@ export async function executeMethod(manager: InstanceManager, input: ExecuteMeth
     acknowledge_unsafe,
     skip_view_validation,
     allow_empty_recordset,
+    with_company,
     instance_alias,
   } = parsedInput;
 
@@ -143,7 +146,7 @@ export async function executeMethod(manager: InstanceManager, input: ExecuteMeth
     );
   }
 
-  const client = await manager.getClient(instance_alias);
+  const client = await scopeClient(await manager.getClient(instance_alias), with_company);
   const audit = await manager.getAudit(instance_alias);
   const guard = new ExecutionGuard(client, audit);
 

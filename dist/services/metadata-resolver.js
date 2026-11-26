@@ -104,11 +104,41 @@ export async function buildModelMetadata(client, model, instanceAlias = 'default
     const fRecords = await client.executeKw('ir.model.fields', 'search_read', [[['model_id.model', '=', model]]], {
         fields: fieldColumns
     });
+    // 2b. Ask the running Odoo which fields it has loaded. This is what Odoo
+    //     accepts in a domain or read, and can differ from the field table after a
+    //     module upgrade. If it fails, fall back to the field table alone.
+    let loaded = null;
+    try {
+        loaded = await client.executeKw(model, 'fields_get', [], {
+            attributes: ['type', 'relation', 'company_dependent']
+        });
+        if (!loaded || typeof loaded !== 'object' || Object.keys(loaded).length === 0)
+            loaded = null;
+    }
+    catch {
+        loaded = null;
+    }
     const buckets = { base: {}, extended: {}, computed: {}, related: {}, relational: {}, lines: {} };
     const baseFields = ['id'];
     const allFields = {};
+    const tableOnlyFields = [];
+    if (loaded) {
+        for (const [name, def] of Object.entries(loaded)) {
+            allFields[name] = {
+                type: def.type,
+                relation: def.relation || undefined,
+                ...(def.company_dependent ? { companyDependent: true } : {}),
+            };
+        }
+    }
     for (const f of fRecords) {
-        allFields[f.name] = { type: f.ttype, relation: f.relation || undefined };
+        const companyDependent = !!(f.company_dependent || loaded?.[f.name]?.company_dependent);
+        if (!loaded) {
+            allFields[f.name] = { type: f.ttype, relation: f.relation || undefined, ...(companyDependent ? { companyDependent: true } : {}) };
+        }
+        else if (!(f.name in loaded)) {
+            tableOnlyFields.push(f.name);
+        }
         // A. Exclude chatter and activity system fields (aligning with Python chatter category bypass)
         if (f.name.startsWith('message_') || f.name.startsWith('activity_')) {
             continue;
@@ -123,7 +153,7 @@ export async function buildModelMetadata(client, model, instanceAlias = 'default
             props.push('not-stored');
         if (f.translate)
             props.push('translatable');
-        if (f.company_dependent)
+        if (companyDependent)
             props.push('company-dependent');
         const fieldData = {
             type: f.ttype,
@@ -218,7 +248,18 @@ export async function buildModelMetadata(client, model, instanceAlias = 'default
         modules: m.modules || '',
         baseFields: deduplicatedFields,
         categorized: buckets,
-        allFields
+        allFields,
+        ...(tableOnlyFields.length > 0 ? { tableOnlyFields } : {})
     };
+}
+/** Cached metadata for a model, building and caching it on first use. */
+export async function getModelMetadata(client, instanceAlias, model) {
+    const cache = MetadataCache.getInstance();
+    let metadata = cache.get(instanceAlias, model);
+    if (!metadata) {
+        metadata = await buildModelMetadata(client, model, instanceAlias);
+        cache.set(instanceAlias, model, metadata);
+    }
+    return metadata;
 }
 //# sourceMappingURL=metadata-resolver.js.map

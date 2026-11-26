@@ -4,6 +4,8 @@ import { MetadataCache } from '../services/metadata-cache.js';
 import { buildModelMetadata } from '../services/metadata-resolver.js';
 import { OdooOrchestrator } from '../services/odoo-orchestrator.js';
 import { DomainValidationService } from '../services/domain-validator.js';
+import { withCompanyParam, scopeClient, companyDependentNote } from '../services/company-scope.js';
+import { getModelMetadata } from '../services/metadata-resolver.js';
 
 /**
  * Zod schema for search_records tool input.
@@ -30,6 +32,7 @@ export const SearchRecordsSchema = z.object({
   offset: z.coerce.number().optional().describe('Number of records to skip (for pagination)'),
   order: z.string().optional().describe('Sort order (e.g., "id desc", "write_date desc")'),
   with_translations: z.boolean().optional().default(false).describe("If True, translatable fields come back per language: a plain value is identical in all active languages; a [{value, langs}] list means they differ. The response carries a translations note listing the languages, or an error if they could not be fetched. Without this flag you see the user's language only."),
+  with_company: withCompanyParam,
   instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 
@@ -42,8 +45,8 @@ export type SearchRecordsInput = z.infer<typeof SearchRecordsSchema>;
 export async function searchRecords(manager: InstanceManager, input: SearchRecordsInput) {
   // Enforce schema parsing to apply defaults and preprocessors
   const parsedInput = SearchRecordsSchema.parse(input);
-  const { model, domain, fields, limit, offset, order, with_translations, instance_alias } = parsedInput;
-  const client = await manager.getClient(instance_alias);
+  const { model, domain, fields, limit, offset, order, with_translations, with_company, instance_alias } = parsedInput;
+  const client = await scopeClient(await manager.getClient(instance_alias), with_company);
   const alias = instance_alias || 'default';
 
   // Validate and Heal Domain using decoupled DomainValidationService
@@ -130,7 +133,14 @@ export async function searchRecords(manager: InstanceManager, input: SearchRecor
     }
   }
 
-  // 4. Construct high-signal Breadth Envelope
+  // 4. Name the company that company-dependent fields were read for
+  let companyNote: Awaited<ReturnType<typeof companyDependentNote>>;
+  if (client.isMultiCompany && activeRecords.length > 0) {
+    const metadata = await getModelMetadata(client, alias, model);
+    companyNote = await companyDependentNote(client, metadata, readFields, 'read');
+  }
+
+  // 5. Construct high-signal Breadth Envelope
   const advice: string[] = [];
   if (targetLimit === 1 || activeRecords.length === 1) {
     advice.push(
@@ -151,6 +161,7 @@ export async function searchRecords(manager: InstanceManager, input: SearchRecor
     limit: targetLimit,
     ...(advice.length > 0 ? { optimization_advice: advice } : {}),
     ...(translationNote ? { translations: translationNote } : {}),
+    ...(companyNote ? { company_dependent: companyNote } : {}),
     leads: activeRecords.reduce((acc: Record<string, string>, r: any) => {
       acc[String(r.id)] = r.display_name || r.name || `ID ${r.id}`;
       return acc;

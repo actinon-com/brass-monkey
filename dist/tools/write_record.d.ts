@@ -10,6 +10,7 @@ export declare const WriteRecordSchema: z.ZodObject<{
     values: z.ZodPreprocess<z.ZodRecord<z.ZodString, z.ZodAny>, unknown>;
     justification: z.ZodString;
     with_translations: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    with_company: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     instance_alias: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 export type WriteRecordInput = z.infer<typeof WriteRecordSchema>;
@@ -20,9 +21,17 @@ export type WriteRecordInput = z.infer<typeof WriteRecordSchema>;
  * @returns Boolean true on success.
  */
 export declare function writeRecord(manager: InstanceManager, input: WriteRecordInput): Promise<boolean | {
-    success: true;
-    translations: {
+    company_dependent?: {
+        fields: string[];
+        company: {
+            id: number;
+            name: string;
+        };
+        note: string;
+    } | undefined;
+    translations?: {
         skipped_inactive?: Record<string, string[]> | undefined;
         languages_written: Record<string, string[]>;
-    };
+    } | undefined;
+    success: boolean;
 }>;

@@ -12,6 +12,7 @@ export declare const SearchRecordsSchema: z.ZodObject<{
     offset: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     order: z.ZodOptional<z.ZodString>;
     with_translations: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    with_company: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     instance_alias: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 export type SearchRecordsInput = z.infer<typeof SearchRecordsSchema>;
@@ -33,6 +34,14 @@ export declare function searchRecords(manager: InstanceManager, input: SearchRec
 } | {
     leads: any;
     results: any;
+    company_dependent?: {
+        fields: string[];
+        company: {
+            id: number;
+            name: string;
+        };
+        note: string;
+    } | undefined;
     translations?: Record<string, any> | undefined;
     optimization_advice?: string[] | undefined;
     model: string;

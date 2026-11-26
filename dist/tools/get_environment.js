@@ -119,7 +119,7 @@ export async function getEnvironment(manager, input) {
             multi_company: isMultiCompany,
             visibility_scope: isMultiCompany ? "GLOBAL_CROSS_COMPANY" : "SINGLE_COMPANY",
             tip: isMultiCompany
-                ? "Brass-Monkey automatically injects 'allowed_company_ids' representing all your authorized companies into the context of every tool call. You have global read visibility. To filter for a specific company, use an explicit domain filter on company-scoped models, e.g., [['company_id', '=', ID]] or [['company_id', 'in', [ID1, ID2]]]."
+                ? "Brass-Monkey automatically injects 'allowed_company_ids' representing all your authorized companies into the context of every tool call. You have global read visibility. To filter for a specific company, use an explicit domain filter on company-scoped models, e.g., [['company_id', '=', ID]] or [['company_id', 'in', [ID1, ID2]]]. The FIRST company in the list is Odoo's active company: company-dependent fields (one value per company, e.g. property accounts, product project templates) are read and written for it only. To read or write them for another company, pass with_company: ID on the read/write tool."
                 : "You can access only one company. 'allowed_company_ids' is injected for consistency, but company filtering is generally unnecessary; only add a 'company_id' filter on models that actually have a company_id field."
         }
     };

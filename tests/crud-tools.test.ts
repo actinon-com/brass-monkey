@@ -89,6 +89,7 @@ describe('CRUD Tools', () => {
           { name: 'name', field_description: 'Name', ttype: 'char', required: false, readonly: false, store: true, translate: false, company_dependent: false, modules: 'base' },
           { name: 'write_date', field_description: 'Modified', ttype: 'datetime', required: false, readonly: false, store: true, translate: false, company_dependent: false, modules: 'base' }
         ]) // buildModelMetadata (ir.model.fields)
+        .mockResolvedValueOnce({ name: { type: 'char' }, write_date: { type: 'datetime' } }) // buildModelMetadata (model fields_get)
         .mockResolvedValueOnce([{ id: 1, name: 'Test' }]) // actual search_read
         .mockResolvedValueOnce(1); // actual search_count
 

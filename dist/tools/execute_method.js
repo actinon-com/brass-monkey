@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ExecutionGuard, coerceIdList, coerceKwargs, } from '../services/execution-guard.js';
+import { withCompanyParam, scopeClient } from '../services/company-scope.js';
 /**
  * Zod schema for execute_method tool input.
  * `ids` and `kwargs` accept JSON-serialized strings as well as native values.
@@ -38,6 +39,7 @@ export const ExecuteMethodSchema = z.object({
         .optional()
         .default(false)
         .describe('Required to call a method against no specific record.'),
+    with_company: withCompanyParam,
     instance_alias: z.string().optional().describe('Optional alias of the Odoo instance to use.'),
 });
 /**
@@ -93,7 +95,7 @@ const CANDIDATE_STATE_FIELDS = ['state', 'stage_id', 'active', 'status'];
  */
 export async function executeMethod(manager, input) {
     const parsedInput = ExecuteMethodSchema.parse(input);
-    const { model, method, ids, kwargs, justification, dry_run, acknowledge_unsafe, skip_view_validation, allow_empty_recordset, instance_alias, } = parsedInput;
+    const { model, method, ids, kwargs, justification, dry_run, acknowledge_unsafe, skip_view_validation, allow_empty_recordset, with_company, instance_alias, } = parsedInput;
     // 1. Shape check before anything reaches the wire.
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(method)) {
         throw new Error(`"${method}" is not a valid Odoo method name. Expected an identifier such as "action_confirm".`);
@@ -109,7 +111,7 @@ export async function executeMethod(manager, input) {
             `${deniedReason}. This restriction exists so execute_method cannot bypass the guards on ` +
             `the dedicated tools, and it cannot be overridden.`);
     }
-    const client = await manager.getClient(instance_alias);
+    const client = await scopeClient(await manager.getClient(instance_alias), with_company);
     const audit = await manager.getAudit(instance_alias);
     const guard = new ExecutionGuard(client, audit);
     // 3. Pre-flight. Runs on every call; dry_run merely stops afterwards.

@@ -10,6 +10,7 @@ export declare const AggregateRecordsSchema: z.ZodObject<{
     fields: z.ZodOptional<z.ZodArray<z.ZodString>>;
     limit: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     offset: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
+    with_company: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     instance_alias: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 export type AggregateRecordsInput = z.infer<typeof AggregateRecordsSchema>;

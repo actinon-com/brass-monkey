@@ -1,5 +1,6 @@
-import { MetadataCache } from './metadata-cache.js';
+import { MetadataCache, ModelMetadata } from './metadata-cache.js';
 import { buildModelMetadata } from './metadata-resolver.js';
+import { claimRefresh, refreshModelMetadata } from './schema-refresh.js';
 
 export interface ValidationResult {
   success: boolean;
@@ -96,33 +97,23 @@ export class DomainValidationService {
     }
 
     // 4. Retrieve all valid fields from metadata.
-    //    Prefer `allFields` (every field on the model). `categorized` omits the
-    //    chatter/activity fields, which are still valid in a domain.
-    const validFields = new Set<string>(Object.keys(metadata.allFields || {}));
-    if (metadata.categorized) {
-      Object.keys(metadata.categorized.base || {}).forEach(f => validFields.add(f));
-      Object.keys(metadata.categorized.extended || {}).forEach(f => validFields.add(f));
-      Object.keys(metadata.categorized.computed || {}).forEach(f => validFields.add(f));
-      Object.keys(metadata.categorized.related || {}).forEach(f => validFields.add(f));
-      Object.keys(metadata.categorized.relational || {}).forEach(f => validFields.add(f));
-      Object.keys(metadata.categorized.lines || {}).forEach(f => validFields.add(f));
-    }
-    validFields.add('id');
-    validFields.add('create_date');
-    validFields.add('write_date');
-    validFields.add('create_uid');
-    validFields.add('write_uid');
+    let { validFields, allFieldDefinitions } = this.fieldSets(metadata);
 
-    // Combine all fields to make checking easy
-    const allFieldDefinitions: Record<string, any> = {
-      ...(metadata.allFields || {}),
-      ...(metadata.categorized?.base || {}),
-      ...(metadata.categorized?.extended || {}),
-      ...(metadata.categorized?.computed || {}),
-      ...(metadata.categorized?.related || {}),
-      ...(metadata.categorized?.relational || {}),
-      ...(metadata.categorized?.lines || {}),
-    };
+    // 4b. A field missing from the cached copy may be new since it was read
+    //     (module installed or upgraded mid-session). Re-read the model once,
+    //     rate-limited per model so repeated mistakes do not hammer the API.
+    const heads = domain
+      .filter((el: any) => Array.isArray(el) && typeof el[0] === 'string')
+      .map((el: any[]) => (el[0] as string).split('.')[0]);
+    if (heads.some((h: string) => !validFields.has(h)) && claimRefresh(client, model)) {
+      try {
+        metadata = await refreshModelMetadata(client, instanceAlias, model);
+        ({ validFields, allFieldDefinitions } = this.fieldSets(metadata));
+      } catch {
+        // Keep the copy we have; the check below reports against it.
+      }
+    }
+    const tableOnly = new Set<string>(metadata.tableOnlyFields || []);
 
     // 5. Run Triplet-level Validation & Hybrid Healing
     const healedDomain: any[] = [];
@@ -196,6 +187,24 @@ export class DomainValidationService {
             }
           };
         }
+        if (typeof field === 'string' && tableOnly.has(pathHead)) {
+          return {
+            success: false,
+            errorPayload: {
+              isError: true,
+              message: `Domain Validation Error: Field '${pathHead}' is listed in Odoo's field table for '${model}', but the running Odoo does not have it loaded, so Odoo would reject it.`,
+              diagnostic_hints: {
+                invalid_field: field,
+                target_model: model,
+                action_directives: [
+                  "The module that defines this field probably needs upgrading in Odoo (Apps → Upgrade), or the server restarting. Retrying or refreshing will not fix it; tell the user.",
+                  "To continue meanwhile, search without this field."
+                ],
+                explanation: `'${pathHead}' is in ir.model.fields but not in fields_get for '${model}'.`
+              }
+            }
+          };
+        }
         if (typeof field === 'string' && !validFields.has(pathHead)) {
           // Perform simple substring fuzzy match
           const suggestions = Array.from(validFields).filter(vf => 
@@ -263,6 +272,26 @@ export class DomainValidationService {
       success: true,
       healedDomain
     };
+  }
+
+  /**
+   * The fields a domain may name. `allFields` is what the running Odoo has
+   * loaded (fields_get) and is authoritative when present; the categorized
+   * buckets are a fallback for older cache entries and test fixtures.
+   */
+  private static fieldSets(metadata: ModelMetadata) {
+    const validFields = new Set<string>(Object.keys(metadata.allFields || {}));
+    const allFieldDefinitions: Record<string, any> = { ...(metadata.allFields || {}) };
+    if (!metadata.allFields && metadata.categorized) {
+      for (const bucket of Object.values(metadata.categorized)) {
+        for (const [name, def] of Object.entries(bucket || {})) {
+          validFields.add(name);
+          allFieldDefinitions[name] = def;
+        }
+      }
+    }
+    for (const f of ['id', 'create_date', 'write_date', 'create_uid', 'write_uid']) validFields.add(f);
+    return { validFields, allFieldDefinitions };
   }
 
   /**
