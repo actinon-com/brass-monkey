@@ -106,7 +106,9 @@ export async function buildModelMetadata(client, model, instanceAlias = 'default
     });
     const buckets = { base: {}, extended: {}, computed: {}, related: {}, relational: {}, lines: {} };
     const baseFields = ['id'];
+    const allFields = {};
     for (const f of fRecords) {
+        allFields[f.name] = { type: f.ttype, relation: f.relation || undefined };
         // A. Exclude chatter and activity system fields (aligning with Python chatter category bypass)
         if (f.name.startsWith('message_') || f.name.startsWith('activity_')) {
             continue;
@@ -215,7 +217,8 @@ export async function buildModelMetadata(client, model, instanceAlias = 'default
         transient: m.transient,
         modules: m.modules || '',
         baseFields: deduplicatedFields,
-        categorized: buckets
+        categorized: buckets,
+        allFields
     };
 }
 //# sourceMappingURL=metadata-resolver.js.map

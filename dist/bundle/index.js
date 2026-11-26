@@ -29970,7 +29970,9 @@ async function buildModelMetadata(client, model, instanceAlias = 'default') {
     });
     const buckets = { base: {}, extended: {}, computed: {}, related: {}, relational: {}, lines: {} };
     const baseFields = ['id'];
+    const allFields = {};
     for (const f of fRecords) {
+        allFields[f.name] = { type: f.ttype, relation: f.relation || undefined };
         // A. Exclude chatter and activity system fields (aligning with Python chatter category bypass)
         if (f.name.startsWith('message_') || f.name.startsWith('activity_')) {
             continue;
@@ -30079,7 +30081,8 @@ async function buildModelMetadata(client, model, instanceAlias = 'default') {
         transient: m.transient,
         modules: m.modules || '',
         baseFields: deduplicatedFields,
-        categorized: buckets
+        categorized: buckets,
+        allFields
     };
 }
 
@@ -31025,7 +31028,8 @@ class DomainValidationService {
                             target_model: model,
                             action_directives: [
                                 "Odoo prefix operators ('&' and '|') require exactly two operands following them.",
-                                "If you have only one condition, do not include any operators. Just pass the single condition, e.g. [['is_company', '=', true]]."
+                                "'!' takes exactly one operand.",
+                                "Conditions listed without an operator are joined with AND, so [[A], [B]] needs no '&'. Only add '&' or '|' where you need them, each followed by its operands."
                             ],
                             explanation: grammarCheck.error || ''
                         }
@@ -31058,8 +31062,10 @@ class DomainValidationService {
                 };
             }
         }
-        // 4. Retrieve all valid fields from metadata
-        const validFields = new Set();
+        // 4. Retrieve all valid fields from metadata.
+        //    Prefer `allFields` (every field on the model). `categorized` omits the
+        //    chatter/activity fields, which are still valid in a domain.
+        const validFields = new Set(Object.keys(metadata.allFields || {}));
         if (metadata.categorized) {
             Object.keys(metadata.categorized.base || {}).forEach(f => validFields.add(f));
             Object.keys(metadata.categorized.extended || {}).forEach(f => validFields.add(f));
@@ -31075,6 +31081,7 @@ class DomainValidationService {
         validFields.add('write_uid');
         // Combine all fields to make checking easy
         const allFieldDefinitions = {
+            ...(metadata.allFields || {}),
             ...(metadata.categorized?.base || {}),
             ...(metadata.categorized?.extended || {}),
             ...(metadata.categorized?.computed || {}),
@@ -31084,7 +31091,18 @@ class DomainValidationService {
         };
         // 5. Run Triplet-level Validation & Hybrid Healing
         const healedDomain = [];
-        const validOperators = new Set(['=', '!=', 'like', 'ilike', '=like', '=ilike', 'in', 'not in', 'child_of', '<', '>', '<=', '>=']);
+        // Mirrors Odoo's operator sets (odoo/orm/domains.py STANDARD_CONDITION_OPERATORS
+        // plus the optimised aliases). Version-specific ones such as 'any' (17+) are
+        // left for Odoo itself to reject on older servers.
+        const validOperators = new Set([
+            '=', '!=', '<>', '==', '=?',
+            '<', '>', '<=', '>=',
+            'in', 'not in',
+            'like', 'not like', 'ilike', 'not ilike',
+            '=like', 'not =like', '=ilike', 'not =ilike',
+            'child_of', 'parent_of',
+            'any', 'not any',
+        ]);
         for (const element of domain) {
             // If it is an operator string ('&', '|') or list item of operators
             if (typeof element === 'string') {
@@ -31121,8 +31139,28 @@ class DomainValidationService {
                     };
                 }
                 const [field, operator, value] = element;
-                // Check if field is valid
-                if (typeof field === 'string' && !validFields.has(field)) {
+                // Check if field is valid. A dotted path ('partner_id.name') walks a
+                // relation: check the first segment here and leave the rest to Odoo.
+                const pathHead = typeof field === 'string' ? field.split('.')[0] : field;
+                const isPath = typeof field === 'string' && field.includes('.');
+                if (isPath && validFields.has(pathHead) && !allFieldDefinitions[pathHead]?.relation) {
+                    return {
+                        success: false,
+                        errorPayload: {
+                            isError: true,
+                            message: `Domain Validation Error: Field '${pathHead}' on model '${model}' is not relational, so the path '${field}' cannot follow it.`,
+                            diagnostic_hints: {
+                                invalid_field: field,
+                                target_model: model,
+                                action_directives: [
+                                    `Only many2one, one2many and many2many fields can be followed with '.'. Run 'inspect_model(model: "${model}")' to see which fields are relational.`
+                                ],
+                                explanation: `'${pathHead}' is a ${allFieldDefinitions[pathHead]?.type || 'non-relational'} field.`
+                            }
+                        }
+                    };
+                }
+                if (typeof field === 'string' && !validFields.has(pathHead)) {
                     // Perform simple substring fuzzy match
                     const suggestions = Array.from(validFields).filter(vf => field.toLowerCase().includes(vf.toLowerCase()) ||
                         vf.toLowerCase().includes(field.toLowerCase()));
@@ -31130,7 +31168,7 @@ class DomainValidationService {
                         success: false,
                         errorPayload: {
                             isError: true,
-                            message: `Domain Validation Error: Field '${field}' does not exist on model '${model}'.`,
+                            message: `Domain Validation Error: Field '${pathHead}' does not exist on model '${model}'.`,
                             diagnostic_hints: {
                                 invalid_field: field,
                                 target_model: model,
@@ -31155,7 +31193,7 @@ class DomainValidationService {
                                 invalid_operator: operator,
                                 target_model: model,
                                 action_directives: [
-                                    "Use only standard Odoo operators: '=', '!=', 'like', 'ilike', 'in', 'not in', '<', '>', '<=', '>=', 'child_of'."
+                                    "Use a standard Odoo operator: '=', '!=', '=?', '<', '>', '<=', '>=', 'in', 'not in', 'like', 'not like', 'ilike', 'not ilike', '=like', '=ilike', 'child_of', 'parent_of', 'any', 'not any'."
                                 ],
                                 explanation: `Odoo's query engine does not recognize the operator '${operator}'. To search for substrings, use 'ilike'.`
                             }
@@ -31186,11 +31224,18 @@ class DomainValidationService {
         };
     }
     /**
-     * Helper to perform arity/grammar checks on prefix domains.
+     * Arity/grammar check on prefix domains, following Odoo's normalize_domain
+     * (odoo/osv/expression.py): when a complete expression is followed by more
+     * terms, Odoo inserts an implicit '&'. So [A, B] is valid (= ['&', A, B]);
+     * only operators left without enough operands are an error.
      */
     static checkPrefixGrammar(domain) {
         let expected = 1;
         for (const item of domain) {
+            if (expected === 0) {
+                // More terms after a complete expression: implicit '&', as Odoo does.
+                expected = 1;
+            }
             if (typeof item === 'string') {
                 const op = item.toLowerCase();
                 if (op === '&' || op === '|' || op === 'and' || op === 'or') {
@@ -31208,9 +31253,6 @@ class DomainValidationService {
             }
             else {
                 return { valid: false, error: `Invalid item format inside domain array: ${JSON.stringify(item)}` };
-            }
-            if (expected < 0) {
-                return { valid: false, error: "Too many conditions found for the prefix operators supplied." };
             }
         }
         if (expected !== 0) {

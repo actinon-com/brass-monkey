@@ -109,8 +109,11 @@ export async function buildModelMetadata(client: any, model: string, instanceAli
 
   const buckets: Record<string, any> = { base: {}, extended: {}, computed: {}, related: {}, relational: {}, lines: {} };
   const baseFields: string[] = ['id'];
+  const allFields: Record<string, { type: string; relation?: string }> = {};
 
   for (const f of fRecords) {
+    allFields[f.name] = { type: f.ttype, relation: f.relation || undefined };
+
     // A. Exclude chatter and activity system fields (aligning with Python chatter category bypass)
     if (f.name.startsWith('message_') || f.name.startsWith('activity_')) {
       continue;
@@ -220,6 +223,7 @@ export async function buildModelMetadata(client: any, model: string, instanceAli
     transient: m.transient,
     modules: m.modules || '',
     baseFields: deduplicatedFields,
-    categorized: buckets as any
+    categorized: buckets as any,
+    allFields
   };
 }

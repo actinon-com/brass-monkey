@@ -20,7 +20,10 @@ export declare class DomainValidationService {
      */
     static validateAndHeal(client: any, model: string, domain: any[], instanceAlias?: string): Promise<ValidationResult>;
     /**
-     * Helper to perform arity/grammar checks on prefix domains.
+     * Arity/grammar check on prefix domains, following Odoo's normalize_domain
+     * (odoo/osv/expression.py): when a complete expression is followed by more
+     * terms, Odoo inserts an implicit '&'. So [A, B] is valid (= ['&', A, B]);
+     * only operators left without enough operands are an error.
      */
     private static checkPrefixGrammar;
 }

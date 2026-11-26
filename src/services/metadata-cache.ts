@@ -15,6 +15,12 @@ export interface ModelMetadata {
     relational: Record<string, any>;
     lines: Record<string, any>;
   };
+  /**
+   * Every field on the model, including the chatter/activity fields left out of
+   * `categorized`. Used by domain validation, which must accept any real field.
+   * Optional so older cache entries (and test fixtures) still type-check.
+   */
+  allFields?: Record<string, { type: string; relation?: string }>;
 }
 
 /**
