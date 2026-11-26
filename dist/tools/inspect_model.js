@@ -52,6 +52,12 @@ export async function inspectModel(manager, input) {
     // Compile buckets based on requested flags
     const buckets = metadata.categorized;
     res.fields = {};
+    if (metadata.tableOnlyFields && metadata.tableOnlyFields.length > 0) {
+        res.fields_not_loaded = {
+            fields: metadata.tableOnlyFields,
+            note: "Listed in Odoo's field table but not loaded by the running Odoo, so Odoo rejects them in reads and searches. The module defining them probably needs upgrading in Odoo (Apps → Upgrade). Tell the user; do not use these fields.",
+        };
+    }
     if (flags.show_base)
         res.fields.base = buckets.base;
     if (flags.show_extended)

@@ -140,7 +140,10 @@ export async function buildModelMetadata(client: any, model: string, instanceAli
     if (!loaded) {
       allFields[f.name] = { type: f.ttype, relation: f.relation || undefined, ...(companyDependent ? { companyDependent: true } : {}) };
     } else if (!(f.name in loaded)) {
+      // Odoo would reject a read or search naming this field, so keep it out of
+      // every list brass-monkey reads from; inspect_model reports it separately.
       tableOnlyFields.push(f.name);
+      continue;
     }
 
     // A. Exclude chatter and activity system fields (aligning with Python chatter category bypass)
@@ -185,16 +188,18 @@ export async function buildModelMetadata(client: any, model: string, instanceAli
   }
 
   // 3. Assemble High-Signal Default Search Fields (Breadth Layout)
+  //    Only from fields the running Odoo has loaded.
+  const usable = loaded ? fRecords.filter((f: any) => f.name in loaded!) : fRecords;
   // Essential baseline fields
-  const hasDisplayName = fRecords.some((f: any) => f.name === 'display_name');
-  const hasName = fRecords.some((f: any) => f.name === 'name');
+  const hasDisplayName = usable.some((f: any) => f.name === 'display_name');
+  const hasName = usable.some((f: any) => f.name === 'name');
   if (hasDisplayName) baseFields.push('display_name');
   if (hasName && !baseFields.includes('name')) baseFields.push('name');
 
   // Add state/lifecycle fields if they exist
   const stateFields = ['state', 'active', 'stage_id', 'status'];
   for (const sf of stateFields) {
-    if (fRecords.some((f: any) => f.name === sf)) {
+    if (usable.some((f: any) => f.name === sf)) {
       baseFields.push(sf);
     }
   }
@@ -202,14 +207,14 @@ export async function buildModelMetadata(client: any, model: string, instanceAli
   // Add freshness fields if they exist
   const freshnessFields = ['write_date', 'create_date'];
   for (const ff of freshnessFields) {
-    if (fRecords.some((f: any) => f.name === ff)) {
+    if (usable.some((f: any) => f.name === ff)) {
       baseFields.push(ff);
     }
   }
 
   // 4. Dynamically Identify the Hierarchical "Belonging Relation" parent (M2O)
   // Check for many2one fields that link this record to its parent namespace or compositional parent
-  const m2oFields = fRecords.filter((f: any) => f.ttype === 'many2one');
+  const m2oFields = usable.filter((f: any) => f.ttype === 'many2one');
   const namespacePrefix = model.split('.')[0]; // e.g. 'project' from 'project.task'
   
   let belongingRelation: string | null = null;

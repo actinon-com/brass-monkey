@@ -278,3 +278,35 @@ describe('domain check refresh (#100)', () => {
     expect(client.executeKw.mock.calls.length).toBe(after);
   });
 });
+
+describe('fields Odoo has not loaded stay off the read paths (#100, #69)', () => {
+  it('get_record with show_extended does not request them; inspect_model lists them apart', async () => {
+    const { getRecord } = await import('../src/tools/get_record.js');
+    const { inspectModel } = await import('../src/tools/inspect_model.js');
+    const reads: string[][] = [];
+    const client = {
+      executeKw: vi.fn(async (model: string, method: string, _args: any[], kwargs: any) => {
+        if (model === 'ir.model') return [{ id: 1, name: 'Move', modules: 'account,ferry_migration', transient: false }];
+        if (model === 'ir.model.data') return [{ module: 'account' }];
+        if (model === 'ir.model.fields' && method === 'fields_get') return {};
+        if (model === 'ir.model.fields') return [
+          { name: 'name', ttype: 'char', modules: 'account', store: true },
+          { name: 'x_ok', ttype: 'char', modules: 'ferry_migration', store: true },
+          { name: 'x_xero_id', ttype: 'char', modules: 'ferry_migration', store: true },
+        ];
+        if (method === 'fields_get') return { name: { type: 'char' }, x_ok: { type: 'char' } };
+        if (method === 'search_read') { reads.push(kwargs.fields); return [{ id: 3, name: 'INV/1', x_ok: 'a' }]; }
+        return [];
+      }),
+    };
+    const manager: any = { getClient: vi.fn().mockResolvedValue(client) };
+
+    await getRecord(manager, { model: 'account.move', res_id: 3, show_extended: true } as any);
+    expect(reads[0]).toContain('x_ok');
+    expect(reads[0]).not.toContain('x_xero_id');
+
+    const inspected: any = await inspectModel(manager, { model: 'account.move', show_extended: true } as any);
+    expect(inspected.fields_not_loaded.fields).toEqual(['x_xero_id']);
+    expect(inspected.fields.extended.x_xero_id).toBeUndefined();
+  });
+});

@@ -28954,7 +28954,10 @@ async function buildModelMetadata(client, model, instanceAlias = 'default') {
             allFields[f.name] = { type: f.ttype, relation: f.relation || undefined, ...(companyDependent ? { companyDependent: true } : {}) };
         }
         else if (!(f.name in loaded)) {
+            // Odoo would reject a read or search naming this field, so keep it out of
+            // every list brass-monkey reads from; inspect_model reports it separately.
             tableOnlyFields.push(f.name);
+            continue;
         }
         // A. Exclude chatter and activity system fields (aligning with Python chatter category bypass)
         if (f.name.startsWith('message_') || f.name.startsWith('activity_')) {
@@ -29003,9 +29006,11 @@ async function buildModelMetadata(client, model, instanceAlias = 'default') {
         }
     }
     // 3. Assemble High-Signal Default Search Fields (Breadth Layout)
+    //    Only from fields the running Odoo has loaded.
+    const usable = loaded ? fRecords.filter((f) => f.name in loaded) : fRecords;
     // Essential baseline fields
-    const hasDisplayName = fRecords.some((f) => f.name === 'display_name');
-    const hasName = fRecords.some((f) => f.name === 'name');
+    const hasDisplayName = usable.some((f) => f.name === 'display_name');
+    const hasName = usable.some((f) => f.name === 'name');
     if (hasDisplayName)
         baseFields.push('display_name');
     if (hasName && !baseFields.includes('name'))
@@ -29013,20 +29018,20 @@ async function buildModelMetadata(client, model, instanceAlias = 'default') {
     // Add state/lifecycle fields if they exist
     const stateFields = ['state', 'active', 'stage_id', 'status'];
     for (const sf of stateFields) {
-        if (fRecords.some((f) => f.name === sf)) {
+        if (usable.some((f) => f.name === sf)) {
             baseFields.push(sf);
         }
     }
     // Add freshness fields if they exist
     const freshnessFields = ['write_date', 'create_date'];
     for (const ff of freshnessFields) {
-        if (fRecords.some((f) => f.name === ff)) {
+        if (usable.some((f) => f.name === ff)) {
             baseFields.push(ff);
         }
     }
     // 4. Dynamically Identify the Hierarchical "Belonging Relation" parent (M2O)
     // Check for many2one fields that link this record to its parent namespace or compositional parent
-    const m2oFields = fRecords.filter((f) => f.ttype === 'many2one');
+    const m2oFields = usable.filter((f) => f.ttype === 'many2one');
     const namespacePrefix = model.split('.')[0]; // e.g. 'project' from 'project.task'
     let belongingRelation = null;
     // Step 1: Look for exact relation with parent namespace (e.g. project_id on project.task)
@@ -30631,6 +30636,12 @@ async function inspectModel(manager, input) {
     // Compile buckets based on requested flags
     const buckets = metadata.categorized;
     res.fields = {};
+    if (metadata.tableOnlyFields && metadata.tableOnlyFields.length > 0) {
+        res.fields_not_loaded = {
+            fields: metadata.tableOnlyFields,
+            note: "Listed in Odoo's field table but not loaded by the running Odoo, so Odoo rejects them in reads and searches. The module defining them probably needs upgrading in Odoo (Apps → Upgrade). Tell the user; do not use these fields.",
+        };
+    }
     if (flags.show_base)
         res.fields.base = buckets.base;
     if (flags.show_extended)
